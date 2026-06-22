@@ -860,7 +860,7 @@ function wordCardPronRow(w) {
     if (!parts.length) return '';
     const dot = '<span style="color:#ccc;font-size:0.7rem">·</span>';
     const sep = ' ' + dot + ' ';
-    return `<span style="display:inline-flex;align-items:center;gap:0.3rem;flex-wrap:wrap">${dot} ${parts.join(sep)}</span>`;
+    return `<span style="display:inline-flex;align-items:center;gap:0.3rem;flex-wrap:nowrap">${dot} ${parts.join(sep)}</span>`;
 }
 
 function wordCard(w) {
@@ -871,10 +871,6 @@ function wordCard(w) {
                 <span class="word-card-title">${esc(w.word)}</span>
                 ${wordCardPronRow(w)}
                 <span class="srs-badge ${srsBadgeClass(level)}" style="margin-left:auto">${srsLabel(level)}</span>
-                <button class="edit-btn btn btn-secondary btn-sm" data-id="${w.id}"
-                        style="width:26px;height:26px;padding:0;font-size:0.75rem;display:inline-flex;align-items:center;justify-content:center" title="Edit">✏️</button>
-                <button class="delete-btn btn btn-danger btn-sm" data-id="${w.id}" data-word="${esc(w.word)}"
-                        style="width:26px;height:26px;padding:0;font-size:0.75rem;display:inline-flex;align-items:center;justify-content:center" title="Delete">✕</button>
             </div>
             <div class="word-card-body">
                 ${wordCardBody(w)}
@@ -895,8 +891,9 @@ function wordCardBody(w) {
         : '';
 
     const extraLines  = lines.slice(1);
+    const extraItems  = extraLines.map(l => '<li>' + esc(l) + '</li>').join('');
     const extraDefs   = extraLines.length > 0
-        ? `<ol style="margin:0 0 0.25rem 1.1rem;padding:0;font-size:0.85rem;color:#555">${extraLines.map(l => `<li>${esc(l)}</li>`).join('')}</ol>`
+        ? `<ol style="margin:0 0 0.25rem 1.1rem;padding:0;font-size:0.85rem;color:#555">${extraItems}</ol>`
         : '';
     const exampleHtml = w.example_sentence
         ? `<p style="font-size:0.85rem;color:#666;font-style:italic;margin:0.15rem 0">"${esc(w.example_sentence)}"</p>`
@@ -920,7 +917,15 @@ function wordCardBody(w) {
           + '<div id="extra-' + wid + '" style="display:none;margin-top:0.25rem;border-top:1px solid #f0f0f0;padding-top:0.35rem">' + extraContent + '</div>'
         : '';
 
-    return ipaBodyHtml(w) + formsHtml(w.word_forms) + chiHtml + primaryDef + moreSection;
+    const actionsHtml = `
+        <div style="display:flex;justify-content:flex-end;gap:0.4rem;margin-top:0.6rem;padding-top:0.4rem;border-top:1px solid #f0f0f0">
+            <button class="edit-btn btn btn-secondary btn-sm" data-id="${esc(w.id)}"
+                    style="font-size:0.78rem;padding:3px 10px" title="Edit">✏️ Edit</button>
+            <button class="delete-btn btn btn-danger btn-sm" data-id="${esc(w.id)}" data-word="${esc(w.word)}"
+                    style="font-size:0.78rem;padding:3px 10px" title="Delete">Delete</button>
+        </div>`;
+
+    return ipaBodyHtml(w) + formsHtml(w.word_forms) + chiHtml + primaryDef + moreSection + actionsHtml;
 }
 
 // ── API extraction helpers ────────────────────────────────────────────────────

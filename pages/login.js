@@ -60,7 +60,6 @@ function ensureStyles() {
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background: linear-gradient(135deg, #1a73e8 0%, #6c3ec5 100%);
             padding: 1.5rem;
         }
         .login-card {

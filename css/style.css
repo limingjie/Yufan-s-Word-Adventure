@@ -46,6 +46,12 @@ body {
     line-height: 1.5;
 }
 
+body.login-page {
+    background: linear-gradient(135deg, #1a73e8 0%, #6c3ec5 100%);
+    overflow: hidden;
+    height: 100vh;
+}
+
 a {
     color: var(--primary-color);
     text-decoration: none;
@@ -746,6 +752,7 @@ label {
     border: none;
     white-space: nowrap;
     line-height: 1.6;
+    min-height: unset;
 }
 
 .pron-chip-us {

@@ -75,6 +75,7 @@ async function renderPage(route) {
     if (redirect) { go(redirect); return; }
 
     currentRoute = route;
+    document.body.classList.toggle('login-page', route === '/login');
 
     try {
         if (route === '/login') {
