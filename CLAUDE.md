@@ -14,8 +14,8 @@ Designed to be fully usable on smartphones — responsive layout required throug
 | Frontend | Vanilla JS, ES modules, no framework, no bundler |
 | Styling | Plain CSS with CSS variables |
 | Auth + DB | Supabase (JS client via CDN) |
-| Backend | Supabase Edge Functions (Deno) |
-| English definitions | Free Dictionary API — `https://api.freedictionaryapi.com/api/v2/entries/en/{word}` |
+| Backend | None — both APIs are called directly from the browser (CORS-safe) |
+| English definitions | Free Dictionary API v1 — `https://freedictionaryapi.com/api/v1/entries/en/{word}?translations=true` |
 | Chinese translation | MyMemory API — `https://api.mymemory.translated.net/get?q={text}&langpair=en|zh-CN` |
 | Deployment | Netlify (static) |
 
@@ -41,33 +41,32 @@ Load Supabase from CDN:
 ├── js/
 │   ├── app.js           — hash router, auth guard, bootstraps pages
 │   ├── auth.js          — login, logout, session check, role redirect
+│   ├── db.js            — all Supabase queries (single file)
 │   ├── supabase.js      — createClient, exports `supabase`
 │   ├── config.js        — SUPABASE_URL and SUPABASE_ANON_KEY (gitignored)
 │   │
-│   ├── lib/
-│   │   ├── srs.js           — spaced repetition interval logic
-│   │   ├── xp.js            — XP calculation and level labels
-│   │   ├── achievements.js  — achievement check logic
-│   │   └── garden.js        — Word Garden SVG rendering
-│   │
-│   └── pages/
-│       ├── login.js
-│       ├── learner-home.js
-│       ├── add-word.js
-│       ├── word-list.js
-│       ├── review.js
-│       ├── quiz.js
-│       ├── garden.js
-│       ├── achievements.js
-│       ├── leaderboard.js       — XP / mastered / streaks leaderboards
-│       ├── compare.js           — head-to-head comparison
-│       ├── settings.js          — learner privacy settings
-│       └── parent-dashboard.js
+│   └── lib/
+│       ├── srs.js           — spaced repetition interval logic
+│       ├── xp.js            — XP calculation and level labels
+│       ├── achievements.js  — achievement check logic
+│       └── garden.js        — Word Garden SVG rendering
 │
-└── supabase/
-    └── functions/
-        └── lookup-word/
-            └── index.ts    — Deno Edge Function
+├── pages/
+│   ├── login.js
+│   ├── learner-home.js      — dashboard + embedded month calendar
+│   ├── word-list.js         — word list + add/edit drawer + trash section
+│   ├── review.js
+│   ├── quiz.js
+│   ├── garden.js
+│   ├── achievements.js
+│   ├── leaderboard.js       — XP / mastered / streaks / words leaderboards
+│   ├── compare.js           — head-to-head comparison
+│   ├── settings.js          — learner privacy settings
+│   ├── parent-dashboard.js
+│   └── parent-words.js      — read-only word list for parent
+│
+└── sql/
+    └── MIGRATION_ADD_DELETED_AT.sql  — soft-delete column + index
 ```
 
 ---
@@ -79,18 +78,21 @@ Hash-based. `app.js` listens to `hashchange` and `DOMContentLoaded`.
 | Hash | Page | Role |
 |---|---|---|
 | `#/login` | Login | Public |
-| `#/learner/home` | Dashboard | Learner |
-| `#/learner/add-word` | Add Word | Learner |
-| `#/learner/words` | Word List | Learner |
+| `#/learner/home` | Dashboard + Calendar | Learner |
+| `#/learner/words` | Word List + Add/Edit Drawer | Learner |
 | `#/learner/review` | Review Session | Learner |
 | `#/learner/quiz` | Quiz Session | Learner |
 | `#/learner/garden` | Word Garden | Learner |
 | `#/learner/achievements` | Medals & Badges | Learner |
-| `#/learner/leaderboard` | Leaderboard (XP / Mastered / Streaks) | Learner |
+| `#/learner/leaderboard` | Leaderboard (XP / Mastered / Streaks / Words) | Learner |
 | `#/learner/compare/:id` | Head-to-Head Comparison | Learner |
 | `#/learner/settings` | Privacy Settings | Learner |
 | `#/parent/dashboard` | Stats & Charts | Parent |
 | `#/parent/words` | Learner Word List (read-only) | Parent |
+
+`#/learner/add-word` redirects to `#/learner/words` (alias kept for backwards compat).
+
+**Calendar is embedded in `#/learner/home`** — no separate route. Clicking a day with activity sets `sessionStorage.wordDateFilter` and navigates to `#/learner/words`, which reads and applies the filter on load.
 
 Auth guard: after login, check `profiles.role`. Redirect learner to `#/learner/home`, parent to `#/parent/dashboard`. Block cross-role access.
 
@@ -138,9 +140,12 @@ chinese_definition  text
 example_sentence    text
 category            text  DEFAULT 'general'
 is_favorite         boolean DEFAULT false
+deleted_at          timestamptz DEFAULT NULL  -- NULL = active; non-NULL = soft-deleted (trash)
 created_at          timestamptz DEFAULT now()
 updated_at          timestamptz DEFAULT now()
 ```
+
+Soft delete: `db.deleteWord()` sets `deleted_at = now()`. `db.restoreWord()` clears it. `db.permanentlyDeleteWord()` hard-deletes. All list queries filter `WHERE deleted_at IS NULL`. Migration: `sql/MIGRATION_ADD_DELETED_AT.sql`.
 
 ### `review_schedule`
 ```sql
@@ -212,42 +217,40 @@ updated_at       timestamptz DEFAULT now()
 
 ---
 
-## Word Lookup — Edge Function
+## Word Lookup — called directly from browser
 
-`POST /lookup-word` — called from browser, never call external APIs directly from browser.
+Both APIs support CORS, so `word-list.js` (the add-word drawer) calls them directly — no Edge Function needed.
 
-### Step 1: English definition + IPA
-```
-GET https://api.freedictionaryapi.com/api/v2/entries/en/{word}
-```
-Extract:
-- `[0].meanings[0].partOfSpeech`
-- `[0].meanings[0].definitions[0].definition`
-- `[0].meanings[0].definitions[0].example`
-- IPA: `[0].phonetics.find(p => p.text)?.text` (first phonetic entry with a text field)
+### Spelling check
 
-### Step 2: Chinese translation
-Translate the English **definition** (not the word itself) for better results:
+Before showing the save form, the user must click "Look Up". If the API returns 404, the status shows "Not found — check spelling or fill in manually" and `lookupResult` is set to `'not_found'`. On save, the user sees a confirm dialog before proceeding. If the user edits the word input after a lookup, the details panel resets and a fresh lookup is required.
+
+### Step 1: IPA + English definition + built-in Chinese (v1 API)
+
 ```
-GET https://api.mymemory.translated.net/get?q={english_definition}&langpair=en|zh-CN
+GET https://freedictionaryapi.com/api/v1/entries/en/{word}?translations=true
+```
+
+Response shape (Wiktionary-sourced):
+
+- IPA: `entries[0].pronunciations.find(p => p.type === "ipa")?.text`
+- Part of speech: `entries[0].partOfSpeech`
+- Definition: `entries[0].senses[0].definition`
+- Example: `entries[0].senses[0].examples[0]`
+- Chinese: `entries[0].senses[0].translations.find(t => t.language.code.startsWith("zh"))?.word`
+  - Format is `Traditional /Simplified` — extract the part after `/`
+  - Only present for some words (Wiktionary coverage)
+
+### Step 2: Chinese fallback — MyMemory (when v1 has no Chinese)
+```
+GET https://api.mymemory.translated.net/get?q={word}&langpair=en|zh-CN
 ```
 Extract: `responseData.translatedText`
 
-### Response shape
-```json
-{
-  "word": "curious",
-  "ipa": "/ˈkjʊəriəs/",
-  "part_of_speech": "adjective",
-  "english_definition": "eager to know or learn something",
-  "chinese_definition": "渴望了解或学习某事",
-  "example_sentence": "The curious boy opened the box."
-}
-```
-
 ### Error handling
-- Dictionary API 404 → return `{ "error": "not_found" }`, browser shows manual entry form
-- MyMemory failure → return result without `chinese_definition`, user fills it in manually
+
+- Dictionary API 404 → show "not found" message, user fills in manually
+- MyMemory failure → non-fatal, user fills in Chinese manually
 - Always allow manual editing of all fields before saving
 
 ---
@@ -283,13 +286,20 @@ Correct answer:   +3 XP
 
 Compute XP dynamically from DB. Do not store a running total.
 
-| Level | Name | XP |
-|---|---|---|
-| 1 | Explorer | 0–49 |
-| 2 | Adventurer | 50–149 |
-| 3 | Scholar | 150–349 |
-| 4 | Word Master | 350–699 |
-| 5 | Vocabulary Wizard | 700+ |
+Levels are tied to ESL fluency milestones (~10 XP per word interaction, ~25 XP per mastered word).
+
+| Level | Name | Min XP | ESL milestone |
+| --- | --- | --- | --- |
+| 1 | Seedling | 0 | Just starting |
+| 2 | Explorer | 50 | ~50 words |
+| 3 | Adventurer | 200 | ~150 words |
+| 4 | Word Collector | 500 | ~300 words |
+| 5 | Scholar | 1,200 | A1 — survival vocabulary (~500 words) |
+| 6 | Linguist | 3,000 | A2 — everyday topics (~1,000 words) |
+| 7 | Word Builder | 6,000 | B1 — general fluency (~2,000 words) |
+| 8 | Word Master | 15,000 | B2 — academic/professional (~3,500 words) |
+| 9 | Vocabulary Wizard | 30,000 | C1 — advanced (~6,000 words) |
+| 10 | Word Champion | 80,000 | C2 — near-native (~10,000+ words) |
 
 ---
 
@@ -390,15 +400,14 @@ Build in this sequence. The app should be usable at every step.
 1. `index.html` + `style.css` + `app.js` hash router skeleton
 2. `supabase.js` + `config.js` + Supabase project setup (tables, RLS, users)
 3. `auth.js` + `login.js` — auth flow, role-based redirect
-4. `add-word.js` — manual entry first, then wire up Edge Function
-5. `word-list.js` — display saved words, search
-6. `review.js` — SRS session, update `review_schedule` on completion
-7. `quiz.js` — meaning quiz first, spelling quiz second
-8. `learner-home.js` — XP, streak, due review count
-9. `achievements.js` — check and display badges
-10. `garden.js` — SVG Word Garden
-11. `parent-dashboard.js` — Chart.js charts, CSV export
-12. Listening quiz — `SpeechSynthesis`, no API needed
-13. `leaderboard.js` + `compare.js` + `settings.js` — competition features (Phase 7.5)
+4. `word-list.js` — word list + add/edit drawer (replaces separate add-word page)
+5. `review.js` — SRS session, update `review_schedule` on completion
+6. `quiz.js` — meaning quiz first, spelling quiz second
+7. `learner-home.js` — XP, streak, due review count, embedded month calendar
+8. `achievements.js` — check and display badges
+9. `garden.js` — SVG Word Garden
+10. `parent-dashboard.js` — Chart.js charts, CSV export
+11. Listening quiz — `SpeechSynthesis`, no API needed
+12. `leaderboard.js` + `compare.js` + `settings.js` — competition features (Phase 7.5)
     - Requires `leaderboard_snapshots` and `learner_stats_cache` tables in Supabase
     - Update `profiles` RLS to expose public learner stats

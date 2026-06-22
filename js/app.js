@@ -1,248 +1,178 @@
-/**
- * Main Application Module
- * Initializes the app, sets up routing, and manages navigation
- */
-
-import { verifyConnection } from "./supabase.js";
-import { getCurrentUser, getCurrentProfile, isAuthenticated, getUserRole, onAuthStateChanged, logout } from "./auth.js";
-
-// Import page modules
-import { renderLoginPage } from "../pages/login.js";
-import { renderHomePage } from "../pages/home.js";
-import { renderAddWordPage } from "../pages/add-word.js";
-import { renderReviewPage } from "../pages/review.js";
-import { renderLeaderboardPage } from "../pages/leaderboard.js";
-import { renderSettingsPage } from "../pages/settings.js";
-
-// ============================================================================
-// Global State
-// ============================================================================
+import { getCurrentProfile, isAuthenticated, getUserRole, onAuthStateChanged, logout } from './auth.js';
 
 let currentRoute = null;
-let isInitialized = false;
 
-// ============================================================================
-// Initialization
-// ============================================================================
+const LEARNER_ROUTES = new Set([
+    '/learner/home', '/learner/add-word', '/learner/words',
+    '/learner/review', '/learner/quiz', '/learner/garden',
+    '/learner/achievements', '/learner/leaderboard', '/learner/settings',
+]);
 
-/**
- * Initialize the application
- */
-async function initializeApp() {
-    console.log("🚀 Initializing Word Adventure...");
+const PARENT_ROUTES = new Set(['/parent/dashboard', '/parent/words']);
 
-    // Check Supabase connection
-    const connected = await verifyConnection();
-    if (!connected) {
-        showError("Cannot connect to Supabase. Please check your configuration.");
-        return;
-    }
-
-    // Set up auth state listener
-    onAuthStateChanged((event, session) => {
-        console.log("Auth state changed:", event);
-        if (session) {
-            navigateTo(getCurrentRouteFromHash());
-        } else {
-            navigateTo("/login");
-        }
-    });
-
-    // Check current auth status
-    const isAuth = await isAuthenticated();
-    if (isAuth) {
-        navigateTo(getCurrentRouteFromHash() || "/home");
-    } else {
-        navigateTo("/login");
-    }
-
-    // Set up hash change listener for routing
-    window.addEventListener("hashchange", () => {
-        const route = getCurrentRouteFromHash();
-        navigateTo(route);
-    });
-
-    isInitialized = true;
-    console.log("✅ App initialized");
-}
-
-// ============================================================================
-// Routing
-// ============================================================================
-
-/**
- * Get current route from URL hash
- */
-function getCurrentRouteFromHash() {
-    const hash = window.location.hash.slice(1) || "";
-    return "/" + hash;
-}
-
-/**
- * Navigate to a route
- */
-export async function navigateTo(route) {
-    console.log("📍 Navigating to:", route);
-
-    // Check authentication for protected routes
-    const isAuth = await isAuthenticated();
-    const isProtectedRoute = !["/login", "/"].includes(route);
-
-    if (isProtectedRoute && !isAuth) {
-        window.location.hash = "#login";
-        return;
-    }
-
-    // Render the appropriate page
-    const contentEl = document.getElementById("content");
-    const navbarEl = document.getElementById("navbar");
-
-    try {
-        if (route === "/login" || route === "/") {
-            // Don't show navbar on login
-            navbarEl.innerHTML = "";
-            await renderLoginPage();
-        } else if (route === "/home") {
-            await renderNavbar();
-            await renderHomePage();
-        } else if (route === "/add-word") {
-            await renderNavbar();
-            await renderAddWordPage();
-        } else if (route === "/review") {
-            await renderNavbar();
-            await renderReviewPage();
-        } else if (route === "/leaderboard") {
-            await renderNavbar();
-            await renderLeaderboardPage();
-        } else if (route === "/settings") {
-            await renderNavbar();
-            await renderSettingsPage();
-        } else {
-            // Default to home
-            window.location.hash = "#home";
-        }
-
-        currentRoute = route;
-    } catch (err) {
-        console.error("Error rendering page:", err);
-        showError(`Error loading page: ${err.message}`);
-    }
-}
-
-/**
- * Render navigation bar
- */
-async function renderNavbar() {
-    const profile = await getCurrentProfile();
-    const navbarEl = document.getElementById("navbar");
-
-    if (!profile) {
-        navbarEl.innerHTML = "";
-        return;
-    }
-
-    navbarEl.innerHTML = `
-    <div class="navbar-container">
-      <div class="navbar-brand">
-        <h1><a href="#home">🌍 Word Adventure</a></h1>
-      </div>
-
-      <div class="navbar-stats">
-        <div class="stat">
-          <span class="label">Level</span>
-          <span class="value" id="level-display">1</span>
-        </div>
-        <div class="stat">
-          <span class="label">XP</span>
-          <span class="value" id="xp-display">0</span>
-        </div>
-        <div class="stat">
-          <span class="label">Streak</span>
-          <span class="value" id="streak-display">0</span>
-        </div>
-      </div>
-
-      <nav class="navbar-menu">
-        <a href="#home" class="nav-link ${currentRoute === "/home" ? "active" : ""}">Home</a>
-        <a href="#add-word" class="nav-link ${currentRoute === "/add-word" ? "active" : ""}">Add Word</a>
-        <a href="#review" class="nav-link ${currentRoute === "/review" ? "active" : ""}">Review</a>
-        <a href="#leaderboard" class="nav-link ${currentRoute === "/leaderboard" ? "active" : ""}">Leaderboard</a>
-        <a href="#settings" class="nav-link ${currentRoute === "/settings" ? "active" : ""}">Settings</a>
-      </nav>
-
-      <div class="navbar-user">
-        <span class="username">${profile.display_name}</span>
-        <button class="logout-btn" onclick="window.app.handleLogout()">Logout</button>
-      </div>
-    </div>
-  `;
-}
-
-// ============================================================================
-// Utilities
-// ============================================================================
-
-/**
- * Show loading indicator
- */
-export function showLoading(show = true) {
-    const loader = document.getElementById("loading");
-    loader.style.display = show ? "flex" : "none";
-}
-
-/**
- * Show error message
- */
-export function showError(message) {
-    console.error("❌ Error:", message);
-    const contentEl = document.getElementById("content");
-    contentEl.innerHTML = `
-    <div class="error-message">
-      <h2>⚠️ Error</h2>
-      <p>${message}</p>
-      <button onclick="window.location.hash = '#home'">Go Home</button>
-    </div>
-  `;
-}
-
-/**
- * Show success message
- */
-export function showSuccess(message) {
-    console.log("✅ Success:", message);
-    // Could be enhanced with a toast notification
-    alert(message);
-}
-
-// ============================================================================
-// Event Handlers
-// ============================================================================
-
-/**
- * Handle logout
- */
-async function handleLogout() {
-    if (confirm("Are you sure you want to logout?")) {
-        await logout();
-        window.location.hash = "#login";
-    }
-}
-
-// ============================================================================
-// Expose to global scope for HTML event handlers
-// ============================================================================
-
-window.app = {
-    navigateTo,
-    showLoading,
-    showError,
-    showSuccess,
-    handleLogout,
+// Thunks so bundler-free dynamic import with static strings works in all browsers
+const ROUTES = {
+    '/login':                () => import('../pages/login.js'),
+    '/learner/home':         () => import('../pages/learner-home.js'),
+    '/learner/add-word':     () => import('../pages/word-list.js'),
+    '/learner/words':        () => import('../pages/word-list.js'),
+    '/learner/review':       () => import('../pages/review.js'),
+    '/learner/quiz':         () => import('../pages/quiz.js'),
+    '/learner/garden':       () => import('../pages/garden.js'),
+    '/learner/achievements': () => import('../pages/achievements.js'),
+    '/learner/leaderboard':  () => import('../pages/leaderboard.js'),
+    '/learner/settings':     () => import('../pages/settings.js'),
+    '/parent/dashboard':     () => import('../pages/parent-dashboard.js'),
+    '/parent/words':         () => import('../pages/parent-words.js'),
 };
 
 // ============================================================================
-// Start App
+// Routing helpers
 // ============================================================================
 
-// Initialize when DOM is ready
-document.addEventListener("DOMContentLoaded", initializeApp);
+function routeFromHash() {
+    const h = globalThis.location.hash;
+    return h && h !== '#' ? h.slice(1) : null;
+}
+
+function go(path) {
+    globalThis.location.hash = '#' + path;
+}
+
+async function defaultRoute() {
+    const role = await getUserRole();
+    return role === 'parent' ? '/parent/dashboard' : '/learner/home';
+}
+
+// Returns a redirect path if the route is forbidden, null if allowed
+async function authGuard(route) {
+    const authenticated = await isAuthenticated();
+
+    if (route === '/login') {
+        return authenticated ? await defaultRoute() : null;
+    }
+
+    if (!authenticated) return '/login';
+
+    const role = await getUserRole();
+    if (LEARNER_ROUTES.has(route) && role !== 'learner') return await defaultRoute();
+    if (PARENT_ROUTES.has(route) && role !== 'parent')   return await defaultRoute();
+
+    return null;
+}
+
+// ============================================================================
+// Page renderer
+// ============================================================================
+
+async function renderPage(route) {
+    const content = document.getElementById('content');
+    const navbar  = document.getElementById('navbar');
+
+    if (!route) route = await defaultRoute();
+
+    const redirect = await authGuard(route);
+    if (redirect) { go(redirect); return; }
+
+    currentRoute = route;
+
+    try {
+        if (route === '/login') {
+            navbar.innerHTML = '';
+        } else {
+            renderNavbar(await getCurrentProfile());
+        }
+
+        // Dynamic segment: /learner/compare/:id
+        if (route.startsWith('/learner/compare/')) {
+            const otherId = route.split('/')[3];
+            const { render } = await import('../pages/compare.js');
+            await render(content, otherId);
+            return;
+        }
+
+        const loader = ROUTES[route];
+        if (loader) {
+            const { render } = await loader();
+            await render(content);
+        } else {
+            go(await defaultRoute());
+        }
+    } catch (err) {
+        console.error('Page error:', err);
+        content.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">⚠️</div>
+                <h3>Something went wrong</h3>
+                <p>${err.message}</p>
+                <a href="#/learner/home" class="btn btn-primary" style="margin-top:1rem">Go Home</a>
+            </div>`;
+    }
+}
+
+// ============================================================================
+// Navbar
+// ============================================================================
+
+function renderNavbar(profile) {
+    const navbar = document.getElementById('navbar');
+    if (!profile) return;
+
+    const links = profile.role === 'parent'
+        ? [{ href: '/parent/dashboard', label: 'Dashboard' }, { href: '/parent/words', label: 'Word Lists' }]
+        : [
+            { href: '/learner/home',        label: 'Home' },
+            { href: '/learner/words',       label: 'My Words' },
+            { href: '/learner/review',      label: 'Review' },
+            { href: '/learner/garden',      label: 'Garden' },
+            { href: '/learner/leaderboard', label: 'Leaderboard' },
+          ];
+
+    const navLinks = links.map(l =>
+        `<a href="#${l.href}" class="nav-link${currentRoute === l.href ? ' active' : ''}">${l.label}</a>`
+    ).join('');
+
+    const initial = (profile.display_name || '?')[0].toUpperCase();
+    const color   = profile.avatar_color || '#007BFF';
+    const home    = profile.role === 'parent' ? '/parent/dashboard' : '/learner/home';
+
+    navbar.innerHTML = `
+        <div class="navbar-container">
+            <div class="navbar-brand">
+                <a href="#${home}">Word Adventure</a>
+            </div>
+            <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">☰</button>
+            <nav class="navbar-menu" id="navMenu">${navLinks}</nav>
+            <div class="navbar-user">
+                <div class="avatar" style="background:${color};width:32px;height:32px;font-size:0.85rem">${initial}</div>
+                <span class="username">${profile.display_name}</span>
+                <button class="logout-btn" id="logoutBtn">Logout</button>
+            </div>
+        </div>`;
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await logout();
+        go('/login');
+    });
+
+    document.getElementById('navToggle').addEventListener('click', () => {
+        document.getElementById('navMenu').classList.toggle('open');
+    });
+}
+
+// ============================================================================
+// Boot
+// ============================================================================
+
+document.addEventListener('DOMContentLoaded', async () => {
+    onAuthStateChanged((event) => {
+        if (event === 'SIGNED_OUT') go('/login');
+    });
+
+    await renderPage(routeFromHash());
+
+    globalThis.addEventListener('hashchange', () => {
+        document.getElementById('navMenu')?.classList.remove('open');
+        renderPage(routeFromHash());
+    });
+});

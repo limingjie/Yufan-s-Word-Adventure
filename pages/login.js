@@ -1,178 +1,93 @@
-/**
- * Login Page
- * User authentication interface
- */
+import { login, getUserRole } from '../js/auth.js';
 
-import { login, isAuthenticated } from "../js/auth.js";
-import { showLoading, showError } from "../js/app.js";
+export async function render(container) {
+    container.innerHTML = `
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-header">
+                    <h1>Word Adventure</h1>
+                    <p>Your personal vocabulary journey</p>
+                </div>
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" placeholder="your@email.com" required autocomplete="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" placeholder="Password" required autocomplete="current-password">
+                    </div>
+                    <div id="loginError" class="form-error" style="display:none;margin-bottom:1rem"></div>
+                    <button type="submit" id="submitBtn" class="btn btn-primary btn-block">Sign In</button>
+                </form>
+            </div>
+        </div>`;
 
-export async function renderLoginPage() {
-    const contentEl = document.getElementById("content");
+    ensureStyles();
 
-    contentEl.innerHTML = `
-    <div class="login-container">
-      <div class="login-card">
-        <div class="login-header">
-          <h1>🌍 Word Adventure</h1>
-          <p>Learn vocabulary through interactive games</p>
-        </div>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email    = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+        const errEl    = document.getElementById('loginError');
+        const btn      = document.getElementById('submitBtn');
 
-        <form id="loginForm" class="login-form">
-          <div class="form-group">
-            <label for="email">Email</label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              placeholder="learner1@example.com"
-              required
-            >
-          </div>
+        errEl.style.display = 'none';
+        btn.textContent = 'Signing in…';
+        btn.disabled = true;
 
-          <div class="form-group">
-            <label for="password">Password</label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              placeholder="Enter your password"
-              required
-            >
-          </div>
-
-          <div id="errorMessage" class="form-error" style="display: none;"></div>
-
-          <button type="submit" class="btn btn-primary btn-block">
-            Sign In
-          </button>
-        </form>
-
-        <div class="login-footer">
-          <p>Demo credentials:</p>
-          <ul>
-            <li><code>learner1@example.com</code></li>
-            <li><code>learner2@example.com</code></li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  `;
-
-    // Add styles for login page
-    addLoginStyles();
-
-    // Attach event handlers
-    const form = document.getElementById("loginForm");
-    form.addEventListener("submit", handleLoginSubmit);
-}
-
-/**
- * Handle login form submission
- */
-async function handleLoginSubmit(e) {
-    e.preventDefault();
-
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
-    const errorEl = document.getElementById("errorMessage");
-
-    showLoading(true);
-
-    try {
         const result = await login(email, password);
 
         if (result.success) {
-            // Redirect to home
-            setTimeout(() => {
-                window.location.hash = "#home";
-            }, 500);
+            const role = await getUserRole();
+            globalThis.location.hash = role === 'parent' ? '#/parent/dashboard' : '#/learner/home';
         } else {
-            errorEl.textContent = result.error || "Login failed";
-            errorEl.style.display = "block";
+            errEl.textContent = 'Incorrect email or password. Please try again.';
+            errEl.style.display = 'block';
+            btn.textContent = 'Sign In';
+            btn.disabled = false;
         }
-    } catch (err) {
-        errorEl.textContent = err.message || "An error occurred";
-        errorEl.style.display = "block";
-    } finally {
-        showLoading(false);
-    }
+    });
 }
 
-/**
- * Add login-specific styles
- */
-function addLoginStyles() {
-    const style = document.createElement("style");
-    style.textContent = `
-    .login-container {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      padding: var(--spacing-lg);
-    }
-
-    .login-card {
-      background-color: white;
-      border-radius: var(--border-radius-lg);
-      box-shadow: var(--shadow-lg);
-      padding: var(--spacing-xl);
-      max-width: 400px;
-      width: 100%;
-    }
-
-    .login-header {
-      text-align: center;
-      margin-bottom: var(--spacing-xl);
-    }
-
-    .login-header h1 {
-      font-size: var(--font-size-2xl);
-      margin-bottom: var(--spacing-sm);
-      color: var(--dark-color);
-    }
-
-    .login-header p {
-      color: var(--secondary-color);
-      margin: 0;
-    }
-
-    .login-form {
-      margin-bottom: var(--spacing-lg);
-    }
-
-    .login-footer {
-      background-color: var(--light-color);
-      padding: var(--spacing-lg);
-      border-radius: var(--border-radius);
-      font-size: var(--font-size-sm);
-    }
-
-    .login-footer p {
-      margin: 0 0 var(--spacing-sm) 0;
-      font-weight: 500;
-      color: var(--dark-color);
-    }
-
-    .login-footer ul {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-
-    .login-footer li {
-      padding: var(--spacing-xs) 0;
-      color: var(--secondary-color);
-    }
-
-    .login-footer code {
-      background-color: white;
-      padding: 2px 6px;
-      border-radius: 3px;
-      font-family: monospace;
-      color: var(--primary-color);
-    }
-  `;
-    document.head.appendChild(style);
+function ensureStyles() {
+    if (document.getElementById('login-styles')) return;
+    const s = document.createElement('style');
+    s.id = 'login-styles';
+    s.textContent = `
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a73e8 0%, #6c3ec5 100%);
+            padding: 1.5rem;
+        }
+        .login-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            padding: 2.5rem 2rem;
+            width: 100%;
+            max-width: 380px;
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .login-header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: 0.5rem;
+        }
+        .login-header p {
+            color: #666;
+            margin: 0;
+        }
+        #loginForm .form-group {
+            margin-bottom: 1.25rem;
+        }
+    `;
+    document.head.appendChild(s);
 }

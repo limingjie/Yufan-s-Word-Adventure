@@ -4,7 +4,9 @@
  */
 
 import { supabase } from "./supabase.js";
-import { getCurrentUser, getCurrentProfile } from "./auth.js";
+import { getCurrentUser } from "./auth.js";
+import { nextLevel, nextReviewDate, intervalDays } from "./lib/srs.js";
+import { computeXP } from "./lib/xp.js";
 
 // ============================================================================
 // WORDS
@@ -22,16 +24,33 @@ export async function addWord(wordData) {
         .insert({
             user_id: user.id,
             word: wordData.word,
+            ipa: wordData.ipa || null,
             part_of_speech: wordData.partOfSpeech || null,
-            english_definition: wordData.englishDef || null,
-            chinese_definition: wordData.chineseDef || null,
+            english_definition: wordData.englishDefinition || null,
+            chinese_definition: wordData.chineseDefinition || null,
             example_sentence: wordData.exampleSentence || null,
             category: wordData.category || "general",
+            audio_url_uk: wordData.audioUrlUK || null,
+            audio_url_us: wordData.audioUrlUS || null,
+            word_forms: wordData.wordForms || null,
+            synonyms:   wordData.synonyms  || null,
+            antonyms:   wordData.antonyms  || null,
+            quotes:     wordData.quotes    || null,
         })
         .select()
         .single();
 
     if (error) throw error;
+
+    // Auto-create review schedule entry so the word is due immediately
+    await supabase.from("review_schedule").insert({
+        word_id: data.id,
+        user_id: user.id,
+        next_review_date: new Date().toISOString().split("T")[0],
+        review_level: 0,
+        interval_days: 1,
+    });
+
     return data;
 }
 
@@ -42,7 +61,7 @@ export async function getWords(options = {}) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Not authenticated");
 
-    let query = supabase.from("words").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+    let query = supabase.from("words").select("*").eq("user_id", user.id).is("deleted_at", null).order("created_at", { ascending: false });
 
     if (options.limit) {
         query = query.limit(options.limit);
@@ -51,6 +70,24 @@ export async function getWords(options = {}) {
     const { data, error } = await query;
     if (error) throw error;
     return data;
+}
+
+/**
+ * Get all words with their current SRS review_level merged in
+ */
+export async function getWordsWithSRS() {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const [wordsResult, scheduleResult] = await Promise.all([
+        supabase.from("words").select("*").eq("user_id", user.id).is("deleted_at", null).order("created_at", { ascending: false }),
+        supabase.from("review_schedule").select("word_id,review_level").eq("user_id", user.id),
+    ]);
+
+    if (wordsResult.error) throw wordsResult.error;
+
+    const levelMap = new Map((scheduleResult.data || []).map(s => [s.word_id, s.review_level]));
+    return (wordsResult.data || []).map(w => ({ ...w, review_level: levelMap.get(w.id) ?? 0 }));
 }
 
 /**
@@ -74,9 +111,35 @@ export async function updateWord(wordId, updates) {
 }
 
 /**
- * Delete word
+ * Soft-delete a word (moves it to trash)
  */
 export async function deleteWord(wordId) {
+    const { error } = await supabase
+        .from("words")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", wordId);
+
+    if (error) throw error;
+    return true;
+}
+
+/**
+ * Restore a soft-deleted word from trash
+ */
+export async function restoreWord(wordId) {
+    const { error } = await supabase
+        .from("words")
+        .update({ deleted_at: null })
+        .eq("id", wordId);
+
+    if (error) throw error;
+    return true;
+}
+
+/**
+ * Permanently delete a word (irreversible)
+ */
+export async function permanentlyDeleteWord(wordId) {
     const { error } = await supabase.from("words").delete().eq("id", wordId);
 
     if (error) throw error;
@@ -84,13 +147,31 @@ export async function deleteWord(wordId) {
 }
 
 /**
- * Get words count for user
+ * Get all trashed (soft-deleted) words for current user
+ */
+export async function getTrashedWords() {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const { data, error } = await supabase
+        .from("words")
+        .select("*")
+        .eq("user_id", user.id)
+        .not("deleted_at", "is", null)
+        .order("deleted_at", { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+}
+
+/**
+ * Get words count for user (excludes trashed)
  */
 export async function getWordsCount() {
     const user = await getCurrentUser();
     if (!user) throw new Error("Not authenticated");
 
-    const { count, error } = await supabase.from("words").select("id", { count: "exact" }).eq("user_id", user.id);
+    const { count, error } = await supabase.from("words").select("id", { count: "exact" }).eq("user_id", user.id).is("deleted_at", null);
 
     if (error) throw error;
     return count;
@@ -124,7 +205,8 @@ export async function getWordsForReviewToday() {
         .order("review_level", { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    // Exclude words that have been soft-deleted
+    return (data || []).filter(row => row.words?.deleted_at == null);
 }
 
 /**
@@ -235,7 +317,7 @@ export async function hasAchievement(achievementCode) {
         .eq("achievement_code", achievementCode)
         .single();
 
-    if (error && error.code === "PGRST116") return false; // Not found
+    if (error?.code === "PGRST116") return false; // Not found
     if (error) throw error;
 
     return !!data;
@@ -426,20 +508,123 @@ export async function calculateUserStats(userId) {
         const testsCorrect = tests?.filter((t) => t.correct).length || 0;
         const accuracy = testsCount > 0 ? Math.round((testsCorrect / testsCount) * 100) : 0;
 
-        // XP calculation: words * 1 + tests * 2 + correct * 3
-        const totalXP = (wordsCount || 0) * 1 + (testsCount || 0) * 2 + (testsCorrect || 0) * 3;
+        const totalXP = computeXP({ wordsAdded: wordsCount || 0, testsTaken: testsCount, testsCorrect });
         const level = Math.floor(totalXP / 100) + 1;
 
         return {
             wordsCount: wordsCount || 0,
-            testsCount: testsCount || 0,
-            testsCorrect: testsCorrect || 0,
-            accuracy: accuracy,
-            totalXP: totalXP,
-            level: level,
+            testsCount,
+            testsCorrect,
+            accuracy,
+            totalXP,
+            level,
         };
     } catch (err) {
         console.error("Error calculating stats:", err);
         return null;
     }
+}
+
+// ============================================================================
+// XP & STREAK (current user)
+// ============================================================================
+
+export async function getUserXP() {
+    const user = await getCurrentUser();
+    if (!user) return { xp: 0, wordsAdded: 0, testsTaken: 0, testsCorrect: 0 };
+
+    const [wordsResult, testsResult] = await Promise.all([
+        supabase.from("words").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+        supabase.from("test_results").select("correct").eq("user_id", user.id),
+    ]);
+
+    const wordsAdded = wordsResult.count || 0;
+    const tests = testsResult.data || [];
+    const testsTaken = tests.length;
+    const testsCorrect = tests.filter((t) => t.correct).length;
+    const xp = computeXP({ wordsAdded, testsTaken, testsCorrect });
+
+    return { xp, wordsAdded, testsTaken, testsCorrect };
+}
+
+export async function getUserStreak() {
+    const user = await getCurrentUser();
+    if (!user) return 0;
+
+    const [wordsResult, testsResult] = await Promise.all([
+        supabase.from("words").select("created_at").eq("user_id", user.id),
+        supabase.from("test_results").select("tested_at").eq("user_id", user.id),
+    ]);
+
+    const dates = new Set();
+    for (const w of wordsResult.data || []) dates.add(w.created_at.split("T")[0]);
+    for (const t of testsResult.data || []) dates.add(t.tested_at.split("T")[0]);
+
+    if (dates.size === 0) return 0;
+
+    const sorted = [...dates].sort((a, b) => (a < b ? 1 : -1));
+    const today = new Date().toISOString().split("T")[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+
+    if (sorted[0] !== today && sorted[0] !== yesterday) return 0;
+
+    let streak = 0;
+    let cursor = new Date(sorted[0] + "T12:00:00Z");
+
+    for (const date of sorted) {
+        if (date === cursor.toISOString().split("T")[0]) {
+            streak++;
+            cursor = new Date(cursor.getTime() - 86400000);
+        } else {
+            break;
+        }
+    }
+
+    return streak;
+}
+
+export async function getMasteredCount() {
+    const user = await getCurrentUser();
+    if (!user) return 0;
+
+    const { count, error } = await supabase
+        .from("review_schedule")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .gte("review_level", 4);
+
+    if (error) return 0;
+    return count || 0;
+}
+
+// ============================================================================
+// SRS REVIEW COMPLETION
+// ============================================================================
+
+export async function completeReview(wordId, correct) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const { data: schedule, error: fetchErr } = await supabase
+        .from("review_schedule")
+        .select("id, review_level")
+        .eq("word_id", wordId)
+        .eq("user_id", user.id)
+        .single();
+
+    if (fetchErr) throw fetchErr;
+
+    const newLevel = nextLevel(schedule.review_level, correct);
+    const { error } = await supabase
+        .from("review_schedule")
+        .update({
+            review_level: newLevel,
+            next_review_date: nextReviewDate(newLevel),
+            interval_days: intervalDays(newLevel),
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", schedule.id);
+
+    if (error) throw error;
+    return newLevel;
 }
