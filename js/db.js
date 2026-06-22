@@ -583,6 +583,44 @@ export async function getUserStreak() {
     return streak;
 }
 
+export async function getDailyProgress() {
+    const user = await getCurrentUser();
+    if (!user) return { wordsAdded: 0, reviewed: 0, quizTotal: 0, quizCorrect: 0, quizCoverage: 100 };
+
+    const now   = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+
+    const [wordsRes, testsRes] = await Promise.all([
+        supabase.from('words')
+            .select('id')
+            .eq('user_id', user.id)
+            .gte('created_at', start)
+            .lt('created_at', end),
+        supabase.from('test_results')
+            .select('word_id, correct')
+            .eq('user_id', user.id)
+            .gte('tested_at', start)
+            .lt('tested_at', end),
+    ]);
+
+    const todayWordIds = new Set((wordsRes.data || []).map(w => w.id));
+    const wordsAdded   = todayWordIds.size;
+    const tests        = testsRes.data || [];
+    const reviewed     = new Set(tests.map(t => t.word_id)).size;
+    const quizTotal    = tests.length;
+    const quizCorrect  = tests.filter(t => t.correct).length;
+
+    // Coverage: how many of today's added words have at least one correct answer today.
+    // Adding more words without quizzing them lowers this score.
+    const coveredCount = new Set(
+        tests.filter(t => t.correct && todayWordIds.has(t.word_id)).map(t => t.word_id)
+    ).size;
+    const quizCoverage = wordsAdded === 0 ? 100 : Math.round((coveredCount / wordsAdded) * 100);
+
+    return { wordsAdded, reviewed, quizTotal, quizCorrect, quizCoverage };
+}
+
 export async function getMasteredCount() {
     const user = await getCurrentUser();
     if (!user) return 0;

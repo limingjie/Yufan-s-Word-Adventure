@@ -63,53 +63,58 @@ export async function render(container) {
             <div id="drawerDetails" style="display:none">
                 <div id="drawerPronPanel" style="display:none;margin-bottom:0.75rem">
                     <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
-                        <button id="drawerPronUK" class="btn btn-secondary btn-sm" style="font-family:monospace;display:none">🔊 UK</button>
-                        <button id="drawerPronUS" class="btn btn-secondary btn-sm" style="font-family:monospace;display:none">🔊 US</button>
+                        <button id="drawerPronUS" class="pron-chip pron-chip-us" style="display:none">🔊 US</button>
+                        <button id="drawerPronUK" class="pron-chip pron-chip-uk" style="display:none">🔊 UK</button>
                     </div>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem">
-                    <div>
-                        <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">IPA</label>
-                        <input type="text" id="drawerIpa" style="font-size:0.9rem;width:100%">
-                    </div>
-                    <div>
-                        <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Part of speech</label>
-                        <select id="drawerPos" style="font-size:0.9rem;width:100%">
-                            <option value="">—</option>
-                            ${PARTS_OF_SPEECH.map(p => `<option value="${p}">${p}</option>`).join('')}
-                        </select>
-                    </div>
-                </div>
-                <div style="margin-bottom:0.5rem">
-                    <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Definitions <span style="font-weight:400;color:#aaa">(one per line)</span></label>
-                    <textarea id="drawerEngDef" rows="3" style="font-size:0.9rem;width:100%;resize:vertical"></textarea>
-                </div>
-                <div style="margin-bottom:0.5rem">
-                    <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Chinese</label>
-                    <textarea id="drawerChiDef" rows="2" style="font-size:0.9rem;width:100%;resize:vertical"></textarea>
-                </div>
-                <div style="margin-bottom:0.5rem">
-                    <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Example</label>
-                    <textarea id="drawerExample" rows="2" style="font-size:0.9rem;width:100%;resize:vertical"></textarea>
                 </div>
                 <div id="drawerFormsRow" style="display:none;margin-bottom:0.5rem">
                     <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:4px">Forms</label>
                     <div id="drawerFormsChips" style="display:flex;flex-wrap:wrap;gap:4px"></div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem">
-                    <div>
-                        <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Synonyms</label>
-                        <textarea id="drawerSynonyms" rows="2" style="font-size:0.85rem;width:100%;resize:vertical" placeholder="comma separated"></textarea>
-                    </div>
-                    <div>
-                        <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Antonyms</label>
-                        <textarea id="drawerAntonyms" rows="2" style="font-size:0.85rem;width:100%;resize:vertical" placeholder="comma separated"></textarea>
-                    </div>
+                <div style="margin-bottom:0.5rem">
+                    <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Definitions <span style="font-weight:400;color:#aaa">(one per line)</span></label>
+                    <textarea id="drawerEngDef" rows="3" style="font-size:0.9rem;width:100%;resize:vertical"></textarea>
                 </div>
                 <div style="margin-bottom:0.75rem">
-                    <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Quotes <span style="font-weight:400;color:#aaa">(one per line)</span></label>
-                    <textarea id="drawerQuotes" rows="3" style="font-size:0.82rem;width:100%;resize:vertical" placeholder="quote text — source"></textarea>
+                    <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Chinese</label>
+                    <textarea id="drawerChiDef" rows="2" style="font-size:0.9rem;width:100%;resize:vertical"></textarea>
                 </div>
+
+                <button id="drawerMoreBtn" style="background:none;border:none;color:#007bff;font-size:0.82rem;padding:0 0 0.6rem;cursor:pointer;text-decoration:underline;display:block">More details ▾</button>
+                <div id="drawerMoreSection" style="display:none">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem">
+                        <div>
+                            <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">IPA</label>
+                            <input type="text" id="drawerIpa" style="font-size:0.9rem;width:100%">
+                        </div>
+                        <div>
+                            <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Part of speech</label>
+                            <select id="drawerPos" style="font-size:0.9rem;width:100%">
+                                <option value="">—</option>
+                                ${PARTS_OF_SPEECH.map(p => `<option value="${p}">${p}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                    <div style="margin-bottom:0.5rem">
+                        <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Example</label>
+                        <textarea id="drawerExample" rows="2" style="font-size:0.9rem;width:100%;resize:vertical"></textarea>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem">
+                        <div>
+                            <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Synonyms</label>
+                            <textarea id="drawerSynonyms" rows="2" style="font-size:0.85rem;width:100%;resize:vertical" placeholder="comma separated"></textarea>
+                        </div>
+                        <div>
+                            <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Antonyms</label>
+                            <textarea id="drawerAntonyms" rows="2" style="font-size:0.85rem;width:100%;resize:vertical" placeholder="comma separated"></textarea>
+                        </div>
+                    </div>
+                    <div style="margin-bottom:0.75rem">
+                        <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Quotes <span style="font-weight:400;color:#aaa">(one per line)</span></label>
+                        <textarea id="drawerQuotes" rows="3" style="font-size:0.82rem;width:100%;resize:vertical" placeholder="quote text — source"></textarea>
+                    </div>
+                </div>
+
                 <div id="drawerError"   style="display:none;color:#dc3545;font-size:0.82rem;margin-bottom:0.5rem"></div>
                 <div id="drawerSuccess" style="display:none;color:#28a745;font-size:0.82rem;margin-bottom:0.5rem"></div>
                 <button id="drawerSaveBtn" class="btn btn-primary btn-block">Save</button>
@@ -310,57 +315,71 @@ export async function render(container) {
         document.getElementById('calendarPicker')?.style && (document.getElementById('calendarPicker').style.display = 'none');
     });
 
-    // Word list event delegation (date-group toggle / audio / expand / edit / delete)
-    document.getElementById('wordList').addEventListener('click', async (e) => {
-        // Date group expand/collapse — lazy render word cards
+    // ── Word list click handlers (extracted to keep complexity manageable) ──────
+
+    function handleGroupToggle(e) {
         const groupHeader = e.target.closest('.date-group-header');
-        if (groupHeader) {
-            const date    = groupHeader.dataset.date;
-            const body    = document.querySelector(`.date-group-body[data-date="${date}"]`);
-            const chevron = groupHeader.querySelector('.date-chevron');
-            if (expandedDates.has(date)) {
-                expandedDates.delete(date);
-                body.innerHTML      = '';
-                body.style.display  = 'none';
-                chevron.textContent = '▸';
-            } else {
-                expandedDates.add(date);
-                body.innerHTML      = (dateGroups.get(date) || []).map(wordCard).join('');
-                body.style.display  = '';
-                chevron.textContent = '▾';
-            }
-            return;
+        if (!groupHeader) return false;
+        const date    = groupHeader.dataset.date;
+        const body    = document.querySelector(`.date-group-body[data-date="${date}"]`);
+        const chevron = groupHeader.querySelector('.date-chevron');
+        if (expandedDates.has(date)) {
+            expandedDates.delete(date);
+            body.innerHTML      = '';
+            body.style.display  = 'none';
+            chevron.textContent = '▸';
+        } else {
+            expandedDates.add(date);
+            body.innerHTML      = (dateGroups.get(date) || []).map(wordCard).join('');
+            body.style.display  = '';
+            chevron.textContent = '▾';
         }
+        return true;
+    }
 
-        // Audio playback buttons on word cards
-        const playBtn = e.target.closest('.play-btn');
-        if (playBtn) {
-            e.stopPropagation();
-            playAudio(playBtn.dataset.src);
-            return;
-        }
+    function handleMoreToggle(e) {
+        const moreBtn = e.target.closest('.expand-more-btn');
+        if (!moreBtn) return false;
+        e.stopPropagation();
+        const extra = document.getElementById('extra-' + moreBtn.dataset.id);
+        if (!extra) return true;
+        const open = extra.style.display !== 'none';
+        extra.style.display = open ? 'none' : 'block';
+        moreBtn.textContent = open ? 'More ▾' : 'Less ▴';
+        return true;
+    }
 
+    async function handleDeleteBtn(e) {
         const deleteBtn = e.target.closest('.delete-btn');
-        const editBtn   = e.target.closest('.edit-btn');
-        const header    = e.target.closest('.word-card-header');
+        if (!deleteBtn) return false;
+        e.stopPropagation();
+        const { id, word } = deleteBtn.dataset;
+        if (!confirm(`Delete "${word}"? This cannot be undone.`)) return true;
+        deleteBtn.textContent = '…';
+        deleteBtn.disabled    = true;
+        await deleteWord(id);
+        allWords = allWords.filter(w => w.id !== id);
+        redraw();
+        return true;
+    }
 
-        if (deleteBtn) {
-            e.stopPropagation();
-            const { id, word } = deleteBtn.dataset;
-            if (!confirm(`Delete "${word}"? This cannot be undone.`)) return;
-            deleteBtn.textContent = '…';
-            deleteBtn.disabled = true;
-            await deleteWord(id);
-            allWords = allWords.filter(w => w.id !== id);
-            redraw();
-            return;
-        }
-        if (editBtn) {
-            e.stopPropagation();
-            const word = allWords.find(w => w.id === editBtn.dataset.id);
-            if (word) openDrawerForEdit(word);
-            return;
-        }
+    function handleEditBtn(e) {
+        const editBtn = e.target.closest('.edit-btn');
+        if (!editBtn) return false;
+        e.stopPropagation();
+        const word = allWords.find(w => w.id === editBtn.dataset.id);
+        if (word) openDrawerForEdit(word);
+        return true;
+    }
+
+    document.getElementById('wordList').addEventListener('click', async (e) => {
+        if (handleGroupToggle(e)) return;
+        const playBtn = e.target.closest('.play-btn');
+        if (playBtn) { e.stopPropagation(); playAudio(playBtn.dataset.src); return; }
+        if (handleMoreToggle(e)) return;
+        if (await handleDeleteBtn(e)) return;
+        if (handleEditBtn(e)) return;
+        const header = e.target.closest('.word-card-header');
         if (header) header.closest('.word-card').classList.toggle('expanded');
     });
 
@@ -505,8 +524,10 @@ export async function render(container) {
         document.getElementById('drawerSynonyms').value        = '';
         document.getElementById('drawerAntonyms').value        = '';
         document.getElementById('drawerQuotes').value          = '';
-        document.getElementById('drawerFormsRow').style.display = 'none';
-        document.getElementById('drawerFormsChips').innerHTML  = '';
+        document.getElementById('drawerFormsRow').style.display    = 'none';
+        document.getElementById('drawerFormsChips').innerHTML      = '';
+        document.getElementById('drawerMoreSection').style.display = 'none';
+        document.getElementById('drawerMoreBtn').textContent       = 'More details ▾';
         lookupResult     = null;
         audioUrlUK       = null;
         audioUrlUS       = null;
@@ -517,9 +538,9 @@ export async function render(container) {
         const row   = document.getElementById('drawerFormsRow');
         const chips = document.getElementById('drawerFormsChips');
         if (!forms || !Object.keys(forms).length) { row.style.display = 'none'; return; }
-        const LABELS = { past: 'past', pastParticiple: 'past part.', thirdPerson: '3rd', gerund: '-ing', plural: 'pl.', comparative: 'comp.', superlative: 'superl.' };
-        chips.innerHTML = Object.entries(forms)
-            .map(([k, v]) => `<span style="background:#f0f4ff;border-radius:3px;padding:2px 6px;font-size:0.78rem;color:#444">${LABELS[k] ?? k}: <strong>${esc(v)}</strong></span>`)
+        chips.innerHTML = FORMS_ORDER
+            .filter(k => forms[k])
+            .map(k => `<span style="background:#f0f4ff;border-radius:3px;padding:2px 6px;font-size:0.78rem;color:#444">${FORMS_LABELS[k]}: <strong>${esc(forms[k])}</strong></span>`)
             .join('');
         row.style.display = 'block';
     }
@@ -766,6 +787,13 @@ export async function render(container) {
     document.getElementById('drawerSaveBtn').addEventListener('click', drawerSave);
     document.getElementById('drawerPronUK').addEventListener('click', () => playAudio(document.getElementById('drawerPronUK').dataset.src));
     document.getElementById('drawerPronUS').addEventListener('click', () => playAudio(document.getElementById('drawerPronUS').dataset.src));
+    document.getElementById('drawerMoreBtn').addEventListener('click', () => {
+        const sec  = document.getElementById('drawerMoreSection');
+        const btn  = document.getElementById('drawerMoreBtn');
+        const open = sec.style.display !== 'none';
+        sec.style.display = open ? 'none' : 'block';
+        btn.textContent   = open ? 'More details ▾' : 'Less details ▴';
+    });
 }
 
 // ── Module-level helpers ──────────────────────────────────────────────────────
@@ -809,38 +837,30 @@ function formatDate(dateStr) {
     return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', ...yearOpt });
 }
 
-// pronHtmlFor — chip-style button (matching drawer lookup) when audio exists,
-//               or a dimmed chip for IPA-only (no audio)
-function pronHtmlFor(src, ipa, role) {
-    const label = ipa ? `${role} ${ipa}` : role;
-    if (src) return `<button class="play-btn btn btn-secondary btn-sm" data-src="${esc(src)}" style="font-family:monospace">🔊 ${esc(label)}</button>`;
-    if (ipa) return `<span class="btn btn-secondary btn-sm" style="font-family:monospace;opacity:0.6;cursor:default;pointer-events:none">${esc(role)} ${esc(ipa)}</span>`;
-    return null;
+// ipaBodyHtml — colored IPA spans shown at the top of the expanded word card body.
+// ipa stored as usIpa$ukIpa (US first); single value is reused for both accents.
+function ipaBodyHtml(w) {
+    if (!w.ipa) return '';
+    const parts = w.ipa.split('$');
+    const usIpa = parts[0] || null;
+    const ukIpa = parts[1] || usIpa;
+    const chips = [];
+    if (usIpa) chips.push(`<span class="pron-chip pron-chip-us" style="opacity:0.88;cursor:default">US ${esc(usIpa)}</span>`);
+    if (ukIpa) chips.push(`<span class="pron-chip pron-chip-uk" style="opacity:0.88;cursor:default">UK ${esc(ukIpa)}</span>`);
+    if (!chips.length) return '';
+    return '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.45rem">' + chips.join('') + '</div>';
 }
 
-// wordCardPronRow — handles 1-IPA-2-audio and 2-IPA-1-audio edge cases.
-// ipa stored as usIpa$ukIpa (US first). When only one IPA exists, reuse it for
-// both US and UK chips so the user can hear both accents.
+// wordCardPronRow — audio play chips in the card header; IPA text lives in the expanded body.
 function wordCardPronRow(w) {
-    const ipaParts = (w.ipa || '').split('$');
-    const usIpa    = ipaParts[0] || null;
-    const ukIpa    = ipaParts[1] || null;
-    const posPart  = w.part_of_speech
-        ? `<em style="color:#888;font-size:0.8rem">${esc(w.part_of_speech)}</em>`
-        : null;
-    // When ukIpa is absent (single IPA), reuse usIpa so the UK chip shows the same transcription
-    let ukIpaLabel;
-    if (ukIpa) { ukIpaLabel = ukIpa === usIpa ? null : ukIpa; }
-    else       { ukIpaLabel = usIpa; }
-
-    const usPron  = pronHtmlFor(w.audio_url_us, usIpa, 'US');
-    const needsUK = ukIpaLabel || w.audio_url_uk;
-    const ukPron  = needsUK ? pronHtmlFor(w.audio_url_uk, ukIpaLabel, 'UK') : null;
-    const parts   = [posPart, usPron, ukPron].filter(Boolean);
+    const parts = [];
+    if (w.part_of_speech) parts.push(`<em style="color:#888;font-size:0.8rem">${esc(w.part_of_speech)}</em>`);
+    if (w.audio_url_us) parts.push(`<button class="play-btn pron-chip pron-chip-us" data-src="${esc(w.audio_url_us)}">🔊 US</button>`);
+    if (w.audio_url_uk) parts.push(`<button class="play-btn pron-chip pron-chip-uk" data-src="${esc(w.audio_url_uk)}">🔊 UK</button>`);
     if (!parts.length) return '';
     const dot = '<span style="color:#ccc;font-size:0.7rem">·</span>';
-    const sep  = ` ${dot} `;
-    return `<span style="display:inline-flex;align-items:center;gap:0.25rem;flex-wrap:wrap">${dot} ${parts.join(sep)}</span>`;
+    const sep = ' ' + dot + ' ';
+    return `<span style="display:inline-flex;align-items:center;gap:0.3rem;flex-wrap:wrap">${dot} ${parts.join(sep)}</span>`;
 }
 
 function wordCard(w) {
@@ -852,21 +872,55 @@ function wordCard(w) {
                 ${wordCardPronRow(w)}
                 <span class="srs-badge ${srsBadgeClass(level)}" style="margin-left:auto">${srsLabel(level)}</span>
                 <button class="edit-btn btn btn-secondary btn-sm" data-id="${w.id}"
-                        style="padding:2px 8px;font-size:0.75rem" title="Edit">✏️</button>
+                        style="width:26px;height:26px;padding:0;font-size:0.75rem;display:inline-flex;align-items:center;justify-content:center" title="Edit">✏️</button>
                 <button class="delete-btn btn btn-danger btn-sm" data-id="${w.id}" data-word="${esc(w.word)}"
-                        style="padding:2px 8px;font-size:0.75rem" title="Delete">✕</button>
+                        style="width:26px;height:26px;padding:0;font-size:0.75rem;display:inline-flex;align-items:center;justify-content:center" title="Delete">✕</button>
             </div>
             <div class="word-card-body">
-                ${formsHtml(w.word_forms)}
-                ${definitionsHtml(w.english_definition)}
-                ${w.chinese_definition ? `<p><strong>中:</strong> ${esc(w.chinese_definition)}</p>` : ''}
-                ${w.example_sentence   ? `<p style="color:#555;font-style:italic">"${esc(w.example_sentence)}"</p>` : ''}
-                ${w.synonyms ? `<p style="font-size:0.82rem;color:#555"><strong>Syn:</strong> ${esc(w.synonyms)}</p>` : ''}
-                ${w.antonyms ? `<p style="font-size:0.82rem;color:#555"><strong>Ant:</strong> ${esc(w.antonyms)}</p>` : ''}
-                ${quotesHtml(w.quotes)}
-                ${w.category && w.category !== 'general' ? `<p style="font-size:0.8rem;color:#888">Category: ${esc(w.category)}</p>` : ''}
+                ${wordCardBody(w)}
             </div>
         </div>`;
+}
+
+// wordCardBody — simplified layout for an 11-year-old.
+// Primary view: IPA, forms, Chinese meaning, first English definition.
+// Everything else collapses behind "More ▾".
+function wordCardBody(w) {
+    const lines      = (w.english_definition || '').split('\n').filter(Boolean);
+    const primaryDef = lines[0]
+        ? `<p style="font-size:0.93rem;color:#333;margin:0.2rem 0 0.1rem">${esc(lines[0])}</p>`
+        : '';
+    const chiHtml = w.chinese_definition
+        ? `<p style="font-size:1rem;font-weight:500;margin:0.05rem 0 0.25rem">🇨🇳 ${esc(w.chinese_definition)}</p>`
+        : '';
+
+    const extraLines  = lines.slice(1);
+    const extraDefs   = extraLines.length > 0
+        ? `<ol style="margin:0 0 0.25rem 1.1rem;padding:0;font-size:0.85rem;color:#555">${extraLines.map(l => `<li>${esc(l)}</li>`).join('')}</ol>`
+        : '';
+    const exampleHtml = w.example_sentence
+        ? `<p style="font-size:0.85rem;color:#666;font-style:italic;margin:0.15rem 0">"${esc(w.example_sentence)}"</p>`
+        : '';
+    const synHtml = w.synonyms
+        ? `<p style="font-size:0.8rem;color:#555;margin:0.1rem 0"><strong>Syn:</strong> ${esc(w.synonyms)}</p>`
+        : '';
+    const antHtml = w.antonyms
+        ? `<p style="font-size:0.8rem;color:#555;margin:0.1rem 0"><strong>Ant:</strong> ${esc(w.antonyms)}</p>`
+        : '';
+    const qHtml   = quotesHtml(w.quotes);
+    const catHtml = w.category && w.category !== 'general'
+        ? `<p style="font-size:0.78rem;color:#999;margin:0.1rem 0">Category: ${esc(w.category)}</p>`
+        : '';
+
+    const extraContent = extraDefs + exampleHtml + synHtml + antHtml + qHtml + catHtml;
+    const wid = esc(w.id);
+    const moreSection  = extraContent
+        ? '<button class="expand-more-btn" data-id="' + wid + '"'
+          + ' style="background:none;border:none;color:#007bff;font-size:0.8rem;padding:2px 0;margin-top:0.3rem;cursor:pointer;text-decoration:underline">More ▾</button>'
+          + '<div id="extra-' + wid + '" style="display:none;margin-top:0.25rem;border-top:1px solid #f0f0f0;padding-top:0.35rem">' + extraContent + '</div>'
+        : '';
+
+    return ipaBodyHtml(w) + formsHtml(w.word_forms) + chiHtml + primaryDef + moreSection;
 }
 
 // ── API extraction helpers ────────────────────────────────────────────────────
@@ -956,11 +1010,14 @@ function definitionsHtml(defs) {
     return `<ol style="margin:0.1rem 0 0.35rem 1.25rem;padding:0;font-size:0.88rem;color:#333">${items}</ol>`;
 }
 
+const FORMS_ORDER  = ['thirdPerson', 'gerund', 'past', 'pastParticiple', 'plural', 'comparative', 'superlative'];
+const FORMS_LABELS = { thirdPerson: '3rd', gerund: '-ing', past: 'past', pastParticiple: 'past part.', plural: 'pl.', comparative: 'comp.', superlative: 'superl.' };
+
 function formsHtml(forms) {
     if (!forms || !Object.keys(forms).length) return '';
-    const LABELS = { past: 'past', pastParticiple: 'past part.', thirdPerson: '3rd', gerund: '-ing', plural: 'pl.', comparative: 'comp.', superlative: 'superl.' };
-    const chips = Object.entries(forms)
-        .map(([k, v]) => `<span style="background:#f0f4ff;border-radius:3px;padding:1px 5px;font-size:0.75rem;color:#555">${LABELS[k] ?? k}: <strong>${esc(v)}</strong></span>`)
+    const chips = FORMS_ORDER
+        .filter(k => forms[k])
+        .map(k => `<span style="background:#f0f4ff;border-radius:3px;padding:1px 5px;font-size:0.75rem;color:#555">${FORMS_LABELS[k]}: <strong>${esc(forms[k])}</strong></span>`)
         .join(' ');
     return `<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:0.25rem">${chips}</div>`;
 }

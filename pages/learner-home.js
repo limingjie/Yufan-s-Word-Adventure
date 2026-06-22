@@ -1,44 +1,165 @@
 import { getCurrentProfile, getCurrentUser } from '../js/auth.js';
-import { getUserXP, getUserStreak, getMasteredCount, getWordsForReviewToday, getWordsCount } from '../js/db.js';
+import { getUserXP, getUserStreak, getWordsForReviewToday, getWordsCount, getDailyProgress } from '../js/db.js';
 import { getLevelInfo, getLevelProgress } from '../js/lib/xp.js';
 import { supabase } from '../js/supabase.js';
+
+// Daily mission targets
+const MISSION_WORDS    = 15;
+const MISSION_REVIEWS  = 15;
+const MISSION_ACCURACY = 90;   // percent, minimum 5 tests
+
+// Word count milestones → medals
+const GOALS = [
+    { target: 15,  medal: '🥉', label: 'Bronze' },
+    { target: 50,  medal: '🥈', label: 'Silver' },
+    { target: 100, medal: '🥇', label: 'Gold'   },
+];
 
 export async function render(container) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">⏳</div><p>Loading…</p></div>`;
 
-    const [profile, user, xpData, streak, dueWords, totalWords, mastered] = await Promise.all([
+    const [profile, user, xpData, streak, dueWords, totalWords, daily] = await Promise.all([
         getCurrentProfile(),
         getCurrentUser(),
         getUserXP(),
         getUserStreak(),
         getWordsForReviewToday(),
         getWordsCount(),
-        getMasteredCount(),
+        getDailyProgress(),
     ]);
 
-    const { xp } = xpData;
+    const { xp }    = xpData;
     const levelInfo = getLevelInfo(xp);
     const progress  = getLevelProgress(xp);
     const dueCount  = dueWords.length;
     const initial   = (profile?.display_name || '?')[0].toUpperCase();
     const color     = profile?.avatar_color || '#007BFF';
-    const xpLabel   = levelInfo.next ? `${xp} / ${levelInfo.next.minXP} XP` : `${xp} XP — Max level!`;
+
+    // Daily mission progress
+    const mWordsAcc  = Math.min(daily.wordsAdded, MISSION_WORDS);
+    const mReviewAcc = Math.min(daily.reviewed,   MISSION_REVIEWS);
+
+    // Quiz coverage: % of today's added words that have been correctly quizzed.
+    // Adding new words without quizzing them lowers this score until you catch up.
+    const quizCoverage = daily.quizCoverage ?? 100;
+    const quizSubtitle = daily.wordsAdded === 0
+        ? 'Add words today to unlock this mission'
+        : quizCoverage + '% of today\'s words quizzed correctly (need ' + MISSION_ACCURACY + '%)';
+
+    const mWordsDone  = daily.wordsAdded >= MISSION_WORDS;
+    const mReviewDone = daily.reviewed   >= MISSION_REVIEWS;
+    const mQuizDone   = daily.wordsAdded === 0 || quizCoverage >= MISSION_ACCURACY;
+    const allMissions = mWordsDone && mReviewDone && mQuizDone;
+
+    // Focus CTA
+    let focusHtml;
+    if (dueCount > 0) {
+        focusHtml = `
+            <div style="background:linear-gradient(135deg,#007bff,#6610f2);border-radius:16px;padding:1.25rem 1.5rem;color:#fff;margin-bottom:1.25rem;text-align:center">
+                <div style="font-size:2rem;margin-bottom:0.25rem">💧</div>
+                <div style="font-size:1.1rem;font-weight:700;margin-bottom:0.9rem">
+                    ${dueCount} ${dueCount === 1 ? 'word is' : 'words are'} ready to review!
+                </div>
+                <a href="#/learner/review" class="btn btn-primary"
+                   style="background:#fff;color:#007bff;font-size:1.05rem;padding:0.7rem 2rem;width:100%;display:block;max-width:280px;margin:0 auto;font-weight:700">
+                    Start Review 🚀
+                </a>
+            </div>`;
+    } else if (totalWords === 0) {
+        focusHtml = `
+            <div style="background:linear-gradient(135deg,#52c41a,#87d068);border-radius:16px;padding:1.25rem 1.5rem;color:#fff;margin-bottom:1.25rem;text-align:center">
+                <div style="font-size:2rem;margin-bottom:0.25rem">🌱</div>
+                <div style="font-size:1.05rem;font-weight:700;margin-bottom:0.9rem">
+                    Start your Word Adventure!
+                </div>
+                <button id="focusAddWordBtn" class="btn"
+                        style="background:#fff;color:#52c41a;font-size:1.05rem;padding:0.7rem 2rem;width:100%;max-width:280px;font-weight:700">
+                    Add Your First Word ✨
+                </button>
+            </div>`;
+    } else {
+        focusHtml = `
+            <div style="background:linear-gradient(135deg,#52c41a,#87d068);border-radius:16px;padding:1.25rem 1.5rem;color:#fff;margin-bottom:1.25rem;text-align:center">
+                <div style="font-size:2rem;margin-bottom:0.25rem">🌟</div>
+                <div style="font-size:1.05rem;font-weight:700;margin-bottom:0.9rem">
+                    All caught up! Keep adding words.
+                </div>
+                <button id="focusAddWordBtn" class="btn"
+                        style="background:#fff;color:#52c41a;font-size:1.05rem;padding:0.7rem 2rem;width:100%;max-width:280px;font-weight:700">
+                    + Add New Word
+                </button>
+            </div>`;
+    }
+
+    // Daily missions HTML
+    function missionHtml(icon, title, current, target, done, subtitleOverride) {
+        const pct      = Math.min(100, Math.round((current / target) * 100));
+        const subtitle = subtitleOverride || `${current} / ${target}`;
+        return `
+            <div class="mission-card ${done ? 'complete' : ''}">
+                <div class="mission-icon">${icon}</div>
+                <div class="mission-info">
+                    <div class="mission-title">${title}</div>
+                    <div style="font-size:0.78rem;color:#888;margin-bottom:3px">${subtitle}</div>
+                    <div class="mission-bar-wrap">
+                        <div class="mission-bar-fill" style="width:${pct}%"></div>
+                    </div>
+                </div>
+                <div class="mission-reward">${done ? '✅' : '🥇'}</div>
+            </div>`;
+    }
+
+    // Word count goals
+    const goalsHtml = GOALS.map(g => {
+        const achieved = totalWords >= g.target;
+        return `
+            <div class="word-goal ${achieved ? 'achieved' : ''}">
+                <div class="goal-medal">${g.medal}</div>
+                <div class="goal-label">${g.label}</div>
+                <div class="goal-target">${g.target} words</div>
+            </div>`;
+    }).join('');
+
+    const xpLabel = levelInfo.next ? `${xp} / ${levelInfo.next.minXP} XP` : `${xp} XP — Max!`;
 
     container.innerHTML = `
-        <div style="max-width:640px;margin:0 auto">
+        <div style="max-width:600px;margin:0 auto">
 
-            <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem">
-                <div class="avatar" style="background:${color};width:52px;height:52px;font-size:1.3rem">${initial}</div>
+            <!-- Greeting -->
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.1rem">
+                <div class="avatar" style="background:${color};width:46px;height:46px;font-size:1.2rem;flex-shrink:0">${initial}</div>
                 <div>
-                    <h1 style="font-size:1.5rem;margin:0">Hello, ${profile?.display_name}!</h1>
-                    <span class="level-badge" style="margin-top:4px;display:inline-flex">
-                        Lv.${levelInfo.level} ${levelInfo.name}
-                    </span>
+                    <div style="font-size:1.25rem;font-weight:700">Hello, ${esc(profile?.display_name)}! 👋</div>
+                    <span class="level-badge" style="font-size:0.8rem">Lv.${levelInfo.level} ${levelInfo.name}</span>
                 </div>
+                ${streak >= 2 ? `<div style="margin-left:auto;font-size:0.85rem;color:#ff7d00;font-weight:700">🔥 ${streak} days</div>` : ''}
             </div>
 
-            <div class="card" style="margin-bottom:1.25rem">
-                <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:#666;margin-bottom:6px">
+            <!-- Focus CTA -->
+            ${focusHtml}
+
+            <!-- Daily Missions -->
+            <div style="margin-bottom:1.1rem">
+                <div style="font-size:0.78rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.5rem">
+                    Today's Missions ${allMissions ? '🎉' : ''}
+                </div>
+                ${missionHtml('📚', 'Add 15 new words', mWordsAcc, MISSION_WORDS, mWordsDone)}
+                ${missionHtml('💧', 'Review 15 words', mReviewAcc, MISSION_REVIEWS, mReviewDone)}
+                ${missionHtml('🎯', 'Quiz master (90% coverage)', quizCoverage, MISSION_ACCURACY, mQuizDone, quizSubtitle)}
+            </div>
+
+            <!-- Word count goals -->
+            <div style="margin-bottom:1.1rem">
+                <div style="font-size:0.78rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.6rem">
+                    Word Collection Goals
+                </div>
+                <div class="word-goals">${goalsHtml}</div>
+                <div style="text-align:center;font-size:0.82rem;color:#888">${totalWords} words in your collection</div>
+            </div>
+
+            <!-- XP bar -->
+            <div class="card" style="margin-bottom:1rem;padding:0.75rem 1rem">
+                <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:#666;margin-bottom:5px">
                     <span>${xpLabel}</span><span>${progress}%</span>
                 </div>
                 <div class="progress-bar-wrap">
@@ -46,81 +167,61 @@ export async function render(container) {
                 </div>
             </div>
 
-            <div class="stat-cards">
-                <div class="stat-card">
-                    <div class="stat-icon">🔥</div>
-                    <div class="stat-value">${streak}</div>
-                    <div class="stat-label">Day Streak</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">📚</div>
-                    <div class="stat-value">${totalWords}</div>
-                    <div class="stat-label">Words Added</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">⭐</div>
-                    <div class="stat-value">${mastered}</div>
-                    <div class="stat-label">Mastered</div>
-                </div>
-                <div class="stat-card" style="${dueCount > 0 ? 'border:2px solid #dc3545' : ''}">
-                    <div class="stat-icon">📝</div>
-                    <div class="stat-value" style="${dueCount > 0 ? 'color:#dc3545' : ''}">${dueCount}</div>
-                    <div class="stat-label">Due Today</div>
-                </div>
+            <!-- Quick nav -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.6rem;margin-bottom:1.25rem">
+                <a href="#/learner/quiz"        class="btn btn-secondary" style="text-align:center;font-size:0.85rem;padding:0.65rem">📝 Quiz</a>
+                <a href="#/learner/garden"      class="btn btn-secondary" style="text-align:center;font-size:0.85rem;padding:0.65rem">🌱 Garden</a>
+                <a href="#/learner/achievements" class="btn btn-secondary" style="text-align:center;font-size:0.85rem;padding:0.65rem">🏅 Awards</a>
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem">
-                <a href="#/learner/review" class="btn btn-primary" style="text-align:center;padding:0.85rem">
-                    ${dueCount > 0 ? `Review (${dueCount})` : 'Review'}
-                </a>
-                <button id="addWordBtn" class="btn btn-success" style="padding:0.85rem">+ Add Word</button>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;margin-bottom:1.5rem">
-                <a href="#/learner/quiz"        class="btn btn-secondary" style="text-align:center;font-size:0.85rem">Quiz</a>
-                <a href="#/learner/garden"      class="btn btn-secondary" style="text-align:center;font-size:0.85rem">Garden</a>
-                <a href="#/learner/leaderboard" class="btn btn-secondary" style="text-align:center;font-size:0.85rem">Leaderboard</a>
-            </div>
-
-            ${dueCount === 0 && totalWords === 0 ? `
-            <div class="empty-state" style="margin-top:1rem;margin-bottom:1.5rem">
-                <span class="empty-icon">🌱</span>
-                <h3>Start your adventure!</h3>
-                <p>Add your first word to begin learning.</p>
-            </div>` : ''}
-
-            <!-- Calendar -->
-            <div style="border-top:1px solid #eee;padding-top:1.25rem">
-                <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem">
-                    <button id="calPrev" class="btn btn-secondary btn-sm">←</button>
-                    <span id="calTitle" style="flex:1;text-align:center;font-weight:600;font-size:0.95rem"></span>
-                    <button id="calNext" class="btn btn-secondary btn-sm">→</button>
-                </div>
-                <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;text-align:center;margin-bottom:2px">
-                    ${['Su','Mo','Tu','We','Th','Fr','Sa'].map(d =>
-                        `<div style="font-size:0.7rem;color:#aaa;padding:2px 0">${d}</div>`
-                    ).join('')}
-                </div>
-                <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
-                <div style="display:flex;gap:1rem;margin-top:0.6rem;font-size:0.72rem;color:#888">
-                    <span><span style="display:inline-block;width:8px;height:8px;background:#007bff;border-radius:2px;margin-right:3px;vertical-align:middle"></span>Added</span>
-                    <span><span style="display:inline-block;width:8px;height:8px;background:#28a745;border-radius:2px;margin-right:3px;vertical-align:middle"></span>Tests</span>
+            <!-- Calendar (collapsible) -->
+            <div style="border-top:1px solid #eee;padding-top:1rem">
+                <button id="calToggleBtn" style="background:none;border:none;cursor:pointer;font-size:0.82rem;color:#888;padding:0;display:flex;align-items:center;gap:0.35rem;margin-bottom:0.6rem">
+                    <span id="calChevron">▸</span> Activity Calendar
+                </button>
+                <div id="calSection" style="display:none">
+                    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.6rem">
+                        <button id="calPrev" class="btn btn-secondary btn-sm">←</button>
+                        <span id="calTitle" style="flex:1;text-align:center;font-weight:600;font-size:0.88rem"></span>
+                        <button id="calNext" class="btn btn-secondary btn-sm">→</button>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;text-align:center;margin-bottom:2px">
+                        ${['Su','Mo','Tu','We','Th','Fr','Sa'].map(d =>
+                            `<div style="font-size:0.65rem;color:#aaa;padding:2px 0">${d}</div>`
+                        ).join('')}
+                    </div>
+                    <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+                    <div style="display:flex;gap:1rem;margin-top:0.5rem;font-size:0.7rem;color:#888">
+                        <span><span style="display:inline-block;width:7px;height:7px;background:#007bff;border-radius:2px;margin-right:3px;vertical-align:middle"></span>Added</span>
+                        <span><span style="display:inline-block;width:7px;height:7px;background:#28a745;border-radius:2px;margin-right:3px;vertical-align:middle"></span>Tests</span>
+                    </div>
                 </div>
             </div>
         </div>`;
 
-    // ── Add Word button (opens drawer on My Words page) ───────────────────────
-    document.getElementById('addWordBtn').addEventListener('click', () => {
+    // Focus CTA buttons (add-word variants)
+    document.getElementById('focusAddWordBtn')?.addEventListener('click', () => {
         sessionStorage.setItem('openAddDrawer', 'true');
         location.hash = '#/learner/words';
     });
 
-    // ── Calendar ──────────────────────────────────────────────────────────────
-    let calYear    = new Date().getFullYear();
-    let calMonth   = new Date().getMonth();
-    let calAdded   = {};
-    let calReviewed = {};
+    // Calendar toggle
+    document.getElementById('calToggleBtn').addEventListener('click', () => {
+        const section = document.getElementById('calSection');
+        const chevron = document.getElementById('calChevron');
+        const open = section.style.display === 'none';
+        section.style.display = open ? 'block' : 'none';
+        chevron.textContent   = open ? '▾' : '▸';
+        if (open && !calRendered) { calRendered = true; renderCalendar(); }
+    });
 
-    // Single delegated click handler (survives prev/next navigation)
+    // Calendar
+    let calYear     = new Date().getFullYear();
+    let calMonth    = new Date().getMonth();
+    let calAdded    = {};
+    let calReviewed = {};
+    let calRendered = false;
+
     document.getElementById('calGrid').addEventListener('click', (e) => {
         const cell = e.target.closest('[data-date]');
         if (cell && (calAdded[cell.dataset.date] || calReviewed[cell.dataset.date])) {
@@ -157,7 +258,6 @@ export async function render(container) {
             const ds = `${calYear}-${mm}-${String(d).padStart(2, '0')}`;
             html += buildCalDay(ds, d, ds === today, calAdded[ds] || 0, calReviewed[ds] || 0);
         }
-
         document.getElementById('calGrid').innerHTML = html;
     }
 
@@ -171,8 +271,6 @@ export async function render(container) {
         if (calMonth > 11) { calMonth = 0; calYear++; }
         renderCalendar();
     });
-
-    renderCalendar();
 }
 
 function buildCalDay(ds, d, isToday, nAdded, nTests) {
@@ -184,7 +282,15 @@ function buildCalDay(ds, d, isToday, nAdded, nTests) {
     const cursor  = hasData ? 'pointer' : 'default';
     const weight  = isToday ? '700' : '400';
     const color   = isToday ? '#007bff' : '#444';
-    const addedHtml   = nAdded > 0 ? `<div style="font-size:0.65rem;color:#007bff;line-height:1.2">+${nAdded}</div>` : '';
-    const reviewedHtml = nTests > 0 ? `<div style="font-size:0.65rem;color:#28a745;line-height:1.2">${nTests}</div>` : '';
-    return `<div data-date="${ds}" style="min-height:52px;border:1px solid ${border};border-radius:5px;padding:3px 4px;background:${bg};cursor:${cursor}"><div style="font-size:0.72rem;font-weight:${weight};color:${color}">${d}</div>${addedHtml}${reviewedHtml}</div>`;
+    const addedHtml   = nAdded > 0 ? `<div style="font-size:0.6rem;color:#007bff;line-height:1.2">+${nAdded}</div>` : '';
+    const reviewedHtml = nTests > 0 ? `<div style="font-size:0.6rem;color:#28a745;line-height:1.2">${nTests}</div>` : '';
+    return `<div data-date="${ds}" style="min-height:48px;border:1px solid ${border};border-radius:5px;padding:3px 4px;background:${bg};cursor:${cursor}"><div style="font-size:0.7rem;font-weight:${weight};color:${color}">${d}</div>${addedHtml}${reviewedHtml}</div>`;
+}
+
+function esc(str) {
+    return String(str ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
 }

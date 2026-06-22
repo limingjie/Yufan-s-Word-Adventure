@@ -66,7 +66,10 @@ Load Supabase from CDN:
 │   └── parent-words.js      — read-only word list for parent
 │
 └── sql/
-    └── MIGRATION_ADD_DELETED_AT.sql  — soft-delete column + index
+    ├── MIGRATION_ADD_DELETED_AT.sql    — soft-delete column + index
+    ├── MIGRATION_ADD_AUDIO_URLS.sql    — audio_url_uk, audio_url_us columns
+    ├── MIGRATION_ADD_WORD_DETAILS.sql  — word_forms (jsonb), synonyms, antonyms, quotes columns
+    └── MIGRATION_LEADERBOARD_RLS.sql   — RLS policies for public leaderboard
 ```
 
 ---
@@ -133,11 +136,17 @@ updated_at    timestamptz DEFAULT now()
 id                  uuid  PRIMARY KEY DEFAULT gen_random_uuid()
 user_id             uuid  REFERENCES profiles(id) ON DELETE CASCADE
 word                text  NOT NULL
-ipa                 text                  -- e.g. /ˈkjʊəriəs/, from Free Dictionary API
+ipa                 text     -- stored as usIpa$ukIpa (US first); single IPA if only one found
+audio_url_us        text     -- https://api.dictionaryapi.dev/media/pronunciations/en/{word}-us.mp3
+audio_url_uk        text     -- https://api.dictionaryapi.dev/media/pronunciations/en/{word}-uk.mp3
 part_of_speech      text
-english_definition  text
+english_definition  text     -- multi-line: one definition per line, POS-prefixed e.g. "(noun) a body of water"
 chinese_definition  text
 example_sentence    text
+word_forms          jsonb    -- { past, pastParticiple, thirdPerson, gerund, plural, comparative, superlative }
+synonyms            text     -- comma-separated, up to 12
+antonyms            text     -- comma-separated, up to 8
+quotes              text     -- newline-separated; each line: "quote text — reference", up to 4
 category            text  DEFAULT 'general'
 is_favorite         boolean DEFAULT false
 deleted_at          timestamptz DEFAULT NULL  -- NULL = active; non-NULL = soft-deleted (trash)
@@ -146,6 +155,8 @@ updated_at          timestamptz DEFAULT now()
 ```
 
 Soft delete: `db.deleteWord()` sets `deleted_at = now()`. `db.restoreWord()` clears it. `db.permanentlyDeleteWord()` hard-deletes. All list queries filter `WHERE deleted_at IS NULL`. Migration: `sql/MIGRATION_ADD_DELETED_AT.sql`.
+
+**IPA format:** `ipa` stores `usIpa$ukIpa` when both exist (even if identical — signals both were found). Stores bare IPA when only one was found. Display logic in `wordCardPronRow` handles all combinations of IPA count vs audio URL count.
 
 ### `review_schedule`
 ```sql
@@ -233,10 +244,19 @@ GET https://freedictionaryapi.com/api/v1/entries/en/{word}?translations=true
 
 Response shape (Wiktionary-sourced):
 
-- IPA: `entries[0].pronunciations.find(p => p.type === "ipa")?.text`
+- US IPA: `pronunciations.find(p => p.type === "ipa" && p.tags?.includes("General American"))?.text`
+- UK IPA: `pronunciations.find(p => p.type === "ipa" && p.tags?.includes("Received Pronunciation"))?.text`
+- Stored as `usIpa$ukIpa` in `ipa` field (US first)
+- Audio URLs: probed with GET + body-cancel (CORS allows GET, not HEAD). Stored only if server returns 200.
+  - `https://api.dictionaryapi.dev/media/pronunciations/en/{word}-us.mp3`
+  - `https://api.dictionaryapi.dev/media/pronunciations/en/{word}-uk.mp3`
 - Part of speech: `entries[0].partOfSpeech`
-- Definition: `entries[0].senses[0].definition`
-- Example: `entries[0].senses[0].examples[0]`
+- Definitions: collected across all `entries[]`, up to 2 per POS entry, max 8 total — stored newline-separated in `english_definition`, each prefixed with "(noun) ", "(verb) ", etc.
+- Example: first `senses[].examples[0]` found across all senses
+- Word forms: extracted from `entries[0].forms[]`, filtered by tag rules → `word_forms` JSONB
+- Synonyms: from `senses[].synonyms[]`, deduped, max 12, comma-separated
+- Antonyms: from `senses[].antonyms[]`, deduped, max 8, comma-separated
+- Quotes: from `senses[].quotes[]`, max 4, stored as `text — reference` per line
 - Chinese: `entries[0].senses[0].translations.find(t => t.language.code.startsWith("zh"))?.word`
   - Format is `Traditional /Simplified` — extract the part after `/`
   - Only present for some words (Wiktionary coverage)
@@ -338,11 +358,46 @@ Keep v1 simple — a grid of SVG shapes is fine.
 
 ---
 
+## Word Card UI (`word-list.js`)
+
+### Sort & Filter controls
+
+- **Sort button:** single `[By Date ▾]` dropdown cycling through Date / A–Z / Level (replaced 3 separate buttons)
+- **Date filter:** `📅 Date` button opens an inline calendar picker; selecting a date filters words by `created_at`; active filter shown as a chip with ✕ to clear
+- Calendar picker computes word activity from already-loaded `allWords` — no extra DB call
+
+### Word card layout
+
+Each `.word-card` has a collapsible body (click to expand). Header is a single flex row:
+
+```
+[word title]  [· pos · 🔊 US /ipa/ · 🔊 UK /ipa/]  [SRS badge]  [✏️]  [✕]
+```
+
+The pronunciation span uses `pronHtmlFor(src, ipa, role)` which renders:
+
+- **With audio:** `btn btn-secondary btn-sm` chip + monospace font (matches drawer lookup chips)
+- **IPA only, no audio:** dimmed non-interactive span
+- **Single IPA stored:** reused as label for both US and UK chips
+
+### Word card body order
+
+1. Word forms chips (past, past part., 3rd, -ing, pl., comp., superl.) — **top**
+2. English definitions (numbered list if multi-line, plain text if single)
+3. Chinese definition
+4. Example sentence (italic)
+5. Synonyms / Antonyms (comma-separated, small text)
+6. Quotes (up to 2, blockquote style)
+7. Category (if not "general")
+
+---
+
 ## Quiz Types
 
 ### Meaning Quiz
 - Show the word
 - 4 options: 1 correct + 3 random distractors from word list
+- Option text = **single best definition** via `pickBestDef()`: picks the longest line from `english_definition`, strips the leading "(pos) " tag — prevents the full multi-definition dump from making the answer obvious
 - If word list < 4 words, pad with hardcoded common words
 
 ### Spelling Quiz

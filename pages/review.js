@@ -41,8 +41,8 @@ export async function render(container) {
 
                 <div class="review-card">
                     <div class="review-word">${esc(w.word)}</div>
-                    ${w.ipa  ? `<div class="review-ipa">${esc(w.ipa)}</div>` : ''}
                     ${w.part_of_speech ? `<div class="review-pos">${esc(w.part_of_speech)}</div>` : ''}
+                    ${pronHtml(w)}
 
                     <div id="answerSection" style="display:none" class="review-answer">
                         ${w.english_definition ? `<p><strong>English:</strong> ${esc(w.english_definition)}</p>` : ''}
@@ -60,6 +60,11 @@ export async function render(container) {
                     </div>
                 </div>
             </div>`;
+
+        document.querySelector('.review-card')?.addEventListener('click', (e) => {
+            const btn = e.target.closest('.play-btn');
+            if (btn) new Audio(btn.dataset.src).play().catch(() => {});
+        });
 
         document.getElementById('showBtn').addEventListener('click', () => {
             if (shown) return;
@@ -112,6 +117,31 @@ export async function render(container) {
     }
 
     renderCard();
+}
+
+// Renders US/UK pronunciation chips. Audio chips are playable; IPA-only chips are static.
+function pronHtml(w) {
+    const parts = (w.ipa || '').split('$');
+    const usIpa = parts[0] || null;
+    const ukIpa = parts[1] || usIpa;
+    const chips = [];
+
+    if (w.audio_url_us) {
+        const label = usIpa ? `🔊 US ${esc(usIpa)}` : '🔊 US';
+        chips.push(`<button class="play-btn pron-chip pron-chip-us" data-src="${esc(w.audio_url_us)}">${label}</button>`);
+    } else if (usIpa) {
+        chips.push(`<span class="pron-chip pron-chip-us" style="opacity:0.82;cursor:default">US ${esc(usIpa)}</span>`);
+    }
+
+    if (w.audio_url_uk) {
+        const label = ukIpa ? `🔊 UK ${esc(ukIpa)}` : '🔊 UK';
+        chips.push(`<button class="play-btn pron-chip pron-chip-uk" data-src="${esc(w.audio_url_uk)}">${label}</button>`);
+    } else if (ukIpa && ukIpa !== usIpa) {
+        chips.push(`<span class="pron-chip pron-chip-uk" style="opacity:0.82;cursor:default">UK ${esc(ukIpa)}</span>`);
+    }
+
+    if (!chips.length) return '';
+    return `<div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin:0.5rem 0">${chips.join('')}</div>`;
 }
 
 function esc(str) {

@@ -19,10 +19,23 @@ export function isMastered(level) {
     return level >= 4;
 }
 
+const MASTERY = [
+    { label: '🌱 Seed',         emoji: '🌱', badgeClass: 'srs-seed'    },
+    { label: '🌿 Sprout',       emoji: '🌿', badgeClass: 'srs-sprout'  },
+    { label: '🌷 Flower',       emoji: '🌷', badgeClass: 'srs-flower'  },
+    { label: '🌳 Tree',         emoji: '🌳', badgeClass: 'srs-tree'    },
+    { label: '🏆 Golden Tree',  emoji: '🏆', badgeClass: 'srs-golden'  },
+    { label: '🏆 Golden Tree',  emoji: '🏆', badgeClass: 'srs-golden'  },
+];
+
 export function srsLabel(level) {
-    return ['New', 'Learning', 'Familiar', 'Reviewing', 'Mastered', 'Expert'][Math.min(level, 5)];
+    return MASTERY[Math.min(level, 5)].label;
 }
 
 export function srsBadgeClass(level) {
-    return ['srs-new', 'srs-learning', 'srs-familiar', 'srs-reviewing', 'srs-mastered', 'srs-expert'][Math.min(level, 5)];
+    return MASTERY[Math.min(level, 5)].badgeClass;
+}
+
+export function masteryEmoji(level) {
+    return MASTERY[Math.min(level, 5)].emoji;
 }

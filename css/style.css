@@ -558,18 +558,170 @@ label {
     display: inline-block;
     padding: 2px 8px;
     border-radius: 12px;
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
     white-space: nowrap;
 }
-.srs-new       { background: #e9ecef; color: #495057; }
-.srs-learning  { background: #cce5ff; color: #004085; }
-.srs-familiar  { background: #fff3cd; color: #856404; }
-.srs-reviewing { background: #d4edda; color: #155724; }
-.srs-mastered  { background: #d4edda; color: #155724; border: 1px solid #28a745; }
-.srs-expert    { background: #d1ecf1; color: #0c5460; border: 1px solid #17a2b8; }
+.srs-seed    { background: #F5E6C8; color: #7B5E2A; }
+.srs-sprout  { background: #D4EDDA; color: #1A6B3A; }
+.srs-flower  { background: #FADADD; color: #8B1A3A; }
+.srs-tree    { background: #C8E6C9; color: #1B5E20; }
+.srs-golden  { background: #FFF3CD; color: #856404; border: 1px solid #F0C040; }
+
+/* ============================================================================
+ * Garden scene
+ * ============================================================================ */
+
+@keyframes plantGrow {
+    0%   { transform: scale(1); }
+    35%  { transform: scale(1.45) rotate(-6deg); }
+    65%  { transform: scale(1.2) rotate(4deg); }
+    100% { transform: scale(1); }
+}
+
+@keyframes plantWilt {
+    0%, 100% { transform: rotate(0deg) translateY(0); }
+    50%       { transform: rotate(-10deg) translateY(2px); }
+}
+
+@keyframes sparkle {
+    0%   { opacity: 1; transform: scale(0.5); }
+    50%  { opacity: 1; transform: scale(1.3); }
+    100% { opacity: 0; transform: scale(1) translateY(-12px); }
+}
+
+.garden-scene {
+    border-radius: 16px;
+    overflow: hidden;
+    position: relative;
+    background: linear-gradient(180deg, #87CEEB 0%, #B0DFF0 38%, #6DBF67 38%, #4A9E45 100%);
+    padding-bottom: 1rem;
+}
+
+.garden-sky {
+    height: 56px;
+    position: relative;
+    overflow: hidden;
+}
+.garden-sun   { position: absolute; top: 8px; right: 16px; font-size: 1.6rem; }
+.garden-cloud { position: absolute; font-size: 1.2rem; top: 12px; opacity: 0.85; }
+
+.garden-ground { padding: 0.5rem 0.5rem 0; }
+
+.garden-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: center;
+}
+
+.garden-plant {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    padding: 4px 5px 2px;
+    border-radius: 8px;
+    transition: background 0.18s, transform 0.18s;
+    min-width: 46px;
+    position: relative;
+    background: rgba(255,255,255,0.08);
+}
+.garden-plant:hover    { background: rgba(255,255,255,0.3); transform: scale(1.12); }
+.garden-plant.selected { background: rgba(255,255,255,0.45); transform: scale(1.08); box-shadow: 0 0 0 2px #fff; }
+.garden-plant .plant-emoji   { font-size: 1.7rem; line-height: 1; display: block; }
+.garden-plant.growing .plant-emoji { animation: plantGrow 0.65s ease-out; }
+.garden-plant.wilting .plant-emoji { animation: plantWilt 2s ease-in-out infinite; }
+.garden-plant .water-badge {
+    position: absolute; top: 1px; right: 3px;
+    font-size: 0.6rem; line-height: 1;
+}
+.garden-plant .plant-word {
+    font-size: 0.54rem;
+    color: rgba(255,255,255,0.92);
+    text-align: center;
+    max-width: 46px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.55);
+    margin-top: 1px;
+}
+
+.garden-popup {
+    background: white;
+    border-radius: 14px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.14);
+    padding: 1rem 1.25rem;
+    margin-top: 0.75rem;
+    animation: fadeSlideIn 0.2s ease-out;
+}
+@keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.garden-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+    font-size: 0.78rem;
+    color: #666;
+    margin: 0.6rem 0 0;
+}
+
+/* ============================================================================
+ * Daily mission cards
+ * ============================================================================ */
+
+.mission-card {
+    background: white;
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow);
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+}
+.mission-card + .mission-card { margin-top: 0.5rem; }
+.mission-card.complete { background: #f0fff4; border: 1.5px solid #52c41a; }
+
+.mission-icon  { font-size: 1.4rem; flex-shrink: 0; }
+.mission-info  { flex: 1; min-width: 0; }
+.mission-title { font-size: 0.88rem; font-weight: 600; margin-bottom: 3px; }
+.mission-bar-wrap { background: #e9ecef; border-radius: 4px; height: 6px; }
+.mission-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #52c41a, #1890ff);
+    border-radius: 4px;
+    transition: width 0.6s ease;
+    max-width: 100%;
+}
+.mission-reward { font-size: 1.25rem; flex-shrink: 0; }
+
+/* ============================================================================
+ * Word count goal medals
+ * ============================================================================ */
+
+.word-goals {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+.word-goal {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    transition: opacity 0.3s, transform 0.3s;
+    opacity: 0.35;
+}
+.word-goal.achieved { opacity: 1; transform: scale(1.05); }
+.word-goal .goal-medal  { font-size: 2rem; }
+.word-goal .goal-label  { font-size: 0.62rem; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
+.word-goal .goal-target { font-size: 0.7rem; font-weight: 700; color: #555; }
 
 /* ============================================================================
  * IPA pronunciation
@@ -581,6 +733,32 @@ label {
     font-style: italic;
     letter-spacing: 0.02em;
 }
+
+/* Pronunciation chips — US (red) and UK (blue) matching national flag colors */
+.pron-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 6px;
+    font-size: 0.7rem;
+    font-family: monospace;
+    border-radius: 4px;
+    border: none;
+    white-space: nowrap;
+    line-height: 1.6;
+}
+
+.pron-chip-us {
+    background-color: #B22234;
+    color: white;
+}
+button.pron-chip-us:hover { background-color: #8B1A27; }
+
+.pron-chip-uk {
+    background-color: #012169;
+    color: white;
+}
+button.pron-chip-uk:hover { background-color: #011247; }
 
 /* ============================================================================
  * Avatar circle

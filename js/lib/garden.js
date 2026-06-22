@@ -1,53 +1,71 @@
-const STAGES = [
-    { max: 9,        type: 'seed',   symbol: '●', color: '#8B6914', desc: 'Seeds are planted...' },
-    { max: 49,       type: 'sprout', symbol: '▲', color: '#52B788', desc: 'Sprouts are growing!' },
-    { max: 99,       type: 'flower', symbol: '✿', color: '#FF85A1', desc: 'Flowers are blooming!' },
-    { max: 499,      type: 'tree',   symbol: '♧', color: '#2D6A4F', desc: 'A grove of knowledge!' },
-    { max: Infinity, type: 'forest', symbol: '♧', color: '#1B4332', desc: 'A magnificent forest!' },
-];
+import { masteryEmoji } from './srs.js';
 
-export function getStage(masteredCount) {
-    return STAGES.find(s => masteredCount <= s.max);
-}
-
-export function renderGarden(masteredCount) {
-    const stage = getStage(masteredCount);
-    const displayCount = Math.min(masteredCount, 100);
-
-    if (displayCount === 0) {
-        return `
-            <svg viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg"
-                 style="width:100%;max-width:500px;background:#F0F7EE;border-radius:12px;">
-                <rect width="400" height="280" fill="#F0F7EE" rx="8"/>
-                <text x="200" y="130" text-anchor="middle" font-size="14" fill="#888">
-                    Add words and master them to grow your garden!
-                </text>
-                <text x="200" y="160" text-anchor="middle" font-size="40">🌱</text>
-            </svg>`;
+// Returns an HTML string for the interactive garden grid.
+// words: array of { id, word, review_level, english_definition, chinese_definition }
+// dueIds: Set of word_ids that are due for review today
+export function renderInteractiveGarden(words, dueIds) {
+    if (!words.length) {
+        return `<div class="garden-scene">
+            <div class="garden-sky">
+                <span class="garden-sun">☀️</span>
+                <span class="garden-cloud" style="left:18%">☁️</span>
+                <span class="garden-cloud" style="left:58%">☁️</span>
+            </div>
+            <div class="garden-ground" style="display:flex;align-items:center;justify-content:center;min-height:180px">
+                <div style="text-align:center;color:rgba(255,255,255,0.85)">
+                    <div style="font-size:2.5rem">🌱</div>
+                    <div style="font-size:0.9rem;margin-top:0.4rem">Add words and review them<br>to grow your garden!</div>
+                </div>
+            </div>
+        </div>`;
     }
 
-    const cols = Math.min(10, Math.max(4, Math.ceil(Math.sqrt(displayCount))));
-    const svgW = 400;
-    const svgH = 280;
-    const cellW = svgW / cols;
-    const rows = Math.ceil(displayCount / cols);
-    const cellH = Math.max(24, Math.min(40, (svgH - 40) / rows));
-    const fontSize = stage.type === 'seed' ? 9 : stage.type === 'sprout' ? 13 : stage.type === 'flower' ? 17 : 21;
+    // Show at most 80 plants to keep layout manageable
+    const visible = words.slice(0, 80);
+    const overflow = words.length - visible.length;
 
-    const cells = Array.from({ length: displayCount }, (_, i) => {
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        const jitter = ((i * 7) % 13) - 6;
-        const cx = col * cellW + cellW / 2 + jitter;
-        const cy = svgH - 16 - row * cellH;
-        return `<text x="${cx}" y="${cy}" font-size="${fontSize}" fill="${stage.color}" text-anchor="middle" opacity="0.85">${stage.symbol}</text>`;
-    }).join('\n');
+    const plants = visible.map(w => {
+        const level   = w.review_level ?? 0;
+        const emoji   = masteryEmoji(level);
+        const isDue   = dueIds.has(w.id);
+        const wilting = isDue ? ' wilting' : '';
+        const badge   = isDue ? '<span class="water-badge">💧</span>' : '';
+        const label   = esc(w.word);
+        return '<div class="garden-plant' + wilting + '" data-word-id="' + esc(w.id) + '" tabindex="0">'
+             + badge
+             + '<span class="plant-emoji">' + emoji + '</span>'
+             + '<span class="plant-word">' + label + '</span>'
+             + '</div>';
+    }).join('');
 
-    return `
-        <svg viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg"
-             style="width:100%;max-width:500px;background:#F0F7EE;border-radius:12px;">
-            <rect width="${svgW}" height="${svgH}" fill="#F0F7EE" rx="8"/>
-            <text x="${svgW / 2}" y="20" text-anchor="middle" font-size="12" fill="#666">${stage.desc}</text>
-            ${cells}
-        </svg>`;
+    const overflowBadge = overflow > 0
+        ? '<div style="color:rgba(255,255,255,0.7);font-size:0.78rem;width:100%;text-align:center;margin-top:4px">+' + overflow + ' more in your garden</div>'
+        : '';
+
+    return `<div class="garden-scene">
+        <div class="garden-sky">
+            <span class="garden-sun">☀️</span>
+            <span class="garden-cloud" style="left:14%">☁️</span>
+            <span class="garden-cloud" style="left:55%">☁️</span>
+        </div>
+        <div class="garden-ground">
+            <div class="garden-grid">${plants}</div>
+            ${overflowBadge}
+        </div>
+    </div>`;
+}
+
+// Summary counts per mastery level
+export function gardenStats(words) {
+    const counts = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    for (const w of words) counts[Math.min(w.review_level ?? 0, 5)]++;
+    return counts;
+}
+
+function esc(str) {
+    return String(str ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
 }
