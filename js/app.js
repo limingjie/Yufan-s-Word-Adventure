@@ -8,7 +8,7 @@ const LEARNER_ROUTES = new Set([
     '/learner/achievements', '/learner/leaderboard', '/learner/settings',
 ]);
 
-const PARENT_ROUTES = new Set(['/parent/dashboard', '/parent/words']);
+const PARENT_ROUTES = new Set(['/parent/dashboard', '/parent/words', '/parent/activity']);
 
 // Thunks so bundler-free dynamic import with static strings works in all browsers
 const ROUTES = {
@@ -24,6 +24,7 @@ const ROUTES = {
     '/learner/settings':     () => import('../pages/settings.js'),
     '/parent/dashboard':     () => import('../pages/parent-dashboard.js'),
     '/parent/words':         () => import('../pages/parent-words.js'),
+    '/parent/activity':      () => import('../pages/parent-activity.js'),
 };
 
 // ============================================================================
@@ -120,7 +121,7 @@ function renderNavbar(profile) {
     if (!profile) return;
 
     const links = profile.role === 'parent'
-        ? [{ href: '/parent/dashboard', label: 'Dashboard' }, { href: '/parent/words', label: 'Word Lists' }]
+        ? [{ href: '/parent/dashboard', label: 'Dashboard' }, { href: '/parent/words', label: 'Word Lists' }, { href: '/parent/activity', label: 'Activity' }]
         : [
             { href: '/learner/home',        label: 'Home' },
             { href: '/learner/words',       label: 'My Words' },

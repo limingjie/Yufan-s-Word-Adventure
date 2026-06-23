@@ -1,6 +1,5 @@
 import { supabase } from '../js/supabase.js';
-import { computeXP } from '../js/lib/xp.js';
-import { getLevelInfo } from '../js/lib/xp.js';
+import { computeXP, getLevelInfo } from '../js/lib/xp.js';
 
 export async function render(container) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">⏳</div><p>Loading dashboard…</p></div>`;
@@ -68,7 +67,8 @@ export async function render(container) {
         <div style="max-width:800px;margin:0 auto">
             <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap">
                 <h2 style="margin:0">Parent Dashboard</h2>
-                <a href="#/parent/words" class="btn btn-secondary btn-sm" style="margin-left:auto">View Word Lists</a>
+                <a href="#/parent/words" class="btn btn-secondary btn-sm" style="margin-left:auto">Word Lists</a>
+                <a href="#/parent/activity" class="btn btn-secondary btn-sm">Activity Log</a>
             </div>
 
             ${cardsHTML}
@@ -89,28 +89,38 @@ async function loadChart(learners, stats) {
         await loadScript('https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js');
     }
 
-    const days    = 7;
-    const labels  = [];
-    const today   = new Date();
+    const days = 7;
+    const now  = new Date();
 
+    // Build buckets anchored to LOCAL calendar dates (oldest → newest).
+    // new Date(y, m, d) constructs LOCAL midnight — no UTC offset confusion.
+    const buckets = [];
     for (let i = days - 1; i >= 0; i--) {
-        const d = new Date(today);
-        d.setDate(d.getDate() - i);
-        labels.push(d.toLocaleDateString('en', { weekday: 'short' }));
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        let label;
+        if (i === 0)      label = 'Today';
+        else if (i === 1) label = 'Yest.';
+        else              label = d.toLocaleDateString('en', { weekday: 'short' });
+        buckets.push({ ymd: localYMD(d), label });
     }
+    const labels    = buckets.map(b => b.label);
+    const bucketMap = new Map(buckets.map((b, i) => [b.ymd, i]));
+
+    // Cutoff = local start of the oldest bucket day (converted to UTC for the query)
+    const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1));
 
     const datasets = await Promise.all(learners.map(async (l, li) => {
         const { data: tests } = await supabase
             .from('test_results')
             .select('tested_at')
             .eq('user_id', l.id)
-            .gte('tested_at', new Date(Date.now() - days * 86400000).toISOString());
+            .gte('tested_at', cutoff.toISOString());
 
-        const counts = Array(days).fill(0);
+        const counts = new Array(days).fill(0);
         (tests || []).forEach(t => {
             const d   = new Date(t.tested_at);
-            const idx = days - 1 - Math.floor((today - d) / 86400000);
-            if (idx >= 0 && idx < days) counts[idx]++;
+            const idx = bucketMap.get(localYMD(d));
+            if (idx !== undefined) counts[idx]++;
         });
 
         const color = learners[li].avatar_color || '#007BFF';
@@ -160,6 +170,10 @@ async function fetchLearnerStats(userId) {
     return { xp, words, testsTaken, correct, accuracy, mastered };
 }
 
+function localYMD(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 function esc(str) {
-    return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(str ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 }
