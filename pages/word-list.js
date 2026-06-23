@@ -133,8 +133,9 @@ export async function render(container) {
     let dateFilter = sessionStorage.getItem('wordDateFilter') || null;
     sessionStorage.removeItem('wordDateFilter');
 
-    const todayStr     = new Date().toISOString().split('T')[0];
-    const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    const _now         = new Date();
+    const todayStr     = localYMD(_now);
+    const yesterdayStr = localYMD(new Date(_now.getFullYear(), _now.getMonth(), _now.getDate() - 1));
     const expandedDates = new Set([todayStr, yesterdayStr]);
     if (dateFilter) expandedDates.add(dateFilter);
     let dateGroups = new Map();
@@ -168,7 +169,7 @@ export async function render(container) {
             (w.synonyms || '').toLowerCase().includes(q)
         );
         if (dateFilter) {
-            words = words.filter(w => (w.created_at || '').startsWith(dateFilter));
+            words = words.filter(w => w.created_at && localYMD(new Date(w.created_at)) === dateFilter);
         }
         return words;
     }
@@ -198,7 +199,7 @@ export async function render(container) {
             // Date sort: group by created_at date, newest first; lazy-expand
             dateGroups = new Map();
             for (const w of words) {
-                const d = (w.created_at || '').split('T')[0] || 'unknown';
+                const d = w.created_at ? localYMD(new Date(w.created_at)) : 'unknown';
                 if (!dateGroups.has(d)) dateGroups.set(d, []);
                 dateGroups.get(d).push(w);
             }
@@ -250,7 +251,7 @@ export async function render(container) {
     function computeWordActivity() {
         const counts = {};
         for (const w of allWords) {
-            const d = (w.created_at || '').split('T')[0];
+            const d = w.created_at ? localYMD(new Date(w.created_at)) : null;
             if (d) counts[d] = (counts[d] || 0) + 1;
         }
         return counts;
@@ -260,7 +261,7 @@ export async function render(container) {
         document.getElementById('calPickTitle').textContent = new Date(calPickYear, calPickMonth, 1)
             .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
         const activity     = computeWordActivity();
-        const today        = new Date().toISOString().split('T')[0];
+        const today        = localYMD(new Date());
         const daysInMonth  = new Date(calPickYear, calPickMonth + 1, 0).getDate();
         const firstWeekday = new Date(calPickYear, calPickMonth, 1).getDay();
         const mm           = String(calPickMonth + 1).padStart(2, '0');
@@ -553,7 +554,7 @@ export async function render(container) {
         const dupWord = editingWordId === null ? allWords.find(w => w.word === word) : null;
         if (dupWord) {
             const learnedOn = dupWord.created_at
-                ? formatDate(dupWord.created_at.split('T')[0])
+                ? formatDate(localYMD(new Date(dupWord.created_at)))
                 : null;
             const status = document.getElementById('drawerStatus');
             status.style.display = 'block';
@@ -825,10 +826,14 @@ function extractSimplified(word) {
     return (slash >= 0 ? word.slice(slash + 1) : word).trim();
 }
 
+function localYMD(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 function formatDate(dateStr) {
     const today    = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    const yestStr  = new Date(today - 86400000).toISOString().split('T')[0];
+    const todayStr = localYMD(today);
+    const yestStr  = localYMD(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1));
     if (dateStr === todayStr) return 'Today';
     if (dateStr === yestStr)  return 'Yesterday';
     if (dateStr === 'unknown' || dateStr == null || dateStr === '') return 'Unknown date';

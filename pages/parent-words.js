@@ -31,8 +31,9 @@ export async function render(container) {
     let trashedWords     = [];
     let trashOpen        = false;
 
-    const todayStr     = new Date().toISOString().split('T')[0];
-    const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    const _now         = new Date();
+    const todayStr     = localYMD(_now);
+    const yesterdayStr = localYMD(new Date(_now.getFullYear(), _now.getMonth(), _now.getDate() - 1));
 
     function resetExpandedDates() { expandedDates = new Set([todayStr, yesterdayStr]); }
     resetExpandedDates();
@@ -188,7 +189,7 @@ export async function render(container) {
         } else {
             dateGroups = new Map();
             for (const w of words) {
-                const d = (w.created_at || '').split('T')[0] || 'unknown';
+                const d = w.created_at ? localYMD(new Date(w.created_at)) : 'unknown';
                 if (!dateGroups.has(d)) dateGroups.set(d, []);
                 dateGroups.get(d).push(w);
             }
@@ -455,7 +456,7 @@ export async function render(container) {
         if (dup) {
             const status = document.getElementById('drawerStatus');
             status.style.display = 'block'; status.style.color = '#e67e22';
-            const on = dup.created_at ? formatDate(dup.created_at.split('T')[0]) : null;
+            const on = dup.created_at ? formatDate(localYMD(new Date(dup.created_at))) : null;
             status.textContent = on
                 ? `"${word}" is already in ${activeLearner.display_name}'s list — learned ${on}.`
                 : `"${word}" is already in ${activeLearner.display_name}'s list.`;
@@ -574,7 +575,7 @@ export async function render(container) {
         if (err1) throw err1;
         const { error: err2 } = await supabase.from('review_schedule').insert({
             word_id: newWord.id, user_id: activeLearner.id,
-            next_review_date: new Date().toISOString().split('T')[0],
+            next_review_date: localYMD(new Date()),
             review_level: 0, interval_days: 1,
         });
         if (err2) throw err2;
@@ -676,10 +677,14 @@ function extractSimplified(word) {
     return (i >= 0 ? word.slice(i + 1) : word).trim();
 }
 
+function localYMD(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 function formatDate(dateStr) {
     const today    = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    const yestStr  = new Date(today - 86400000).toISOString().split('T')[0];
+    const todayStr = localYMD(today);
+    const yestStr  = localYMD(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1));
     if (dateStr === todayStr) return 'Today';
     if (dateStr === yestStr)  return 'Yesterday';
     if (!dateStr || dateStr === 'unknown') return 'Unknown date';

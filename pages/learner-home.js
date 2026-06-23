@@ -235,8 +235,8 @@ export async function render(container) {
             .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
         document.getElementById('calTitle').textContent = monthLabel;
 
-        const start = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-01`;
-        const end   = new Date(calYear, calMonth + 1, 1).toISOString().split('T')[0];
+        const start = new Date(calYear, calMonth, 1).toISOString();
+        const end   = new Date(calYear, calMonth + 1, 1).toISOString();
 
         const [wordsRes, testsRes] = await Promise.all([
             supabase.from('words').select('created_at').eq('user_id', user.id).gte('created_at', start).lt('created_at', end),
@@ -245,10 +245,10 @@ export async function render(container) {
 
         calAdded    = {};
         calReviewed = {};
-        for (const w of wordsRes.data  || []) { const d = w.created_at.split('T')[0]; calAdded[d]    = (calAdded[d]    || 0) + 1; }
-        for (const t of testsRes.data  || []) { const d = t.tested_at.split('T')[0];  calReviewed[d] = (calReviewed[d] || 0) + 1; }
+        for (const w of wordsRes.data  || []) { const d = localYMD(new Date(w.created_at)); calAdded[d]    = (calAdded[d]    || 0) + 1; }
+        for (const t of testsRes.data  || []) { const d = localYMD(new Date(t.tested_at)); calReviewed[d] = (calReviewed[d] || 0) + 1; }
 
-        const today        = new Date().toISOString().split('T')[0];
+        const today        = localYMD(new Date());
         const daysInMonth  = new Date(calYear, calMonth + 1, 0).getDate();
         const firstWeekday = new Date(calYear, calMonth, 1).getDay();
         const mm           = String(calMonth + 1).padStart(2, '0');
@@ -285,6 +285,10 @@ function buildCalDay(ds, d, isToday, nAdded, nTests) {
     const addedHtml   = nAdded > 0 ? `<div style="font-size:0.6rem;color:#007bff;line-height:1.2">+${nAdded}</div>` : '';
     const reviewedHtml = nTests > 0 ? `<div style="font-size:0.6rem;color:#28a745;line-height:1.2">${nTests}</div>` : '';
     return `<div data-date="${ds}" style="min-height:48px;border:1px solid ${border};border-radius:5px;padding:3px 4px;background:${bg};cursor:${cursor}"><div style="font-size:0.7rem;font-weight:${weight};color:${color}">${d}</div>${addedHtml}${reviewedHtml}</div>`;
+}
+
+function localYMD(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 function esc(str) {

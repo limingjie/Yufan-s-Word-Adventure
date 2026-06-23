@@ -42,9 +42,59 @@ export async function render(container) {
                     <option value="0">All time</option>
                 </select>
             </div>
+            <div class="card" style="padding:0.85rem;margin-bottom:1rem">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+                    <button id="calPrev" class="btn btn-secondary btn-sm" style="min-width:36px">‹</button>
+                    <span id="calTitle" style="font-weight:600;font-size:0.9rem"></span>
+                    <button id="calNext" class="btn btn-secondary btn-sm" style="min-width:36px">›</button>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;font-size:0.7rem;text-align:center;margin-bottom:4px;color:#888">
+                    <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
+                </div>
+                <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px"></div>
+                <div style="display:flex;gap:1.25rem;margin-top:0.5rem;font-size:0.72rem;color:#666">
+                    <span><span style="color:#007bff;font-weight:600">+</span> Words added</span>
+                    <span><span style="color:#28a745;font-weight:600">✓</span> Tests done</span>
+                </div>
+            </div>
             <div id="activitySummary" style="margin-bottom:1rem"></div>
             <div id="activityLog"></div>
         </div>`;
+
+    let calYear  = new Date().getFullYear();
+    let calMonth = new Date().getMonth();
+    let calAdded = {};
+    let calTests = {};
+
+    async function renderCalendar(learnerId) {
+        document.getElementById('calTitle').textContent = new Date(calYear, calMonth, 1)
+            .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+        const start = new Date(calYear, calMonth, 1).toISOString();
+        const end   = new Date(calYear, calMonth + 1, 1).toISOString();
+
+        const [wordsRes, testsRes] = await Promise.all([
+            supabase.from('words').select('created_at').eq('user_id', learnerId).is('deleted_at', null).gte('created_at', start).lt('created_at', end),
+            supabase.from('test_results').select('tested_at').eq('user_id', learnerId).gte('tested_at', start).lt('tested_at', end),
+        ]);
+
+        calAdded = {};
+        calTests = {};
+        for (const w of wordsRes.data || []) { const d = localYMD(new Date(w.created_at)); calAdded[d] = (calAdded[d] || 0) + 1; }
+        for (const t of testsRes.data || []) { const d = localYMD(new Date(t.tested_at));  calTests[d] = (calTests[d] || 0) + 1; }
+
+        const today        = localYMD(new Date());
+        const daysInMonth  = new Date(calYear, calMonth + 1, 0).getDate();
+        const firstWeekday = new Date(calYear, calMonth, 1).getDay();
+        const mm           = String(calMonth + 1).padStart(2, '0');
+
+        let html = '<div></div>'.repeat(firstWeekday);
+        for (let d = 1; d <= daysInMonth; d++) {
+            const ds = `${calYear}-${mm}-${String(d).padStart(2, '0')}`;
+            html += buildCalDay(ds, d, ds === today, calAdded[ds] || 0, calTests[ds] || 0);
+        }
+        document.getElementById('calGrid').innerHTML = html;
+    }
 
     async function loadActivity(learnerId) {
         document.getElementById('activityLog').innerHTML     = `<div class="empty-state"><div class="empty-icon">⏳</div><p>Loading…</p></div>`;
@@ -62,7 +112,10 @@ export async function render(container) {
         if (days > 0) query = query.gte('tested_at', new Date(Date.now() - days * 86400000).toISOString());
         if (typeFilter) query = query.eq('test_type', typeFilter);
 
-        const { data } = await query.limit(1000);
+        const [{ data }] = await Promise.all([
+            query.limit(1000),
+            renderCalendar(learnerId),
+        ]);
         const tests = data || [];
 
         renderSummary(document.getElementById('activitySummary'), tests);
@@ -73,8 +126,8 @@ export async function render(container) {
         const total   = tests.length;
         const correct = tests.filter(t => t.correct).length;
         const pct     = total > 0 ? Math.round(correct / total * 100) : 0;
-        const today   = new Date().toISOString().split('T')[0];
-        const todayTests   = tests.filter(t => t.tested_at.startsWith(today));
+        const today   = localYMD(new Date());
+        const todayTests   = tests.filter(t => localYMD(new Date(t.tested_at)) === today);
         const todayCorrect = todayTests.filter(t => t.correct).length;
         const todayPct     = todayTests.length > 0 ? Math.round(todayCorrect / todayTests.length * 100) : null;
 
@@ -132,7 +185,7 @@ export async function render(container) {
         // Group by date
         const groups = new Map();
         for (const t of tests) {
-            const date = t.tested_at.split('T')[0];
+            const date = localYMD(new Date(t.tested_at));
             if (!groups.has(date)) groups.set(date, []);
             groups.get(date).push(t);
         }
@@ -196,10 +249,41 @@ export async function render(container) {
             </tr>`;
     }
 
+    document.getElementById('calPrev').addEventListener('click', () => {
+        calMonth--;
+        if (calMonth < 0) { calMonth = 11; calYear--; }
+        renderCalendar(activeLearner);
+    });
+    document.getElementById('calNext').addEventListener('click', () => {
+        calMonth++;
+        if (calMonth > 11) { calMonth = 0; calYear++; }
+        renderCalendar(activeLearner);
+    });
+
+    document.getElementById('calGrid').addEventListener('click', (e) => {
+        const cell = e.target.closest('[data-date]');
+        if (!cell) return;
+        const date = cell.dataset.date;
+        if (!calAdded[date] && !calTests[date]) return;
+        const body = document.getElementById(`day-${date}`);
+        if (!body) return;
+        if (body.style.display === 'none') {
+            body.style.display = 'block';
+            const header = document.querySelector(`[data-gid="day-${date}"]`);
+            if (header) {
+                const chevron = header.querySelector('.day-chevron');
+                if (chevron) chevron.textContent = '▾';
+            }
+        }
+        body.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
     document.querySelectorAll('.leaderboard-tab').forEach(btn => {
         btn.addEventListener('click', async () => {
             if (btn.dataset.id === activeLearner) return;
             activeLearner = btn.dataset.id;
+            calYear  = new Date().getFullYear();
+            calMonth = new Date().getMonth();
             document.querySelectorAll('.leaderboard-tab').forEach(b => b.classList.toggle('active', b.dataset.id === activeLearner));
             await loadActivity(activeLearner);
         });
@@ -211,10 +295,26 @@ export async function render(container) {
     await loadActivity(activeLearner);
 }
 
+function buildCalDay(ds, d, isToday, nAdded, nTests) {
+    const hasData = nAdded > 0 || nTests > 0;
+    const border  = isToday ? '#007bff' : '#e8e8e8';
+    const bg      = isToday ? '#f0f6ff' : hasData ? '#fafff9' : '#fff';
+    const cursor  = hasData ? 'pointer' : 'default';
+    const weight  = isToday ? '700' : '400';
+    const color   = isToday ? '#007bff' : '#444';
+    const addedHtml    = nAdded > 0 ? `<div style="font-size:0.6rem;color:#007bff;line-height:1.2">+${nAdded}</div>` : '';
+    const reviewedHtml = nTests > 0 ? `<div style="font-size:0.6rem;color:#28a745;line-height:1.2">${nTests}</div>` : '';
+    return `<div data-date="${ds}" style="min-height:44px;border:1px solid ${border};border-radius:5px;padding:3px 4px;background:${bg};cursor:${cursor}"><div style="font-size:0.7rem;font-weight:${weight};color:${color}">${d}</div>${addedHtml}${reviewedHtml}</div>`;
+}
+
+function localYMD(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 function formatDate(dateStr) {
     const today    = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    const yestStr  = new Date(today - 86400000).toISOString().split('T')[0];
+    const todayStr = localYMD(today);
+    const yestStr  = localYMD(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1));
     if (dateStr === todayStr) return 'Today';
     if (dateStr === yestStr)  return 'Yesterday';
     const [y, m, d] = dateStr.split('-').map(Number);

@@ -8,6 +8,10 @@ import { getCurrentUser } from "./auth.js";
 import { nextLevel, nextReviewDate, intervalDays } from "./lib/srs.js";
 import { computeXP } from "./lib/xp.js";
 
+function localYMD(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 // ============================================================================
 // WORDS
 // ============================================================================
@@ -46,7 +50,7 @@ export async function addWord(wordData) {
     await supabase.from("review_schedule").insert({
         word_id: data.id,
         user_id: user.id,
-        next_review_date: new Date().toISOString().split("T")[0],
+        next_review_date: localYMD(new Date()),
         review_level: 0,
         interval_days: 1,
     });
@@ -188,7 +192,7 @@ export async function getWordsForReviewToday() {
     const user = await getCurrentUser();
     if (!user) throw new Error("Not authenticated");
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = localYMD(new Date());
 
     const { data, error } = await supabase
         .from("review_schedule")
@@ -361,7 +365,7 @@ export async function getXPLeaderboard(limit = 10) {
         )
         .eq("profiles.is_public", true)
         .eq("profiles.role", "learner")
-        .eq("snapshot_date", new Date().toISOString().split("T")[0])
+        .eq("snapshot_date", localYMD(new Date()))
         .order("total_xp", { ascending: false })
         .limit(limit);
 
@@ -385,7 +389,7 @@ export async function getMasteredWordsLeaderboard(limit = 10) {
         )
         .eq("profiles.is_public", true)
         .eq("profiles.role", "learner")
-        .eq("snapshot_date", new Date().toISOString().split("T")[0])
+        .eq("snapshot_date", localYMD(new Date()))
         .order("mastered_words_count", { ascending: false })
         .limit(limit);
 
@@ -409,7 +413,7 @@ export async function getStreaksLeaderboard(limit = 10) {
         )
         .eq("profiles.is_public", true)
         .eq("profiles.role", "learner")
-        .eq("snapshot_date", new Date().toISOString().split("T")[0])
+        .eq("snapshot_date", localYMD(new Date()))
         .order("current_streak", { ascending: false })
         .limit(limit);
 
@@ -442,7 +446,7 @@ export async function getLearnerProfile(learnerId) {
  * Get head-to-head comparison
  */
 export async function comparelearners(learnerId1, learnerId2) {
-    const today = new Date().toISOString().split("T")[0];
+    const today = localYMD(new Date());
 
     const { data, error } = await supabase
         .from("leaderboard_snapshots")
@@ -557,24 +561,26 @@ export async function getUserStreak() {
     ]);
 
     const dates = new Set();
-    for (const w of wordsResult.data || []) dates.add(w.created_at.split("T")[0]);
-    for (const t of testsResult.data || []) dates.add(t.tested_at.split("T")[0]);
+    for (const w of wordsResult.data || []) dates.add(localYMD(new Date(w.created_at)));
+    for (const t of testsResult.data || []) dates.add(localYMD(new Date(t.tested_at)));
 
     if (dates.size === 0) return 0;
 
     const sorted = [...dates].sort((a, b) => (a < b ? 1 : -1));
-    const today = new Date().toISOString().split("T")[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    const now       = new Date();
+    const today     = localYMD(now);
+    const yesterday = localYMD(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
 
     if (sorted[0] !== today && sorted[0] !== yesterday) return 0;
 
-    let streak = 0;
-    let cursor = new Date(sorted[0] + "T12:00:00Z");
+    let streak    = 0;
+    let cursorYMD = sorted[0];
 
     for (const date of sorted) {
-        if (date === cursor.toISOString().split("T")[0]) {
+        if (date === cursorYMD) {
             streak++;
-            cursor = new Date(cursor.getTime() - 86400000);
+            const [y, m, d] = cursorYMD.split('-').map(Number);
+            cursorYMD = localYMD(new Date(y, m - 1, d - 1));
         } else {
             break;
         }
