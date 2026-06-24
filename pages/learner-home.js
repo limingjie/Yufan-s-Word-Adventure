@@ -1,226 +1,189 @@
-import { getCurrentProfile, getCurrentUser } from '../js/auth.js';
-import { getUserXP, getUserStreak, getWordsForReviewToday, getWordsCount, getDailyProgress } from '../js/db.js';
-import { getLevelInfo, getLevelProgress } from '../js/lib/xp.js';
+import { getCurrentProfile, getCurrentUser, patchCurrentProfile } from '../js/auth.js';
+import { getUserSunlight, getUserCoins, getUserStreak, getDailyProgress, updateAvatar } from '../js/db.js';
+import { getRankInfo, getRankProgress } from '../js/lib/growth.js';
+import { buildMissions, renderMissionList, allMissionsDone } from '../js/lib/missions.js';
+import { showEarnHelp } from '../js/lib/help.js';
 import { supabase } from '../js/supabase.js';
 
-// Daily mission targets
-const MISSION_WORDS    = 15;
-const MISSION_REVIEWS  = 15;
-const MISSION_ACCURACY = 90;   // percent, minimum 5 tests
+// Kid-friendly emoji quick-picks (the avatar picker also accepts any typed emoji)
+const AVATAR_EMOJIS = ['🦊','🐰','🐱','🐶','🐼','🐨','🦁','🐯','🐸','🐵','🐧','🐢','🦉','🦄','🐙','🦋','🐝','🐬','🐳','🐞','🌟','🌈','🚀','⚽','🎨','🎸','📚','🍓','🍉','🌸','🔥','💎'];
 
-// Word count milestones → medals
-const GOALS = [
-    { target: 15,  medal: '🥉', label: 'Bronze' },
-    { target: 50,  medal: '🥈', label: 'Silver' },
-    { target: 100, medal: '🥇', label: 'Gold'   },
-];
+// GitHub-contribution green scale, keyed by words added that day
+const CAL_SHADES = ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'];
 
 export async function render(container) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">⏳</div><p>Loading…</p></div>`;
 
-    const [profile, user, xpData, streak, dueWords, totalWords, daily] = await Promise.all([
+    const [profile, user, sunData, coins, streak, daily] = await Promise.all([
         getCurrentProfile(),
         getCurrentUser(),
-        getUserXP(),
+        getUserSunlight(),
+        getUserCoins(),
         getUserStreak(),
-        getWordsForReviewToday(),
-        getWordsCount(),
         getDailyProgress(),
     ]);
 
-    const { xp }    = xpData;
-    const levelInfo = getLevelInfo(xp);
-    const progress  = getLevelProgress(xp);
-    const dueCount  = dueWords.length;
+    const { sun }   = sunData;
+    const rankInfo  = getRankInfo(sun);
+    const progress  = getRankProgress(sun);
     const initial   = (profile?.display_name || '?')[0].toUpperCase();
     const color     = profile?.avatar_color || '#007BFF';
+    const avatarFace = profile?.avatar_emoji || initial;
 
-    // Daily mission progress
-    const mWordsAcc  = Math.min(daily.wordsAdded, MISSION_WORDS);
-    const mReviewAcc = Math.min(daily.reviewed,   MISSION_REVIEWS);
+    const missions = buildMissions(daily);
+    const allDone  = allMissionsDone(missions);
 
-    // Quiz coverage: % of today's added words that have been correctly quizzed.
-    // Adding new words without quizzing them lowers this score until you catch up.
-    const quizCoverage = daily.quizCoverage ?? 100;
-    const quizSubtitle = daily.wordsAdded === 0
-        ? 'Add words today to unlock this mission'
-        : quizCoverage + '% of today\'s words quizzed correctly (need ' + MISSION_ACCURACY + '%)';
-
-    const mWordsDone  = daily.wordsAdded >= MISSION_WORDS;
-    const mReviewDone = daily.reviewed   >= MISSION_REVIEWS;
-    const mQuizDone   = daily.wordsAdded === 0 || quizCoverage >= MISSION_ACCURACY;
-    const allMissions = mWordsDone && mReviewDone && mQuizDone;
-
-    // Focus CTA
-    let focusHtml;
-    if (dueCount > 0) {
-        focusHtml = `
-            <div style="background:linear-gradient(135deg,#007bff,#6610f2);border-radius:16px;padding:1.25rem 1.5rem;color:#fff;margin-bottom:1.25rem;text-align:center">
-                <div style="font-size:2rem;margin-bottom:0.25rem">💧</div>
-                <div style="font-size:1.1rem;font-weight:700;margin-bottom:0.9rem">
-                    ${dueCount} ${dueCount === 1 ? 'word is' : 'words are'} ready to review!
-                </div>
-                <a href="#/learner/review" class="btn btn-primary"
-                   style="background:#fff;color:#007bff;font-size:1.05rem;padding:0.7rem 2rem;width:100%;display:block;max-width:280px;margin:0 auto;font-weight:700">
-                    Start Review 🚀
-                </a>
-            </div>`;
-    } else if (totalWords === 0) {
-        focusHtml = `
-            <div style="background:linear-gradient(135deg,#52c41a,#87d068);border-radius:16px;padding:1.25rem 1.5rem;color:#fff;margin-bottom:1.25rem;text-align:center">
-                <div style="font-size:2rem;margin-bottom:0.25rem">🌱</div>
-                <div style="font-size:1.05rem;font-weight:700;margin-bottom:0.9rem">
-                    Start your Word Adventure!
-                </div>
-                <button id="focusAddWordBtn" class="btn"
-                        style="background:#fff;color:#52c41a;font-size:1.05rem;padding:0.7rem 2rem;width:100%;max-width:280px;font-weight:700">
-                    Add Your First Word ✨
-                </button>
-            </div>`;
-    } else {
-        focusHtml = `
-            <div style="background:linear-gradient(135deg,#52c41a,#87d068);border-radius:16px;padding:1.25rem 1.5rem;color:#fff;margin-bottom:1.25rem;text-align:center">
-                <div style="font-size:2rem;margin-bottom:0.25rem">🌟</div>
-                <div style="font-size:1.05rem;font-weight:700;margin-bottom:0.9rem">
-                    All caught up! Keep adding words.
-                </div>
-                <button id="focusAddWordBtn" class="btn"
-                        style="background:#fff;color:#52c41a;font-size:1.05rem;padding:0.7rem 2rem;width:100%;max-width:280px;font-weight:700">
-                    + Add New Word
-                </button>
-            </div>`;
-    }
-
-    // Daily missions HTML
-    function missionHtml(icon, title, current, target, done, subtitleOverride) {
-        const pct      = Math.min(100, Math.round((current / target) * 100));
-        const subtitle = subtitleOverride || `${current} / ${target}`;
-        return `
-            <div class="mission-card ${done ? 'complete' : ''}">
-                <div class="mission-icon">${icon}</div>
-                <div class="mission-info">
-                    <div class="mission-title">${title}</div>
-                    <div style="font-size:0.78rem;color:#888;margin-bottom:3px">${subtitle}</div>
-                    <div class="mission-bar-wrap">
-                        <div class="mission-bar-fill" style="width:${pct}%"></div>
-                    </div>
-                </div>
-                <div class="mission-reward">${done ? '✅' : '🥇'}</div>
-            </div>`;
-    }
-
-    // Word count goals
-    const goalsHtml = GOALS.map(g => {
-        const achieved = totalWords >= g.target;
-        return `
-            <div class="word-goal ${achieved ? 'achieved' : ''}">
-                <div class="goal-medal">${g.medal}</div>
-                <div class="goal-label">${g.label}</div>
-                <div class="goal-target">${g.target} words</div>
-            </div>`;
-    }).join('');
-
-    const xpLabel = levelInfo.next ? `${xp} / ${levelInfo.next.minXP} XP` : `${xp} XP — Max!`;
+    const sunChip = rankInfo.next
+        ? `☀️ ${sun} / ${rankInfo.next.minSun}`
+        : `☀️ ${sun} · Max!`;
 
     container.innerHTML = `
         <div style="max-width:600px;margin:0 auto">
 
-            <!-- Greeting -->
-            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.1rem">
-                <div class="avatar" style="background:${color};width:46px;height:46px;font-size:1.2rem;flex-shrink:0">${initial}</div>
-                <div>
-                    <div style="font-size:1.25rem;font-weight:700">Hello, ${esc(profile?.display_name)}! 👋</div>
-                    <span class="level-badge" style="font-size:0.8rem">Lv.${levelInfo.level} ${levelInfo.name}</span>
-                </div>
-                ${streak >= 2 ? `<div style="margin-left:auto;font-size:0.85rem;color:#ff7d00;font-weight:700">🔥 ${streak} days</div>` : ''}
-            </div>
-
-            <!-- Focus CTA -->
-            ${focusHtml}
-
-            <!-- Daily Missions -->
-            <div style="margin-bottom:1.1rem">
-                <div style="font-size:0.78rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.5rem">
-                    Today's Missions ${allMissions ? '🎉' : ''}
-                </div>
-                ${missionHtml('📚', 'Add 15 new words', mWordsAcc, MISSION_WORDS, mWordsDone)}
-                ${missionHtml('💧', 'Review 15 words', mReviewAcc, MISSION_REVIEWS, mReviewDone)}
-                ${missionHtml('🎯', 'Quiz master (90% coverage)', quizCoverage, MISSION_ACCURACY, mQuizDone, quizSubtitle)}
-            </div>
-
-            <!-- Word count goals -->
-            <div style="margin-bottom:1.1rem">
-                <div style="font-size:0.78rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.6rem">
-                    Word Collection Goals
-                </div>
-                <div class="word-goals">${goalsHtml}</div>
-                <div style="text-align:center;font-size:0.82rem;color:#888">${totalWords} words in your collection</div>
-            </div>
-
-            <!-- XP bar -->
-            <div class="card" style="margin-bottom:1rem;padding:0.75rem 1rem">
-                <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:#666;margin-bottom:5px">
-                    <span>${xpLabel}</span><span>${progress}%</span>
-                </div>
-                <div class="progress-bar-wrap">
-                    <div class="progress-bar-fill" style="width:${progress}%"></div>
-                </div>
-            </div>
-
-            <!-- Quick nav -->
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.6rem;margin-bottom:1.25rem">
-                <a href="#/learner/quiz"        class="btn btn-secondary" style="text-align:center;font-size:0.85rem;padding:0.65rem">📝 Quiz</a>
-                <a href="#/learner/garden"      class="btn btn-secondary" style="text-align:center;font-size:0.85rem;padding:0.65rem">🌱 Garden</a>
-                <a href="#/learner/achievements" class="btn btn-secondary" style="text-align:center;font-size:0.85rem;padding:0.65rem">🏅 Awards</a>
-            </div>
-
-            <!-- Calendar (collapsible) -->
-            <div style="border-top:1px solid #eee;padding-top:1rem">
-                <button id="calToggleBtn" style="background:none;border:none;cursor:pointer;font-size:0.82rem;color:#888;padding:0;display:flex;align-items:center;gap:0.35rem;margin-bottom:0.6rem">
-                    <span id="calChevron">▸</span> Activity Calendar
-                </button>
-                <div id="calSection" style="display:none">
-                    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.6rem">
-                        <button id="calPrev" class="btn btn-secondary btn-sm">←</button>
-                        <span id="calTitle" style="flex:1;text-align:center;font-weight:600;font-size:0.88rem"></span>
-                        <button id="calNext" class="btn btn-secondary btn-sm">→</button>
+            <!-- Compact header -->
+            <div class="home-header">
+                <button id="avatarBtn" class="avatar avatar-btn${profile?.avatar_emoji ? ' avatar-emoji' : ''}"
+                        style="background:${color}" title="Change avatar">${avatarFace}</button>
+                <div class="home-id">
+                    <div class="home-name">Hello, ${esc(profile?.display_name)}! 👋</div>
+                    <div class="home-meta">
+                        <span class="level-badge" style="font-size:0.78rem">${rankInfo.emoji} ${rankInfo.name}</span>
+                        <span class="xp-chip">${sunChip}</span>
+                        <span class="coin-chip" title="Coins to spend in the Garden">🪙 ${coins.balance}</span>
                     </div>
-                    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;text-align:center;margin-bottom:2px">
-                        ${['Su','Mo','Tu','We','Th','Fr','Sa'].map(d =>
-                            `<div style="font-size:0.65rem;color:#aaa;padding:2px 0">${d}</div>`
-                        ).join('')}
+                    <div class="xp-mini-wrap"><div class="xp-mini-fill" style="width:${progress}%"></div></div>
+                </div>
+                <div class="home-actions">
+                    ${streak >= 2 ? `<span class="streak-chip">🔥 ${streak}</span>` : ''}
+                    <button id="earnHelpBtn" class="help-btn" title="How are Sunlight & Coins earned?">?</button>
+                </div>
+            </div>
+
+            <!-- Activity calendar (GitHub contribution graph) -->
+            <div class="cal-card">
+                <div class="ghcal">
+                    <div class="ghcal-scroll">
+                        <div class="ghcal-inner">
+                            <div id="calMonths" class="ghcal-months"></div>
+                            <div class="ghcal-body">
+                                <div class="ghcal-week-labels">
+                                    <span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span>
+                                </div>
+                                <div id="calGrid" class="ghcal-grid"></div>
+                            </div>
+                        </div>
                     </div>
-                    <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
-                    <div style="display:flex;gap:1rem;margin-top:0.5rem;font-size:0.7rem;color:#888">
-                        <span><span style="display:inline-block;width:7px;height:7px;background:#007bff;border-radius:2px;margin-right:3px;vertical-align:middle"></span>Added</span>
-                        <span><span style="display:inline-block;width:7px;height:7px;background:#28a745;border-radius:2px;margin-right:3px;vertical-align:middle"></span>Tests</span>
+                    <div class="cal-legend">
+                        <span>Less</span>
+                        ${CAL_SHADES.map(c => `<span class="cal-swatch" style="background:${c}"></span>`).join('')}
+                        <span>More</span>
                     </div>
                 </div>
+            </div>
+
+            <!-- Daily missions -->
+            <div style="margin:1.1rem 0">
+                <div class="section-label">Today's Missions ${allDone ? '🎉' : ''}</div>
+                ${allDone ? `<div class="all-done-banner">🎉 All missions complete — amazing work!</div>` : ''}
+                ${renderMissionList(missions)}
             </div>
         </div>`;
 
-    // Focus CTA buttons (add-word variants)
-    document.getElementById('focusAddWordBtn')?.addEventListener('click', () => {
-        sessionStorage.setItem('openAddDrawer', 'true');
-        location.hash = '#/learner/words';
+    // ---- Mission actions (locked cards are non-interactive divs and skipped) ----
+    const MISSION_ACTIONS = {
+        add:        () => { sessionStorage.setItem('openAddDrawer', 'true'); location.hash = '#/learner/words'; },
+        reviewNew:  () => { sessionStorage.setItem('reviewScope', 'new');     location.hash = '#/learner/review'; },
+        meaning:    () => { sessionStorage.setItem('quizMode', 'meaning');    location.hash = '#/learner/quiz'; },
+        spelling:   () => { sessionStorage.setItem('quizMode', 'spelling');   location.hash = '#/learner/quiz'; },
+        reviewCurve:() => { sessionStorage.setItem('reviewScope', 'curve');   location.hash = '#/learner/review'; },
+    };
+    container.querySelectorAll('button.mission-card').forEach(card => {
+        card.addEventListener('click', () => MISSION_ACTIONS[card.dataset.key]?.());
     });
 
-    // Calendar toggle
-    document.getElementById('calToggleBtn').addEventListener('click', () => {
-        const section = document.getElementById('calSection');
-        const chevron = document.getElementById('calChevron');
-        const open = section.style.display === 'none';
-        section.style.display = open ? 'block' : 'none';
-        chevron.textContent   = open ? '▾' : '▸';
-        if (open && !calRendered) { calRendered = true; renderCalendar(); }
-    });
+    // ---- Earn help ----
+    document.getElementById('earnHelpBtn').addEventListener('click', showEarnHelp);
 
-    // Calendar
-    let calYear     = new Date().getFullYear();
-    let calMonth    = new Date().getMonth();
+    // ---- Avatar picker (emoji + background color) ----
+    document.getElementById('avatarBtn').addEventListener('click', () => openAvatarPicker());
+
+    function openAvatarPicker() {
+        let selEmoji = profile?.avatar_emoji || '';   // '' = use initial
+        let selColor = profile?.avatar_color || color;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'modal';
+        overlay.innerHTML = `
+            <div class="modal-content" style="max-width:360px">
+                <div class="modal-header">
+                    <h2 style="font-size:1.2rem">Choose your avatar</h2>
+                    <button class="modal-close" id="avatarClose">✕</button>
+                </div>
+
+                <div class="avatar-edit-top">
+                    <div id="avatarPreview" class="avatar avatar-preview"></div>
+                    <label class="avatar-field">
+                        <span>Background</span>
+                        <input type="color" id="avatarColor" value="${selColor}">
+                    </label>
+                    <label class="avatar-field">
+                        <span>Type any emoji</span>
+                        <input type="text" id="avatarInput" inputmode="text" maxlength="4" placeholder="🎈" value="${selEmoji}">
+                    </label>
+                </div>
+
+                <div class="emoji-grid">
+                    <button class="emoji-option emoji-initial" data-emoji="">${initial}</button>
+                    ${AVATAR_EMOJIS.map(e => `<button class="emoji-option" data-emoji="${e}">${e}</button>`).join('')}
+                </div>
+
+                <button class="btn btn-primary btn-block" id="avatarSave" style="margin-top:1rem">Save</button>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        const preview    = overlay.querySelector('#avatarPreview');
+        const colorInput = overlay.querySelector('#avatarColor');
+        const emojiInput = overlay.querySelector('#avatarInput');
+
+        function syncPreview() {
+            const face = selEmoji || initial;
+            preview.textContent = face;
+            preview.style.background = selColor;
+            preview.classList.toggle('avatar-emoji', !!selEmoji);
+            overlay.querySelectorAll('.emoji-option').forEach(b =>
+                b.classList.toggle('selected', b.dataset.emoji === selEmoji));
+        }
+        syncPreview();
+
+        const close = () => overlay.remove();
+        overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+        overlay.querySelector('#avatarClose').addEventListener('click', close);
+
+        colorInput.addEventListener('input', () => { selColor = colorInput.value; syncPreview(); });
+        emojiInput.addEventListener('input', () => { selEmoji = emojiInput.value.trim(); syncPreview(); });
+        overlay.querySelectorAll('.emoji-option').forEach(b =>
+            b.addEventListener('click', () => { selEmoji = b.dataset.emoji; emojiInput.value = selEmoji; syncPreview(); }));
+
+        overlay.querySelector('#avatarSave').addEventListener('click', async () => {
+            const emoji = selEmoji || null;
+            const btn = document.getElementById('avatarBtn');
+            btn.textContent = emoji || initial;
+            btn.style.background = selColor;
+            btn.classList.toggle('avatar-emoji', !!emoji);
+            close();
+            try {
+                await updateAvatar(emoji, selColor);
+                patchCurrentProfile({ avatar_emoji: emoji, avatar_color: selColor });
+                if (profile) { profile.avatar_emoji = emoji; profile.avatar_color = selColor; }
+            } catch (err) {
+                console.error('Failed to save avatar:', err);
+            }
+        });
+    }
+
+    // ---- Calendar (GitHub contribution graph: weeks = columns, days = rows) ----
     let calAdded    = {};
     let calReviewed = {};
-    let calRendered = false;
 
     document.getElementById('calGrid').addEventListener('click', (e) => {
         const cell = e.target.closest('[data-date]');
@@ -230,61 +193,92 @@ export async function render(container) {
         }
     });
 
-    async function renderCalendar() {
-        const monthLabel = new Date(calYear, calMonth, 1)
-            .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-        document.getElementById('calTitle').textContent = monthLabel;
+    // Squares stay a fixed size; instead we show only as many weeks as fit the
+    // current width and re-render on resize. lastWeeks guards against redundant
+    // rebuilds (and ResizeObserver feedback loops from our own height changes).
+    let lastWeeks = -1;
 
-        const start = new Date(calYear, calMonth, 1).toISOString();
-        const end   = new Date(calYear, calMonth + 1, 1).toISOString();
+    function weeksThatFit() {
+        const ghcal  = container.querySelector('.ghcal');
+        const cs     = getComputedStyle(ghcal);
+        const cell   = Number.parseFloat(cs.getPropertyValue('--ghc')) || 14;
+        const gap    = Number.parseFloat(cs.getPropertyValue('--ghg')) || 3;
+        const labelW = Number.parseFloat(cs.getPropertyValue('--ghw')) || 22;
+        const labels = container.querySelector('.ghcal-week-labels');
+        const labelsShown = labels && labels.offsetParent !== null;
+
+        const avail = ghcal.clientWidth - (labelsShown ? labelW + gap : 0);
+        const n = Math.floor((avail + gap) / (cell + gap));
+        return Math.max(6, Math.min(53, n));   // 6 weeks min, ~1 year max
+    }
+
+    async function renderCalendar() {
+        const numWeeks = weeksThatFit();
+        if (numWeeks === lastWeeks) return;     // width unchanged → nothing to rebuild
+        lastWeeks = numWeeks;
+
+        const now = new Date();
+        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());  // today, local midnight
+        const start = new Date(end);
+        start.setDate(start.getDate() - end.getDay());          // Sunday of the current week
+        start.setDate(start.getDate() - (numWeeks - 1) * 7);    // …then back numWeeks-1 weeks
 
         const [wordsRes, testsRes] = await Promise.all([
-            supabase.from('words').select('created_at').eq('user_id', user.id).gte('created_at', start).lt('created_at', end),
-            supabase.from('test_results').select('tested_at').eq('user_id', user.id).gte('tested_at', start).lt('tested_at', end),
+            supabase.from('words').select('created_at').eq('user_id', user.id).gte('created_at', start.toISOString()),
+            supabase.from('test_results').select('tested_at').eq('user_id', user.id).gte('tested_at', start.toISOString()),
         ]);
 
         calAdded    = {};
         calReviewed = {};
-        for (const w of wordsRes.data  || []) { const d = localYMD(new Date(w.created_at)); calAdded[d]    = (calAdded[d]    || 0) + 1; }
-        for (const t of testsRes.data  || []) { const d = localYMD(new Date(t.tested_at)); calReviewed[d] = (calReviewed[d] || 0) + 1; }
+        for (const w of wordsRes.data || []) { const d = localYMD(new Date(w.created_at)); calAdded[d]    = (calAdded[d]    || 0) + 1; }
+        for (const t of testsRes.data || []) { const d = localYMD(new Date(t.tested_at)); calReviewed[d] = (calReviewed[d] || 0) + 1; }
 
-        const today        = localYMD(new Date());
-        const daysInMonth  = new Date(calYear, calMonth + 1, 0).getDate();
-        const firstWeekday = new Date(calYear, calMonth, 1).getDay();
-        const mm           = String(calMonth + 1).padStart(2, '0');
+        const todayYMD = localYMD(end);
+        const cells  = [];
+        const months = [];
+        let lastMonth = -1;
 
-        let html = '<div></div>'.repeat(firstWeekday);
-        for (let d = 1; d <= daysInMonth; d++) {
-            const ds = `${calYear}-${mm}-${String(d).padStart(2, '0')}`;
-            html += buildCalDay(ds, d, ds === today, calAdded[ds] || 0, calReviewed[ds] || 0);
+        const cur = new Date(start);
+        while (cur <= end) {
+            if (cur.getDay() === 0) {   // new column starts on Sunday → emit a month label slot
+                const m = cur.getMonth();
+                months.push(m === lastMonth ? '' : cur.toLocaleDateString('en-US', { month: 'short' }));
+                lastMonth = m;
+            }
+            const ds = localYMD(cur);
+            cells.push(buildCell(ds, ds === todayYMD, calAdded[ds] || 0, calReviewed[ds] || 0));
+            cur.setDate(cur.getDate() + 1);
         }
-        document.getElementById('calGrid').innerHTML = html;
+
+        document.getElementById('calGrid').innerHTML = cells.join('');
+        document.getElementById('calMonths').innerHTML =
+            months.map(m => `<div class="ghcal-month">${m}</div>`).join('');
     }
 
-    document.getElementById('calPrev').addEventListener('click', () => {
-        calMonth--;
-        if (calMonth < 0) { calMonth = 11; calYear--; }
-        renderCalendar();
-    });
-    document.getElementById('calNext').addEventListener('click', () => {
-        calMonth++;
-        if (calMonth > 11) { calMonth = 0; calYear++; }
-        renderCalendar();
-    });
+    // Re-fit on resize. The observer targets this render's .ghcal node, so it
+    // stops mattering once the node is replaced on navigation.
+    new ResizeObserver(() => renderCalendar()).observe(container.querySelector('.ghcal'));
 }
 
-function buildCalDay(ds, d, isToday, nAdded, nTests) {
+function shadeIndex(nAdded) {
+    if (nAdded <= 0)  return 0;
+    if (nAdded <= 3)  return 1;
+    if (nAdded <= 9)  return 2;
+    if (nAdded <= 14) return 3;
+    return 4;
+}
+
+function buildCell(ds, isToday, nAdded, nTests) {
+    const bg      = CAL_SHADES[shadeIndex(nAdded)];
     const hasData = nAdded > 0 || nTests > 0;
-    const border  = isToday ? '#007bff' : '#e8e8e8';
-    let bg = '#fff';
-    if (isToday)    bg = '#f0f6ff';
-    else if (hasData) bg = '#fafff9';
     const cursor  = hasData ? 'pointer' : 'default';
-    const weight  = isToday ? '700' : '400';
-    const color   = isToday ? '#007bff' : '#444';
-    const addedHtml   = nAdded > 0 ? `<div style="font-size:0.6rem;color:#007bff;line-height:1.2">+${nAdded}</div>` : '';
-    const reviewedHtml = nTests > 0 ? `<div style="font-size:0.6rem;color:#28a745;line-height:1.2">${nTests}</div>` : '';
-    return `<div data-date="${ds}" style="min-height:48px;border:1px solid ${border};border-radius:5px;padding:3px 4px;background:${bg};cursor:${cursor}"><div style="font-size:0.7rem;font-weight:${weight};color:${color}">${d}</div>${addedHtml}${reviewedHtml}</div>`;
+
+    const dateLabel = new Date(ds + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const wordPart  = `${nAdded} word${nAdded === 1 ? '' : 's'} added`;
+    const testPart  = `${nTests} test${nTests === 1 ? '' : 's'}`;
+    const tip = hasData ? `${wordPart} · ${testPart} on ${dateLabel}` : `No activity on ${dateLabel}`;
+
+    return `<div class="ghcal-cell${isToday ? ' today' : ''}" data-date="${ds}" title="${tip}" style="background:${bg};cursor:${cursor}"></div>`;
 }
 
 function localYMD(d) {

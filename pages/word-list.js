@@ -1,6 +1,7 @@
-import { getWordsWithSRS, getTrashedWords, deleteWord, restoreWord, permanentlyDeleteWord, addWord, updateWord, getUserXP, getUserStreak } from '../js/db.js';
+import { getWordsWithSRS, getTrashedWords, deleteWord, restoreWord, permanentlyDeleteWord, addWord, updateWord } from '../js/db.js';
 import { srsLabel, srsBadgeClass } from '../js/lib/srs.js';
-import { checkAndAward } from '../js/lib/achievements.js';
+import { runAfterActivity } from '../js/lib/awards.js';
+import { celebrateEvents } from '../js/lib/celebrate.js';
 
 const PARTS_OF_SPEECH = ['noun','verb','adjective','adverb','pronoun','preposition','conjunction','interjection'];
 
@@ -752,9 +753,10 @@ export async function render(container) {
                 allWords = [{ ...saved, review_level: 0 }, ...allWords];
                 redraw();
 
-                const { wordsAdded } = await getUserXP();
-                const streak = await getUserStreak();
-                checkAndAward({ wordsAdded, streak });
+                // Connector recomputes Sunlight/Coins/badges and celebrates word milestones.
+                runAfterActivity({ sessionType: 'add', wordsAdded: 1 })
+                    .then(result => celebrateEvents(result.events))
+                    .catch(() => {});
 
                 okEl.textContent = `"${word}" saved!`;
                 okEl.style.display = 'block';

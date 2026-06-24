@@ -43,6 +43,15 @@ export async function getCurrentProfile() {
 }
 
 /**
+ * Patch the cached current profile in place (e.g. after the user edits their
+ * avatar) so subsequent reads — including the navbar — reflect the change
+ * without a refetch.
+ */
+export function patchCurrentProfile(patch) {
+    if (currentProfile) currentProfile = { ...currentProfile, ...patch };
+}
+
+/**
  * Login with email and password
  */
 export async function login(email, password) {

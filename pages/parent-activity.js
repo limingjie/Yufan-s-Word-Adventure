@@ -1,13 +1,11 @@
 import { supabase } from '../js/supabase.js';
+import { loadLearnersSorted } from '../js/lib/parent-stats.js';
 
 export async function render(container) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">⏳</div><p>Loading…</p></div>`;
 
-    const { data: learners } = await supabase
-        .from('profiles')
-        .select('id,display_name,avatar_color')
-        .eq('role', 'learner')
-        .order('display_name');
+    // Sorted by XP (then words) descending, consistent with the rest of the parent pages.
+    const learners = await loadLearnersSorted();
 
     if (!learners?.length) {
         container.innerHTML = `<div class="empty-state"><span class="empty-icon">📭</span><h3>No learners found</h3></div>`;
@@ -24,8 +22,6 @@ export async function render(container) {
         <div style="max-width:720px;margin:0 auto">
             <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem;flex-wrap:wrap">
                 <h2 style="margin:0">Activity Log</h2>
-                <a href="#/parent/dashboard" class="btn btn-secondary btn-sm">Dashboard</a>
-                <a href="#/parent/words" class="btn btn-secondary btn-sm">Word Lists</a>
             </div>
             <div class="leaderboard-tabs" style="margin-bottom:1rem">${tabsHTML}</div>
             <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
@@ -34,6 +30,7 @@ export async function render(container) {
                     <option value="meaning">📖 Meaning</option>
                     <option value="spelling">✍️ Spelling</option>
                     <option value="listening">🔊 Listening</option>
+                    <option value="review">🔁 Review</option>
                 </select>
                 <select id="rangeFilter" style="font-size:0.85rem;padding:6px 10px;border:1px solid #dee2e6;border-radius:6px;height:36px">
                     <option value="30">Last 30 days</option>
@@ -138,7 +135,7 @@ export async function render(container) {
             if (t.correct) byType[t.test_type].correct++;
         }
 
-        const typeIcons  = { meaning: '📖', spelling: '✍️', listening: '🔊' };
+        const typeIcons  = { meaning: '📖', spelling: '✍️', listening: '🔊', review: '🔁' };
         const typeCards  = Object.entries(byType).map(([type, s]) => {
             const p = Math.round(s.correct / s.total * 100);
             return `<div class="stat-card">
@@ -235,7 +232,7 @@ export async function render(container) {
     }
 
     function testRow(t) {
-        const typeLabel = { meaning: '📖 Meaning', spelling: '✍️ Spelling', listening: '🔊 Listening' }[t.test_type] ?? t.test_type;
+        const typeLabel = { meaning: '📖 Meaning', spelling: '✍️ Spelling', listening: '🔊 Listening', review: '🔁 Review' }[t.test_type] ?? t.test_type;
         const result    = t.correct
             ? '<span style="color:#28a745;font-weight:500">✅ Correct</span>'
             : '<span style="color:#dc3545;font-weight:500">❌ Wrong</span>';

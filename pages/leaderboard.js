@@ -1,9 +1,9 @@
 import { supabase } from '../js/supabase.js';
 import { getCurrentUser } from '../js/auth.js';
-import { computeXP } from '../js/lib/xp.js';
+import { computeSunlight } from '../js/lib/growth.js';
 
 const TABS = [
-    { key: 'xp',      label: 'XP',       icon: '⚡' },
+    { key: 'sun',     label: 'Sunlight', icon: '☀️' },
     { key: 'words',   label: 'Words',    icon: '📚' },
     { key: 'mastered', label: 'Mastered', icon: '⭐' },
     { key: 'streak',  label: 'Streak',   icon: '🔥' },
@@ -33,18 +33,18 @@ export async function render(container) {
     const stats = await Promise.all(learners.map(l => fetchStats(l.id)));
     const rows  = learners.map((l, i) => ({ ...l, ...stats[i] }));
 
-    let activeTab = 'xp';
+    let activeTab = 'sun';
 
     function renderTab() {
         const sorted = [...rows].sort((a, b) => {
-            if (activeTab === 'xp')      return b.xp - a.xp;
+            if (activeTab === 'sun')     return b.sun - a.sun;
             if (activeTab === 'words')   return b.words - a.words;
             if (activeTab === 'mastered') return b.mastered - a.mastered;
             return b.streak - a.streak;
         });
 
         const col = {
-            xp:      r => `${r.xp} XP`,
+            sun:     r => `☀️ ${r.sun}`,
             words:   r => `${r.words} words`,
             mastered: r => `${r.mastered} mastered`,
             streak:  r => `${r.streak} days`,
@@ -105,10 +105,10 @@ async function fetchStats(userId) {
     const tests       = testsRes.data || [];
     const testsTaken  = tests.length;
     const testsCorrect = tests.filter(t => t.correct).length;
-    const xp          = computeXP({ wordsAdded, testsTaken, testsCorrect });
+    const sun         = computeSunlight({ wordsAdded, testsTaken, testsCorrect });
     const mastered    = masteredRes.count || 0;
 
-    return { xp, words: wordsAdded, mastered, streak: streakRes };
+    return { sun, words: wordsAdded, mastered, streak: streakRes };
 }
 
 async function fetchStreak(userId) {

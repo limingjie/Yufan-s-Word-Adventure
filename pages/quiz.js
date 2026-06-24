@@ -1,10 +1,13 @@
-import { getWords, recordTestResult } from '../js/db.js';
+import { getPrioritizedWords, recordTestResult } from '../js/db.js';
+import { runAfterActivity } from '../js/lib/awards.js';
+import { celebrateEvents, comboPopup } from '../js/lib/celebrate.js';
 
 const FALLBACK_WORDS = ['curious', 'adventure', 'brilliant', 'mysterious', 'eloquent'];
-const QUIZ_SIZE = 10;
+const QUIZ_SIZE = 15;
 
 export async function render(container) {
-    const allWords = await getWords();
+    // Deck is ordered today's-words-first, then by memory curve (getPrioritizedWords).
+    const allWords = await getPrioritizedWords();
 
     if (allWords.length === 0) {
         container.innerHTML = `
@@ -17,7 +20,11 @@ export async function render(container) {
         return;
     }
 
-    let mode = null;
+    // Launch directly into a mode when a mission set one; else show the selector.
+    const presetMode = sessionStorage.getItem('quizMode');
+    sessionStorage.removeItem('quizMode');
+    if (presetMode === 'meaning')  { startMeaning(container, allWords);  return; }
+    if (presetMode === 'spelling') { startSpelling(container, allWords); return; }
 
     // --- Mode selector ---
     container.innerHTML = `
@@ -45,8 +52,9 @@ export async function render(container) {
 // ============================================================================
 
 function startMeaning(container, allWords) {
-    const deck = shuffle(allWords).slice(0, QUIZ_SIZE);
-    let idx = 0, score = 0;
+    // allWords is pre-ordered today-first then by memory curve — keep that order.
+    const deck = allWords.slice(0, QUIZ_SIZE);
+    let idx = 0, score = 0, combo = 0, maxCombo = 0;
 
     function renderQ() {
         const word     = deck[idx];
@@ -79,7 +87,14 @@ function startMeaning(container, allWords) {
             btn.textContent = opt.text;
             btn.addEventListener('click', () => {
                 const isCorrect = opt.id === word.id;
-                if (isCorrect) score++;
+                if (isCorrect) {
+                    score++;
+                    combo++;
+                    if (combo > maxCombo) maxCombo = combo;
+                    if (combo === 5 || combo === 10 || combo === 20) comboPopup(combo);
+                } else {
+                    combo = 0;
+                }
 
                 grid.querySelectorAll('button').forEach(b => b.disabled = true);
                 btn.style.background = isCorrect ? '#28a745' : '#dc3545';
@@ -94,7 +109,7 @@ function startMeaning(container, allWords) {
                 }
 
                 recordTestResult(word.id, 'meaning', isCorrect);
-                setTimeout(() => { idx++; idx < deck.length ? renderQ() : showResult(container, score, deck.length, 'meaning'); }, 900);
+                setTimeout(() => { idx++; idx < deck.length ? renderQ() : showResult(container, score, deck.length, 'meaning', maxCombo); }, 900);
             });
             grid.appendChild(btn);
         });
@@ -135,8 +150,8 @@ function buildOptions(word, allWords) {
 
 function startSpelling(container, allWords) {
     const eligible = allWords.filter(w => w.chinese_definition || w.english_definition);
-    const deck     = shuffle(eligible).slice(0, QUIZ_SIZE);
-    let idx = 0, score = 0;
+    const deck     = eligible.slice(0, QUIZ_SIZE);
+    let idx = 0, score = 0, combo = 0, maxCombo = 0;
 
     function renderQ() {
         const word  = deck[idx];
@@ -171,7 +186,14 @@ function startSpelling(container, allWords) {
         function check() {
             const answer    = input.value.trim().toLowerCase();
             const isCorrect = answer === word.word.toLowerCase();
-            if (isCorrect) score++;
+            if (isCorrect) {
+                score++;
+                combo++;
+                if (combo > maxCombo) maxCombo = combo;
+                if (combo === 5 || combo === 10 || combo === 20) comboPopup(combo);
+            } else {
+                combo = 0;
+            }
 
             document.getElementById('feedback').textContent = isCorrect
                 ? '✓ Correct!'
@@ -182,7 +204,7 @@ function startSpelling(container, allWords) {
             input.disabled  = true;
 
             recordTestResult(word.id, 'spelling', isCorrect);
-            setTimeout(() => { idx++; idx < deck.length ? renderQ() : showResult(container, score, deck.length, 'spelling'); }, 1000);
+            setTimeout(() => { idx++; idx < deck.length ? renderQ() : showResult(container, score, deck.length, 'spelling', maxCombo); }, 1000);
         }
 
         submit.addEventListener('click', check);
@@ -196,19 +218,31 @@ function startSpelling(container, allWords) {
 // Result screen
 // ============================================================================
 
-function showResult(container, score, total, mode) {
-    const pct = Math.round((score / total) * 100);
+async function showResult(container, score, total, mode, maxCombo = 0) {
+    const pct     = Math.round((score / total) * 100);
+    const perfect = score === total && total > 0;
+    const trophy  = pct >= 80 ? '🌟' : pct >= 50 ? '👍' : '💪';
+
+    const result = await runAfterActivity({
+        sessionType: mode === 'spelling' ? 'quiz-spelling' : 'quiz-meaning',
+        answered: total, correct: score, maxCombo, perfectSession: perfect,
+    });
+
     container.innerHTML = `
         <div class="review-card" style="max-width:480px;margin:2rem auto;text-align:center">
-            <div style="font-size:3rem;margin-bottom:1rem">${pct >= 80 ? '🌟' : pct >= 50 ? '👍' : '💪'}</div>
+            <div style="font-size:3rem;margin-bottom:1rem">${trophy}</div>
             <h2>Quiz Complete!</h2>
             <p style="font-size:1.15rem;color:#666;margin:0.75rem 0">${score} / ${total} correct (${pct}%)</p>
+            ${result.coinsDelta > 0 ? `<p class="session-coins">🪙 +${result.coinsDelta} coins earned!</p>` : ''}
             <div style="display:flex;gap:0.75rem;justify-content:center;margin-top:1.5rem;flex-wrap:wrap">
                 <button id="playAgainBtn" class="btn btn-primary">Play Again</button>
+                <a href="#/learner/garden" class="btn btn-secondary">🌳 Garden</a>
                 <a href="#/learner/home" class="btn btn-secondary">Home</a>
             </div>
         </div>`;
     document.getElementById('playAgainBtn').addEventListener('click', () => render(container));
+
+    celebrateEvents(result.events);
 }
 
 // ============================================================================

@@ -1,15 +1,23 @@
-import { getWordsForReviewToday, completeReview, recordTestResult, getUserXP, getUserStreak } from '../js/db.js';
-import { checkAndAward } from '../js/lib/achievements.js';
+import { getWordsForReviewToday, completeReview, recordTestResult } from '../js/db.js';
+import { runAfterActivity } from '../js/lib/awards.js';
+import { celebrateEvents, comboPopup } from '../js/lib/celebrate.js';
 
 export async function render(container) {
-    const words = await getWordsForReviewToday();
+    // Mission-scoped review: 'new' = today's new words, 'curve' = older backlog.
+    const scope = sessionStorage.getItem('reviewScope') || 'all';
+    sessionStorage.removeItem('reviewScope');
+
+    const words = await getWordsForReviewToday(scope);
 
     if (words.length === 0) {
+        const emptyMsg = scope === 'new'
+            ? "No new words to review right now. Add some words, then come back!"
+            : "No words due for review today. Come back tomorrow or add new words.";
         container.innerHTML = `
             <div class="empty-state" style="max-width:480px;margin:2rem auto">
                 <span class="empty-icon">🎉</span>
                 <h3>All caught up!</h3>
-                <p>No words due for review today. Come back tomorrow or add new words.</p>
+                <p>${emptyMsg}</p>
                 <div style="display:flex;gap:0.75rem;justify-content:center;margin-top:1.5rem;flex-wrap:wrap">
                     <a href="#/learner/add-word" class="btn btn-primary">Add a Word</a>
                     <a href="#/learner/quiz"     class="btn btn-secondary">Take a Quiz</a>
@@ -18,9 +26,11 @@ export async function render(container) {
         return;
     }
 
-    let idx     = 0;
-    let correct = 0;
-    let shown   = false;
+    let idx      = 0;
+    let correct  = 0;
+    let shown    = false;
+    let combo    = 0;
+    let maxCombo = 0;
 
     function renderCard() {
         shown = false;
@@ -79,11 +89,18 @@ export async function render(container) {
     }
 
     async function rate(item, isCorrect) {
-        if (isCorrect) correct++;
+        if (isCorrect) {
+            correct++;
+            combo++;
+            if (combo > maxCombo) maxCombo = combo;
+            if (combo === 5 || combo === 10 || combo === 20) comboPopup(combo);
+        } else {
+            combo = 0;
+        }
 
         await Promise.all([
             completeReview(item.word_id, isCorrect),
-            recordTestResult(item.word_id, 'meaning', isCorrect),
+            recordTestResult(item.word_id, 'review', isCorrect),
         ]);
 
         idx++;
@@ -95,25 +112,31 @@ export async function render(container) {
     }
 
     async function showSummary() {
-        const { wordsAdded } = await getUserXP();
-        const streak = await getUserStreak();
-        checkAndAward({ wordsAdded, streak });
+        const total   = words.length;
+        const pct     = Math.round((correct / total) * 100);
+        const perfect = correct === total && total > 0;
 
-        const total = words.length;
-        const pct   = Math.round((correct / total) * 100);
+        // The connector recomputes Sunlight/Coins/badges and returns events to celebrate.
+        const result = await runAfterActivity({
+            sessionType: 'review', answered: total, correct, maxCombo, perfectSession: perfect,
+        });
 
+        const trophy = pct >= 80 ? '🌟' : pct >= 50 ? '👍' : '💪';
         container.innerHTML = `
             <div class="review-card" style="max-width:480px;margin:2rem auto;text-align:center">
-                <div style="font-size:3rem;margin-bottom:1rem">${pct >= 80 ? '🌟' : pct >= 50 ? '👍' : '💪'}</div>
+                <div style="font-size:3rem;margin-bottom:1rem">${trophy}</div>
                 <h2>Review Complete!</h2>
                 <p style="font-size:1.15rem;color:#666;margin:0.75rem 0">
                     ${correct} / ${total} correct (${pct}%)
                 </p>
+                ${result.coinsDelta > 0 ? `<p class="session-coins">🪙 +${result.coinsDelta} coins earned!</p>` : ''}
                 <div style="display:flex;gap:0.75rem;justify-content:center;margin-top:1.5rem;flex-wrap:wrap">
-                    <a href="#/learner/home"     class="btn btn-primary">Back to Home</a>
-                    <a href="#/learner/add-word" class="btn btn-secondary">Add Words</a>
+                    <a href="#/learner/garden"   class="btn btn-primary">🌳 See your Garden</a>
+                    <a href="#/learner/home"     class="btn btn-secondary">Home</a>
                 </div>
             </div>`;
+
+        celebrateEvents(result.events);
     }
 
     renderCard();

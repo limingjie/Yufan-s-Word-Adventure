@@ -6,7 +6,9 @@
 import { supabase } from "./supabase.js";
 import { getCurrentUser } from "./auth.js";
 import { nextLevel, nextReviewDate, intervalDays } from "./lib/srs.js";
-import { computeXP } from "./lib/xp.js";
+import { computeSunlight } from "./lib/growth.js";
+import { computeCoins, itemCost } from "./lib/coins.js";
+import { MISSION_NEW_WORDS } from "./lib/missions.js";
 
 function localYMD(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -186,9 +188,15 @@ export async function getWordsCount() {
 // ============================================================================
 
 /**
- * Get words due for review today
+ * Get words due for review today.
+ *
+ * scope:
+ *   'all'   — all due words, today's new words first, capped at 30 (default)
+ *   'new'   — only words created today that are due (uncapped)
+ *   'curve' — only older due words (created before today), by memory curve,
+ *             capped at 30
  */
-export async function getWordsForReviewToday() {
+export async function getWordsForReviewToday(scope = "all") {
     const user = await getCurrentUser();
     if (!user) throw new Error("Not authenticated");
 
@@ -209,8 +217,37 @@ export async function getWordsForReviewToday() {
         .order("review_level", { ascending: true });
 
     if (error) throw error;
-    // Exclude words that have been soft-deleted
-    return (data || []).filter(row => row.words?.deleted_at == null);
+
+    let active = (data || []).filter(row => row.words?.deleted_at == null);
+
+    const isToday = row => localYMD(new Date(row.words.created_at)) === today;
+
+    if (scope === "new") {
+        // Today's freshly-added words, lowest level first. No cap.
+        return active
+            .filter(isToday)
+            .sort((a, b) => a.review_level - b.review_level);
+    }
+
+    if (scope === "curve") {
+        // Older due words only, by memory curve (level ascending), capped at 30.
+        return active
+            .filter(row => !isToday(row))
+            .sort((a, b) => a.review_level - b.review_level)
+            .slice(0, 30);
+    }
+
+    // 'all' — priority within the 30-word daily cap:
+    // 1. New words (added today) first
+    // 2. Higher levels ascending
+    active.sort((a, b) => {
+        const aIsNew = isToday(a);
+        const bIsNew = isToday(b);
+        if (aIsNew !== bIsNew) return aIsNew ? -1 : 1;
+        return a.review_level - b.review_level;
+    });
+
+    return active.slice(0, 30);
 }
 
 /**
@@ -512,15 +549,15 @@ export async function calculateUserStats(userId) {
         const testsCorrect = tests?.filter((t) => t.correct).length || 0;
         const accuracy = testsCount > 0 ? Math.round((testsCorrect / testsCount) * 100) : 0;
 
-        const totalXP = computeXP({ wordsAdded: wordsCount || 0, testsTaken: testsCount, testsCorrect });
-        const level = Math.floor(totalXP / 100) + 1;
+        const totalSun = computeSunlight({ wordsAdded: wordsCount || 0, testsTaken: testsCount, testsCorrect });
+        const level = Math.floor(totalSun / 100) + 1;
 
         return {
             wordsCount: wordsCount || 0,
             testsCount,
             testsCorrect,
             accuracy,
-            totalXP,
+            totalSun,
             level,
         };
     } catch (err) {
@@ -533,9 +570,9 @@ export async function calculateUserStats(userId) {
 // XP & STREAK (current user)
 // ============================================================================
 
-export async function getUserXP() {
+export async function getUserSunlight() {
     const user = await getCurrentUser();
-    if (!user) return { xp: 0, wordsAdded: 0, testsTaken: 0, testsCorrect: 0 };
+    if (!user) return { sun: 0, wordsAdded: 0, testsTaken: 0, testsCorrect: 0 };
 
     const [wordsResult, testsResult] = await Promise.all([
         supabase.from("words").select("id", { count: "exact", head: true }).eq("user_id", user.id),
@@ -546,9 +583,78 @@ export async function getUserXP() {
     const tests = testsResult.data || [];
     const testsTaken = tests.length;
     const testsCorrect = tests.filter((t) => t.correct).length;
-    const xp = computeXP({ wordsAdded, testsTaken, testsCorrect });
+    const sun = computeSunlight({ wordsAdded, testsTaken, testsCorrect });
 
-    return { xp, wordsAdded, testsTaken, testsCorrect };
+    return { sun, wordsAdded, testsTaken, testsCorrect };
+}
+
+// ============================================================================
+// COINS & GARDEN ITEMS
+// ============================================================================
+// Coins are the spendable currency. Like Sunlight, *earned* coins are derived
+// from countable history (never stored as a running total); only purchases are
+// stored (garden_items). balance = earned − Σ(item costs). No drift.
+
+export async function getBadgeCount() {
+    const user = await getCurrentUser();
+    if (!user) return 0;
+    const { count } = await supabase
+        .from("achievements")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id);
+    return count || 0;
+}
+
+export async function getUserCoins() {
+    const user = await getCurrentUser();
+    if (!user) return { earned: 0, spent: 0, balance: 0 };
+
+    const [wordsRes, testsRes, badgeRes, itemsRes] = await Promise.all([
+        supabase.from("words").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+        supabase.from("test_results").select("correct").eq("user_id", user.id),
+        supabase.from("achievements").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+        supabase.from("garden_items").select("item_code").eq("user_id", user.id),
+    ]);
+
+    const wordsAdded   = wordsRes.count || 0;
+    const tests        = testsRes.data || [];
+    const testsTaken   = tests.length;
+    const testsCorrect = tests.filter((t) => t.correct).length;
+    const badgeCount   = badgeRes.count || 0;
+
+    const earned = computeCoins({ wordsAdded, testsTaken, testsCorrect, badgeCount });
+    const spent  = (itemsRes.data || []).reduce((s, r) => s + itemCost(r.item_code), 0);
+    return { earned, spent, balance: earned - spent };
+}
+
+export async function getGardenItems() {
+    const user = await getCurrentUser();
+    if (!user) return [];
+    const { data, error } = await supabase
+        .from("garden_items")
+        .select("item_code, created_at")
+        .eq("user_id", user.id);
+    if (error) throw error;
+    return data || [];
+}
+
+/** Buy a shop item. Re-checks balance before inserting. Returns new balance. */
+export async function buyGardenItem(itemCode) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const cost = itemCost(itemCode);
+    if (cost <= 0) throw new Error("Unknown item");
+
+    const { balance } = await getUserCoins();
+    if (balance < cost) throw new Error("Not enough coins");
+
+    const { error } = await supabase
+        .from("garden_items")
+        .insert({ user_id: user.id, item_code: itemCode });
+    if (error) throw error;
+
+    return { balance: balance - cost };
 }
 
 export async function getUserStreak() {
@@ -589,42 +695,199 @@ export async function getUserStreak() {
     return streak;
 }
 
-export async function getDailyProgress() {
-    const user = await getCurrentUser();
-    if (!user) return { wordsAdded: 0, reviewed: 0, quizTotal: 0, quizCorrect: 0, quizCoverage: 100 };
+/**
+ * Daily mission progress. All "done" counts are distinct words touched today.
+ * Returns:
+ *   wordsAdded        — words created today
+ *   reviewsNewDone    — today's new words reviewed today (test_type 'review')
+ *   reviewsCurveDone  — older words reviewed today (test_type 'review')
+ *   meaningQuizCount  — today's new words answered in a meaning quiz today
+ *   spellingQuizCount — today's new words answered in a spelling quiz today
+ *   newDue            — today's new words still due (not yet reviewed)
+ *   curveDue          — older words still due, capped at 30
+ */
+export async function getDailyProgress(userId) {
+    if (!userId) {
+        const user = await getCurrentUser();
+        userId = user?.id;
+    }
+    if (!userId) return { wordsAdded: 0, reviewsNewDone: 0, reviewsCurveDone: 0, meaningQuizCount: 0, spellingQuizCount: 0, newDue: 0, curveDue: 0 };
 
     const now   = new Date();
+    const today = localYMD(now);
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
 
-    const [wordsRes, testsRes] = await Promise.all([
+    const [wordsRes, testsRes, dueRes] = await Promise.all([
         supabase.from('words')
             .select('id')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .gte('created_at', start)
             .lt('created_at', end),
         supabase.from('test_results')
-            .select('word_id, correct')
-            .eq('user_id', user.id)
+            .select('word_id, test_type')
+            .eq('user_id', userId)
             .gte('tested_at', start)
             .lt('tested_at', end),
+        supabase.from('review_schedule')
+            .select('word_id, words!inner(created_at, deleted_at)')
+            .eq('user_id', userId)
+            .lte('next_review_date', today),
     ]);
 
     const todayWordIds = new Set((wordsRes.data || []).map(w => w.id));
     const wordsAdded   = todayWordIds.size;
     const tests        = testsRes.data || [];
-    const reviewed     = new Set(tests.map(t => t.word_id)).size;
-    const quizTotal    = tests.length;
-    const quizCorrect  = tests.filter(t => t.correct).length;
 
-    // Coverage: how many of today's added words have at least one correct answer today.
-    // Adding more words without quizzing them lowers this score.
-    const coveredCount = new Set(
-        tests.filter(t => t.correct && todayWordIds.has(t.word_id)).map(t => t.word_id)
-    ).size;
-    const quizCoverage = wordsAdded === 0 ? 100 : Math.round((coveredCount / wordsAdded) * 100);
+    // Distinct words per mission today.
+    const distinct = (type, pred = () => true) =>
+        new Set(tests.filter(t => t.test_type === type && pred(t.word_id)).map(t => t.word_id)).size;
 
-    return { wordsAdded, reviewed, quizTotal, quizCorrect, quizCoverage };
+    // Missions 2-4 track today's NEW words only (they're gated by mission 1).
+    const isToday = id => todayWordIds.has(id);
+    const reviewsNewDone    = distinct('review',  isToday);
+    const reviewsCurveDone  = distinct('review',  id => !todayWordIds.has(id));
+    const meaningQuizCount  = distinct('meaning', isToday);
+    const spellingQuizCount = distinct('spelling', isToday);
+
+    // Still-due queues, split new vs curve.
+    const due = (dueRes.data || []).filter(r => r.words?.deleted_at == null);
+    const newDue   = due.filter(r => localYMD(new Date(r.words.created_at)) === today).length;
+    const curveDue = Math.min(30, due.filter(r => localYMD(new Date(r.words.created_at)) !== today).length);
+
+    return { wordsAdded, reviewsNewDone, reviewsCurveDone, meaningQuizCount, spellingQuizCount, newDue, curveDue };
+}
+
+/**
+ * Mission completion history for a learner over the last `days` days.
+ *
+ * Returns one row per day (newest first) with the counts we can reconstruct
+ * from history: words added, today's-new-words reviewed/quizzed, and older
+ * ("curve") reviews. `coreDone` flags days where the add goal plus all three
+ * new-word practice missions were met. The "review older words" mission is
+ * omitted from `coreDone` because its due-state can't be reconstructed.
+ */
+export async function getMissionHistory(userId, days = 14) {
+    if (!userId) {
+        const user = await getCurrentUser();
+        userId = user?.id;
+    }
+    if (!userId) return [];
+
+    const now       = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1));
+    const start     = startDate.toISOString();
+
+    const [wordsRes, testsRes] = await Promise.all([
+        supabase.from('words').select('id, created_at').eq('user_id', userId).is('deleted_at', null).gte('created_at', start),
+        supabase.from('test_results').select('word_id, test_type, tested_at').eq('user_id', userId).gte('tested_at', start),
+    ]);
+
+    const wordsByDay = new Map();   // ymd -> Set(wordId) of words created that day
+    for (const w of wordsRes.data || []) {
+        const d = localYMD(new Date(w.created_at));
+        if (!wordsByDay.has(d)) wordsByDay.set(d, new Set());
+        wordsByDay.get(d).add(w.id);
+    }
+
+    const testsByDay = new Map();   // ymd -> test rows
+    for (const t of testsRes.data || []) {
+        const d = localYMD(new Date(t.tested_at));
+        if (!testsByDay.has(d)) testsByDay.set(d, []);
+        testsByDay.get(d).push(t);
+    }
+
+    const out = [];
+    for (let i = 0; i < days; i++) {
+        const dd  = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        const ymd = localYMD(dd);
+
+        const newSet     = wordsByDay.get(ymd) || new Set();
+        const wordsAdded = newSet.size;
+        const dayTests   = testsByDay.get(ymd) || [];
+
+        const distinct = (type, pred) =>
+            new Set(dayTests.filter(t => t.test_type === type && pred(t.word_id)).map(t => t.word_id)).size;
+        const isNew = id => newSet.has(id);
+
+        const reviewsNew   = distinct('review',   isNew);
+        const reviewsCurve = distinct('review',   id => !isNew(id));
+        const meaning      = distinct('meaning',  isNew);
+        const spelling     = distinct('spelling', isNew);
+
+        const coreDone = wordsAdded >= MISSION_NEW_WORDS
+            && reviewsNew >= wordsAdded && meaning >= wordsAdded && spelling >= wordsAdded;
+
+        out.push({
+            date: ymd, wordsAdded, reviewsNew, reviewsCurve, meaning, spelling,
+            totalTests: dayTests.length,
+            hasActivity: wordsAdded > 0 || dayTests.length > 0,
+            coreDone,
+        });
+    }
+    return out;
+}
+
+/**
+ * All active words annotated with SRS review_level + next_review_date, ordered
+ * for quiz decks: (1) words added today, (2) due words by level ascending,
+ * (3) the rest by next_review_date ascending.
+ */
+export async function getPrioritizedWords() {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const today = localYMD(new Date());
+
+    const [wordsResult, scheduleResult] = await Promise.all([
+        supabase.from("words").select("*").eq("user_id", user.id).is("deleted_at", null),
+        supabase.from("review_schedule").select("word_id, review_level, next_review_date").eq("user_id", user.id),
+    ]);
+
+    if (wordsResult.error) throw wordsResult.error;
+
+    const schedMap = new Map((scheduleResult.data || []).map(s => [s.word_id, s]));
+    const words = (wordsResult.data || []).map(w => {
+        const s = schedMap.get(w.id);
+        return { ...w, review_level: s?.review_level ?? 0, next_review_date: s?.next_review_date ?? today };
+    });
+
+    const rank = w => {
+        if (localYMD(new Date(w.created_at)) === today) return 0;       // added today
+        if (w.next_review_date <= today) return 1;                       // due
+        return 2;                                                        // future
+    };
+
+    words.sort((a, b) => {
+        const ra = rank(a), rb = rank(b);
+        if (ra !== rb) return ra - rb;
+        if (ra === 2) return a.next_review_date < b.next_review_date ? -1 : 1;
+        return a.review_level - b.review_level;
+    });
+
+    return words;
+}
+
+/**
+ * Update the current user's avatar emoji and/or background color.
+ * Pass emoji = null/'' to clear it (fall back to the display-name initial).
+ * Either argument may be undefined to leave that field unchanged.
+ */
+export async function updateAvatar(emoji, color) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const patch = { updated_at: new Date().toISOString() };
+    if (emoji !== undefined) patch.avatar_emoji = emoji || null;
+    if (color !== undefined) patch.avatar_color = color;
+
+    const { error } = await supabase
+        .from("profiles")
+        .update(patch)
+        .eq("id", user.id);
+
+    if (error) throw error;
+    return true;
 }
 
 export async function getMasteredCount() {

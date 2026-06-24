@@ -77,6 +77,7 @@ async function renderPage(route) {
 
     currentRoute = route;
     document.body.classList.toggle('login-page', route === '/login');
+    document.body.classList.toggle('garden-page', route === '/learner/garden');
 
     try {
         if (route === '/login') {
@@ -127,6 +128,7 @@ function renderNavbar(profile) {
             { href: '/learner/words',       label: 'My Words' },
             { href: '/learner/review',      label: 'Review' },
             { href: '/learner/garden',      label: 'Garden' },
+            { href: '/learner/achievements', label: 'Awards' },
             { href: '/learner/leaderboard', label: 'Leaderboard' },
           ];
 
@@ -135,6 +137,7 @@ function renderNavbar(profile) {
     ).join('');
 
     const initial = (profile.display_name || '?')[0].toUpperCase();
+    const avatarFace = profile.avatar_emoji || initial;
     const color   = profile.avatar_color || '#007BFF';
     const home    = profile.role === 'parent' ? '/parent/dashboard' : '/learner/home';
 
@@ -146,7 +149,7 @@ function renderNavbar(profile) {
             <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">☰</button>
             <nav class="navbar-menu" id="navMenu">${navLinks}</nav>
             <div class="navbar-user">
-                <div class="avatar" style="background:${color};width:32px;height:32px;font-size:0.85rem">${initial}</div>
+                <div class="avatar${profile.avatar_emoji ? ' avatar-emoji' : ''}" style="background:${color};width:32px;height:32px;font-size:0.85rem">${avatarFace}</div>
                 <span class="username">${profile.display_name}</span>
                 <button class="logout-btn" id="logoutBtn">Logout</button>
             </div>

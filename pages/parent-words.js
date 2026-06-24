@@ -1,16 +1,14 @@
 import { supabase } from '../js/supabase.js';
 import { srsLabel, srsBadgeClass } from '../js/lib/srs.js';
+import { loadLearnersSorted } from '../js/lib/parent-stats.js';
 
 const PARTS_OF_SPEECH = ['noun','verb','adjective','adverb','pronoun','preposition','conjunction','interjection'];
 
 export async function render(container) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">⏳</div><p>Loading…</p></div>`;
 
-    const { data: learners } = await supabase
-        .from('profiles')
-        .select('id,display_name,avatar_color')
-        .eq('role', 'learner')
-        .order('display_name');
+    // Sorted by XP (then words) descending, consistent with the rest of the parent pages.
+    const learners = await loadLearnersSorted();
 
     if (!learners?.length) {
         container.innerHTML = `<div class="empty-state"><span class="empty-icon">📭</span><h3>No learners found</h3></div>`;
@@ -46,8 +44,6 @@ export async function render(container) {
         <div style="max-width:700px;margin:0 auto">
             <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
                 <h2 style="margin:0">Word Lists</h2>
-                <a href="#/parent/dashboard" class="btn btn-secondary btn-sm">Dashboard</a>
-                <a href="#/parent/activity" class="btn btn-secondary btn-sm">Activity</a>
             </div>
             <div class="leaderboard-tabs" style="margin-bottom:0.75rem">${tabsHTML}</div>
             <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:wrap">

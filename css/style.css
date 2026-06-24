@@ -221,6 +221,14 @@ select:focus {
     margin-bottom: var(--spacing-lg);
 }
 
+/* Collapsed (inactive) learner cards on the parent dashboard */
+.learner-collapsed > summary {
+    list-style: none;
+}
+.learner-collapsed > summary::-webkit-details-marker {
+    display: none;
+}
+
 .card-header {
     border-bottom: 1px solid var(--border-color);
     padding-bottom: var(--spacing-md);
@@ -681,21 +689,53 @@ label {
  * Daily mission cards
  * ============================================================================ */
 
+.mission-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
 .mission-card {
+    width: 100%;
+    text-align: left;
     background: white;
+    border: 1.5px solid transparent;
     border-radius: var(--border-radius-lg);
     box-shadow: var(--shadow);
     padding: 0.75rem 1rem;
     display: flex;
     align-items: center;
     gap: 0.7rem;
+    cursor: pointer;
+    min-height: 56px;
+    transition: border-color 0.2s, box-shadow 0.2s, opacity 0.2s, transform 0.1s;
 }
-.mission-card + .mission-card { margin-top: 0.5rem; }
-.mission-card.complete { background: #f0fff4; border: 1.5px solid #52c41a; }
+.mission-card:active { transform: scale(0.99); }
+
+/* Completed */
+.mission-complete { background: #f0fff4; border-color: #52c41a; }
+/* Active (current) — highlighted */
+.mission-active {
+    border-color: #1890ff;
+    box-shadow: 0 4px 14px rgba(24,144,255,0.18);
+}
+.mission-active .mission-icon { font-size: 1.7rem; }
+.mission-active .mission-title { font-size: 0.98rem; }
+/* Available (unlocked, not yet the active focus) */
+.mission-available { border-color: #e8e8e8; }
+/* Locked — not interactive */
+.mission-locked {
+    opacity: 0.5;
+    cursor: default;
+    pointer-events: none;
+    background: #f7f7f9;
+}
+.mission-locked .mission-bar-wrap { display: none; }
+/* Read-only (parent view) — show state, never clickable */
+.mission-list-readonly .mission-card { cursor: default; box-shadow: none; }
+.mission-list-readonly .mission-card.mission-active { box-shadow: none; border-color: #e8e8e8; }
 
 .mission-icon  { font-size: 1.4rem; flex-shrink: 0; }
 .mission-info  { flex: 1; min-width: 0; }
-.mission-title { font-size: 0.88rem; font-weight: 600; margin-bottom: 3px; }
+.mission-title { font-size: 0.88rem; font-weight: 600; margin-bottom: 2px; color: var(--text-color, #222); }
+.mission-suffix { font-weight: 400; font-size: 0.78rem; color: #888; }
+.mission-sub { font-size: 0.76rem; color: #888; margin-bottom: 4px; }
 .mission-bar-wrap { background: #e9ecef; border-radius: 4px; height: 6px; }
 .mission-bar-fill {
     height: 100%;
@@ -704,7 +744,141 @@ label {
     transition: width 0.6s ease;
     max-width: 100%;
 }
+.mission-cta { font-size: 0.8rem; font-weight: 700; color: #1890ff; margin-top: 6px; }
 .mission-reward { font-size: 1.25rem; flex-shrink: 0; }
+
+.all-done-banner {
+    background: linear-gradient(135deg, #52c41a, #87d068);
+    color: #fff; font-weight: 700; text-align: center;
+    padding: 0.85rem 1rem; border-radius: var(--border-radius-lg);
+    margin-bottom: 0.6rem;
+}
+
+/* ============================================================================
+ * Home header (compact greeting + XP + actions)
+ * ============================================================================ */
+
+.home-header { display: flex; align-items: center; gap: 0.75rem; }
+.home-id { flex: 1; min-width: 0; }
+.home-name { font-size: 1.15rem; font-weight: 700; }
+.home-meta { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 2px; }
+.xp-chip { font-size: 0.74rem; color: #888; font-weight: 600; white-space: nowrap; }
+.xp-mini-wrap { background: #e9ecef; border-radius: 6px; height: 5px; margin-top: 5px; overflow: hidden; }
+.xp-mini-fill { height: 100%; background: linear-gradient(90deg, #6610f2, #0d6efd); border-radius: 6px; transition: width 0.6s ease; }
+.home-actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.streak-chip { font-size: 0.85rem; color: #ff7d00; font-weight: 700; white-space: nowrap; }
+.icon-btn {
+    background: #f3f4f6; border: none; border-radius: 10px;
+    width: 40px; height: 40px; font-size: 1.1rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}
+.icon-btn.active { background: #e0ecff; }
+
+.section-label {
+    font-size: 0.78rem; font-weight: 700; color: #888;
+    text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.5rem;
+}
+
+/* ============================================================================
+ * Avatar emoji picker
+ * ============================================================================ */
+
+.avatar-btn { border: none; cursor: pointer; padding: 0; width: 46px; height: 46px; font-size: 1.2rem; }
+/* Emoji avatars keep their chosen background color behind the glyph */
+.avatar-emoji { font-size: 1.6rem; }
+.avatar-btn.avatar-emoji { font-size: 1.9rem; }
+
+/* Avatar picker — preview + color + free emoji input */
+.avatar-edit-top {
+    display: flex; align-items: center; gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+.avatar-preview {
+    width: 56px; height: 56px; font-size: 2rem; flex-shrink: 0;
+}
+.avatar-field { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.72rem; color: #888; font-weight: 600; }
+.avatar-field input[type="color"] { width: 100%; height: 38px; padding: 2px; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; }
+.avatar-field input[type="text"] { width: 100%; height: 38px; font-size: 1.3rem; text-align: center; border: 1px solid #ddd; border-radius: 8px; }
+
+.emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0.4rem;
+}
+.emoji-option {
+    aspect-ratio: 1; min-height: 44px;
+    background: #f7f7f9; border: 1.5px solid transparent; border-radius: 10px;
+    font-size: 1.5rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}
+.emoji-option:hover { border-color: #1890ff; background: #eef6ff; }
+.emoji-option.selected { border-color: #1890ff; background: #e0ecff; }
+.emoji-initial { font-size: 1.2rem; font-weight: 700; color: #555; }
+
+/* ============================================================================
+ * Activity calendar (GitHub-contribution style)
+ * ============================================================================ */
+
+.cal-card { margin-top: 0.75rem; }
+
+/* GitHub contribution graph: weeks = columns, weekdays = rows.
+   Squares are a fixed size; JS shows only as many weeks (columns) as fit the
+   width, so the graph always shows in full with no horizontal scroll. */
+.ghcal { --ghc: 14px; --ghg: 3px; --ghw: 22px; }
+
+.ghcal-months {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: var(--ghc);
+    gap: var(--ghg);
+    margin-left: calc(var(--ghw) + var(--ghg));
+    margin-bottom: 4px;
+}
+.ghcal-month {
+    font-size: 10px; color: #888; line-height: 1;
+    white-space: nowrap; overflow: visible;
+}
+
+.ghcal-body { display: flex; gap: var(--ghg); }
+.ghcal-week-labels {
+    display: grid;
+    grid-template-rows: repeat(7, var(--ghc));
+    gap: var(--ghg);
+    width: var(--ghw);
+    flex-shrink: 0;
+}
+.ghcal-week-labels span {
+    font-size: 9px; color: #888;
+    display: flex; align-items: center; justify-content: flex-end;
+}
+
+.ghcal-grid {
+    display: grid;
+    grid-template-rows: repeat(7, var(--ghc));
+    grid-auto-flow: column;
+    grid-auto-columns: var(--ghc);
+    gap: var(--ghg);
+}
+.ghcal-cell {
+    width: var(--ghc); height: var(--ghc);
+    border-radius: 3px;
+    outline: 1px solid rgba(27,31,35,0.06);   /* GitHub's subtle cell border */
+    outline-offset: -1px;
+}
+.ghcal-cell.today { outline: 1.5px solid #1890ff; outline-offset: -1px; }
+.ghcal-cell[style*="pointer"]:hover { outline: 1.5px solid rgba(27,31,35,0.35); }
+
+/* On narrow phones, drop the weekday labels so the year fills the full width. */
+@media (max-width: 520px) {
+    .ghcal-week-labels { display: none; }
+    .ghcal-months { margin-left: 0; }
+}
+
+.cal-legend {
+    display: flex; align-items: center; justify-content: flex-end;
+    gap: 4px; margin-top: 0.6rem; font-size: 0.66rem; color: #888;
+}
+.cal-swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
 
 /* ============================================================================
  * Word count goal medals
@@ -1047,3 +1221,332 @@ button.pron-chip-uk:hover { background-color: #011247; }
         font-size: 16px;
     }
 }
+
+/* ============================================================================
+ * Currency chips (Sunlight / Coins)
+ * ============================================================================ */
+
+.coin-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: #5b4500;
+    background: linear-gradient(180deg, #ffe27a 0%, #ffc824 52%, #e8a200 100%);
+    border: 1px solid #c98a08;
+    border-radius: 12px;
+    padding: 2px 9px;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.45);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.65), 0 1px 2px rgba(120,80,0,0.25);
+}
+
+.session-coins {
+    display: inline-block;
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #7a5a00;
+    background: linear-gradient(180deg, #fff0b0, #ffd34d);
+    border: 1px solid #e0a800;
+    border-radius: 999px;
+    padding: 0.25rem 0.9rem;
+    margin: 0.4rem 0 0;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.5);
+    animation: coinPulse 0.6s ease-out;
+}
+@keyframes coinPulse {
+    0%   { transform: scale(0.6); opacity: 0; }
+    60%  { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); }
+}
+
+/* ============================================================================
+ * celebrate.js — award effects
+ * ============================================================================ */
+
+/* Toast chip */
+.celebrate-toast {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translate(-50%, -120%);
+    background: #1f2d1f;
+    color: #fff;
+    padding: 0.6rem 1rem;
+    border-radius: 999px;
+    font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.25);
+    z-index: 9000;
+    transition: transform 0.35s cubic-bezier(.2,1.3,.4,1), opacity 0.3s;
+    opacity: 0;
+}
+.celebrate-toast.show { transform: translate(-50%, 0); opacity: 1; }
+
+/* Confetti */
+.celebrate-confetti-layer {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 9500;
+    overflow: hidden;
+}
+.celebrate-confetti-layer i {
+    position: absolute;
+    width: 9px; height: 14px;
+    border-radius: 2px;
+    opacity: 0;
+    animation: confettiFly 1.4s ease-out forwards;
+}
+@keyframes confettiFly {
+    0%   { opacity: 1; transform: translate(0,0) rotate(0); }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); }
+}
+
+/* Flying "+N coins" */
+.celebrate-coin-fly {
+    position: fixed;
+    z-index: 9200;
+    font-weight: 800;
+    color: #5b4500;
+    background: linear-gradient(180deg, #ffe27a, #ffc824 55%, #e8a200);
+    border: 1px solid #c98a08;
+    border-radius: 999px;
+    padding: 4px 11px;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.45);
+    box-shadow: 0 2px 6px rgba(120,80,0,0.3);
+    pointer-events: none;
+    transform: translate(-50%, 0) scale(0.8);
+    opacity: 0;
+    transition: transform 1.2s cubic-bezier(.2,.8,.2,1), opacity 1.2s;
+}
+.celebrate-coin-fly.go { transform: translate(-50%, -46px) scale(1.1); opacity: 1; }
+
+/* Combo popup */
+.celebrate-combo {
+    position: fixed;
+    top: 30%; left: 50%;
+    transform: translate(-50%, -50%) scale(0.4);
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #fff;
+    text-shadow: 0 2px 12px rgba(255,120,0,0.8), 0 0 24px rgba(255,60,0,0.6);
+    z-index: 9300;
+    pointer-events: none;
+    opacity: 0;
+    transition: transform 0.3s cubic-bezier(.2,1.5,.4,1), opacity 0.3s;
+}
+.celebrate-combo.show { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+
+/* Overlay (badge / rank up) */
+.celebrate-overlay {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(20,30,20,0.55);
+    backdrop-filter: blur(3px);
+    z-index: 9100;
+    opacity: 0;
+    transition: opacity 0.3s;
+    padding: 1rem;
+}
+.celebrate-overlay.show { opacity: 1; }
+.celebrate-card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 1.75rem 2rem;
+    text-align: center;
+    max-width: 320px;
+    width: 100%;
+    box-shadow: 0 18px 60px rgba(0,0,0,0.35);
+    transform: scale(0.8);
+    transition: transform 0.35s cubic-bezier(.2,1.4,.4,1);
+}
+.celebrate-overlay.show .celebrate-card { transform: scale(1); }
+.celebrate-medal {
+    font-size: 4.5rem;
+    line-height: 1;
+    animation: medalPop 0.7s ease-out;
+}
+@keyframes medalPop {
+    0%   { transform: scale(0) rotate(-30deg); }
+    60%  { transform: scale(1.25) rotate(8deg); }
+    100% { transform: scale(1) rotate(0); }
+}
+.celebrate-kicker {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #4a9e45;
+    margin-top: 0.5rem;
+}
+.celebrate-title { font-size: 1.5rem; font-weight: 800; margin-top: 0.15rem; }
+.celebrate-sub   { color: #666; font-size: 0.9rem; margin-top: 0.25rem; }
+.celebrate-ok    { margin-top: 1.25rem; width: 100%; }
+
+/* ============================================================================
+ * Full-screen 3D Garden
+ * ============================================================================ */
+
+body.garden-page .main-content {
+    padding: 0;
+    max-width: none;
+    display: flex;
+    flex-direction: column;
+}
+
+.garden-fs {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 70vh;
+    overflow: hidden;
+    /* Flat pixel-style sky (no gradients). The 3D voxel ground is drawn over it. */
+    background: #7ec8e8;
+}
+.garden-fs[data-rank="7"], .garden-fs[data-rank="8"] { background: #ffcf8f; }
+.garden-fs[data-rank="9"], .garden-fs[data-rank="10"] { background: #c3b0ef; }
+.garden-fs[data-night="1"] { background: #16213e; }
+.garden-fs[data-night="1"] .garden-topbar { background: rgba(20,33,61,0.72); color: #eaf2ff; }
+.garden-fs[data-night="1"] .gt-counts span,
+.garden-fs[data-night="1"] .gt-rank,
+.garden-fs[data-night="1"] .gt-sun { color: #eaf2ff; }
+
+.garden-canvas {
+    flex: 1;
+    width: 100%;
+    display: block;
+    touch-action: none;   /* gestures are handled by garden3d controls */
+}
+
+.garden-topbar {
+    position: relative;
+    z-index: 5;
+    background: rgba(255,255,255,0.82);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    padding: 0.5rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.gt-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.gt-rank  { font-weight: 700; font-size: 0.9rem; }
+.gt-sun   { font-weight: 600; font-size: 0.85rem; color: #c98a00; }
+.gt-counts { display: flex; gap: 0.5rem; font-size: 0.82rem; }
+.gt-counts span { white-space: nowrap; }
+.gt-allgood { color: #2e7d32; font-weight: 600; font-size: 0.85rem; }
+
+/* Compact icon buttons in the top bar */
+.gt-icon-btn { padding: 0 0.55rem; min-width: 40px; }
+.gt-actions .btn { flex: 0 1 auto; }
+
+/* Speech bubbles floating above critters */
+.garden-bubbles { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
+.garden-bubble {
+    position: absolute;
+    transform: translate(-50%, -100%);
+    background: #fff;
+    color: #333;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    animation: bubblePop 0.25s ease-out;
+}
+.garden-bubble::after {
+    content: ''; position: absolute; left: 50%; bottom: -5px;
+    transform: translateX(-50%);
+    border: 5px solid transparent; border-top-color: #fff;
+}
+@keyframes bubblePop { from { transform: translate(-50%, -90%) scale(0.6); opacity: 0; } to { opacity: 1; } }
+
+/* Round "?" help button (home + garden) */
+.help-btn {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--border-color, #ddd);
+    background: #fff;
+    color: #555;
+    font-weight: 800;
+    font-size: 0.95rem;
+    cursor: pointer;
+    line-height: 1;
+}
+.help-btn:hover { background: #f3f3f3; }
+
+.shop-count {
+    margin-left: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #2e7d32;
+    background: #e6f5e6;
+    border-radius: 8px;
+    padding: 1px 6px;
+}
+
+/* Earn-help modal */
+.help-card { max-width: 360px; text-align: left; }
+.help-title { font-size: 1.3rem; font-weight: 800; text-align: center; margin-bottom: 0.5rem; }
+.help-section { margin-top: 0.85rem; }
+.help-head { font-weight: 700; font-size: 0.95rem; margin-bottom: 0.3rem; }
+.help-card ul { margin: 0.2rem 0 0.4rem; padding-left: 1.1rem; }
+.help-card li { font-size: 0.9rem; margin: 0.15rem 0; }
+.help-note { font-size: 0.8rem; color: #666; margin: 0.2rem 0 0; }
+
+/* Garden top bar on phones — even, tidy buttons */
+@media (max-width: 560px) {
+    .garden-topbar { padding: 0.45rem 0.5rem; gap: 0.35rem; }
+    .gt-counts { font-size: 0.78rem; gap: 0.35rem; order: 3; width: 100%; justify-content: space-between; }
+    .gt-top { gap: 0.4rem; }
+    .gt-actions { gap: 0.4rem; }
+    .gt-actions .btn { flex: 1 1 0; text-align: center; padding: 0 0.4rem; font-size: 0.82rem; }
+    .gt-icon-btn { flex: 0 0 auto; min-width: 38px; }
+    .gt-rank { font-size: 0.82rem; }
+}
+
+.garden-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    text-align: center;
+    color: #2e5d2e;
+}
+
+.garden-popup-fs {
+    position: absolute;
+    left: 50%;
+    bottom: 1rem;
+    transform: translateX(-50%);
+    width: min(420px, calc(100% - 1.5rem));
+    z-index: 6;
+}
+
+/* Garden shop — bottom sheet */
+.garden-shop {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    z-index: 7;
+    background: #fff;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 30px rgba(0,0,0,0.2);
+    max-height: 70%;
+    overflow-y: auto;
+    padding: 0.75rem 1rem 1.25rem;
+    animation: shopUp 0.25s ease-out;
+}
+@keyframes shopUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.shop-head { display: flex; align-items: center; gap: 0.6rem; padding-bottom: 0.5rem; position: sticky; top: 0; background: #fff; }
+.shop-grid { display: grid; gap: 0.5rem; }
+.shop-item { display: flex; align-items: center; gap: 0.65rem; padding: 0.5rem; border: 1px solid #eee; border-radius: 12px; }
+.shop-item.owned { background: #f3faf3; border-color: #cfe8cf; }
+.shop-ic { font-size: 1.6rem; }
+.shop-info { flex: 1; min-width: 0; }
+.shop-name { font-weight: 600; font-size: 0.92rem; }
+.shop-tag { font-size: 0.65rem; color: #fff; background: #7aa86b; border-radius: 6px; padding: 1px 5px; vertical-align: middle; }
+.shop-desc { font-size: 0.78rem; color: #777; }
+.shop-owned { color: #2e7d32; font-weight: 600; font-size: 0.82rem; }

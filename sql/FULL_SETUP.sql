@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   role          text NOT NULL CHECK (role IN ('learner', 'parent')),
   display_name  text NOT NULL,
   avatar_color  text DEFAULT '#007BFF',
+  avatar_emoji  text DEFAULT NULL,
   is_public     boolean DEFAULT true,
   created_at    timestamptz DEFAULT now(),
   updated_at    timestamptz DEFAULT now()
@@ -152,7 +153,7 @@ CREATE TABLE IF NOT EXISTS test_results (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   word_id     uuid NOT NULL REFERENCES words(id) ON DELETE CASCADE,
   user_id     uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  test_type   text NOT NULL CHECK (test_type IN ('meaning', 'spelling', 'listening')),
+  test_type   text NOT NULL CHECK (test_type IN ('meaning', 'spelling', 'listening', 'review')),
   correct     boolean NOT NULL,
   response    text,
   tested_at   timestamptz DEFAULT now()
@@ -274,3 +275,42 @@ CREATE POLICY "anyone_select_public_stats_cache"
 CREATE POLICY "users_select_own_stats_cache"
   ON learner_stats_cache FOR SELECT
   USING (user_id = auth.uid());
+
+-- ============================================================================
+-- 8. GARDEN_ITEMS  (purchased decorations & cosmetic boosters)
+-- ============================================================================
+-- Coins are spendable currency; earned coins are derived from activity, only
+-- purchases are stored. balance = earned − Σ(item costs), computed in
+-- db.getUserCoins(). Boosters are cosmetic-only (never touch SRS/mastery).
+
+-- Items STACK: one row per purchase (quantity = row count per item_code).
+CREATE TABLE IF NOT EXISTS garden_items (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  item_code  text NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX idx_garden_items_user ON garden_items(user_id);
+
+ALTER TABLE garden_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users_select_own_garden_items"
+  ON garden_items FOR SELECT
+  USING (user_id = auth.uid());
+
+CREATE POLICY "users_insert_own_garden_items"
+  ON garden_items FOR INSERT
+  WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "users_delete_own_garden_items"
+  ON garden_items FOR DELETE
+  USING (user_id = auth.uid());
+
+CREATE POLICY "public_learner_garden_items_readable"
+  ON garden_items FOR SELECT
+  USING (user_id IN (SELECT id FROM profiles WHERE is_public = true AND role = 'learner'));
+
+CREATE POLICY "parent_select_learner_garden_items"
+  ON garden_items FOR SELECT
+  USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'parent');

@@ -17,9 +17,12 @@ Designed to be fully usable on smartphones — responsive layout required throug
 | Backend | None — both APIs are called directly from the browser (CORS-safe) |
 | English definitions | Free Dictionary API v1 — `https://freedictionaryapi.com/api/v1/entries/en/{word}?translations=true` |
 | Chinese translation | MyMemory API — `https://api.mymemory.translated.net/get?q={text}&langpair=en|zh-CN` |
+| 3D Garden | Three.js (ES module from CDN) — `https://cdn.jsdelivr.net/npm/three@0.160.0/+esm` |
 | Deployment | Netlify (static) |
 
-**No npm. No build step. No React. No Tailwind.**
+**No npm. No build step. No React. No Tailwind.** Three.js is loaded as an ES
+module from CDN (same mechanism as Supabase) — the one runtime dependency; it is
+pinned to a version and only imported by `js/lib/garden3d.js`.
 
 Load Supabase from CDN:
 ```html
@@ -47,29 +50,41 @@ Load Supabase from CDN:
 │   │
 │   └── lib/
 │       ├── srs.js           — spaced repetition interval logic
-│       ├── xp.js            — XP calculation and level labels
-│       ├── achievements.js  — achievement check logic
-│       └── garden.js        — Word Garden SVG rendering
+│       ├── growth.js        — Sunlight (XP) calculation + botanical Rank ladder
+│       ├── coins.js         — Coin economy (computeCoins) + Garden Shop catalog
+│       ├── achievements.js  — granular badge catalog + checkAndAward rules
+│       ├── awards.js        — runAfterActivity(): the connector every activity calls
+│       ├── celebrate.js     — instant award effects (toast/confetti/coin/badge/rankUp/combo)
+│       ├── help.js          — "How do I earn?" modal (Sunlight + Coins), shared home/garden
+│       ├── audio.js         — chiptune background music + critter chirps (Web Audio, no files)
+│       ├── garden.js        — gardenStats() per-mastery counts (legacy 2D render kept)
+│       ├── garden3d.js      — Three.js full-screen 3D voxel garden scene
+│       ├── missions.js      — daily mission descriptors + render (learner home & parent dashboard)
+│       └── parent-stats.js  — parent-side learner stats: fetch, Sunlight/words sort, streak
 │
 ├── pages/
 │   ├── login.js
-│   ├── learner-home.js      — dashboard + embedded month calendar
+│   ├── learner-home.js      — dashboard + missions + embedded month calendar
 │   ├── word-list.js         — word list + add/edit drawer + trash section
-│   ├── review.js
+│   ├── review.js            — SRS session; logs each review as test_type 'review'
 │   ├── quiz.js
 │   ├── garden.js
 │   ├── achievements.js
-│   ├── leaderboard.js       — XP / mastered / streaks / words leaderboards
-│   ├── compare.js           — head-to-head comparison
+│   ├── leaderboard.js       — Sunlight / mastered / streaks / words leaderboards
+│   ├── compare.js           — head-to-head comparison (learner-vs-learner)
 │   ├── settings.js          — learner privacy settings
-│   ├── parent-dashboard.js
-│   └── parent-words.js      — read-only word list for parent
+│   ├── parent-dashboard.js  — per-learner stats, daily missions + history, compare
+│   ├── parent-words.js      — word list per learner (parent can add/edit)
+│   └── parent-activity.js   — per-learner test-result activity log + calendar
 │
 └── sql/
-    ├── MIGRATION_ADD_DELETED_AT.sql    — soft-delete column + index
-    ├── MIGRATION_ADD_AUDIO_URLS.sql    — audio_url_uk, audio_url_us columns
-    ├── MIGRATION_ADD_WORD_DETAILS.sql  — word_forms (jsonb), synonyms, antonyms, quotes columns
-    └── MIGRATION_LEADERBOARD_RLS.sql   — RLS policies for public leaderboard
+    ├── MIGRATION_ADD_DELETED_AT.sql        — soft-delete column + index
+    ├── MIGRATION_ADD_AUDIO_URLS.sql        — audio_url_uk, audio_url_us columns
+    ├── MIGRATION_ADD_WORD_DETAILS.sql      — word_forms (jsonb), synonyms, antonyms, quotes columns
+    ├── MIGRATION_LEADERBOARD_RLS.sql       — RLS policies for public leaderboard
+    ├── MIGRATION_ADD_AVATAR_EMOJI.sql      — profiles.avatar_emoji column
+    ├── MIGRATION_ADD_REVIEW_TEST_TYPE.sql  — allow 'review' in test_results.test_type CHECK
+    └── MIGRATION_ADD_GARDEN_ITEMS.sql      — garden_items table (purchased decorations/boosters)
 ```
 
 ---
@@ -87,13 +102,16 @@ Hash-based. `app.js` listens to `hashchange` and `DOMContentLoaded`.
 | `#/learner/quiz` | Quiz Session | Learner |
 | `#/learner/garden` | Word Garden | Learner |
 | `#/learner/achievements` | Medals & Badges | Learner |
-| `#/learner/leaderboard` | Leaderboard (XP / Mastered / Streaks / Words) | Learner |
-| `#/learner/compare/:id` | Head-to-Head Comparison | Learner |
+| `#/learner/leaderboard` | Leaderboard (Sunlight / Mastered / Streaks / Words) | Learner |
+| `#/learner/compare/:id` | Head-to-Head Comparison | Learner + Parent |
 | `#/learner/settings` | Privacy Settings | Learner |
-| `#/parent/dashboard` | Stats & Charts | Parent |
-| `#/parent/words` | Learner Word List (read-only) | Parent |
+| `#/parent/dashboard` | Stats, Missions & Charts | Parent |
+| `#/parent/words` | Learner Word List (add/edit) | Parent |
+| `#/parent/activity` | Learner Activity Log + Calendar | Parent |
 
 `#/learner/add-word` redirects to `#/learner/words` (alias kept for backwards compat).
+
+**Compare is learner-vs-learner.** `#/learner/compare/:id` is not in the role route sets, so both roles reach it. A learner compares themselves against `:id`; a parent compares `:id` against the other learner (the parent dashboard's "Compare learners" button links here). `compare.js` reads the viewer's role to pick the left-hand participant and the correct back link, then orders the two by Sunlight/words. Stats come from `js/lib/parent-stats.js`.
 
 **Calendar is embedded in `#/learner/home`** — no separate route. Clicking a day with activity sets `sessionStorage.wordDateFilter` and navigates to `#/learner/words`, which reads and applies the filter on load.
 
@@ -126,6 +144,7 @@ id            uuid  PRIMARY KEY REFERENCES auth.users
 role          text  CHECK (role IN ('learner', 'parent'))
 display_name  text  DEFAULT 'User'
 avatar_color  text  DEFAULT '#007BFF'   -- used in leaderboards
+avatar_emoji  text  DEFAULT NULL        -- optional emoji avatar; falls back to display-name initial. Migration: sql/MIGRATION_ADD_AVATAR_EMOJI.sql
 is_public     boolean DEFAULT true      -- controls leaderboard visibility
 created_at    timestamptz DEFAULT now()
 updated_at    timestamptz DEFAULT now()
@@ -176,11 +195,13 @@ updated_at        timestamptz DEFAULT now()
 id         uuid  PRIMARY KEY DEFAULT gen_random_uuid()
 word_id    uuid  REFERENCES words(id) ON DELETE CASCADE
 user_id    uuid  REFERENCES profiles(id) ON DELETE CASCADE
-test_type  text  CHECK (test_type IN ('meaning', 'spelling', 'listening'))
+test_type  text  CHECK (test_type IN ('meaning', 'spelling', 'listening', 'review'))
 correct    boolean NOT NULL
 response   text
 tested_at  timestamptz DEFAULT now()
 ```
+
+**`'review'` test_type:** `review.js` records each completed SRS review as a `test_results` row with `test_type = 'review'`, so daily missions/history can count reviews separately from meaning-quiz answers. Requires `sql/MIGRATION_ADD_REVIEW_TEST_TYPE.sql` (extends the CHECK) — apply it **before** deploying the review-logging change, or the insert is rejected. No backfill: reviews logged before this change remain `test_type = 'meaning'`, so they show under the meaning count in older history rather than under reviews. Accuracy, Sunlight, Coins, calendars and parent charts count all `test_results` regardless of type, so they are unaffected.
 
 ### `achievements`
 ```sql
@@ -296,65 +317,153 @@ Wrong answer:   level = 0, next_review_date = tomorrow
 
 ---
 
-## XP & Levels
+## Daily Missions
 
-```
-Add a word:       +1 XP
-Complete review:  +2 XP
-Correct answer:   +3 XP
-```
+Defined in `js/lib/missions.js`; progress data comes from `db.getDailyProgress(userId)`. Shown interactively on `#/learner/home` and read-only on the parent dashboard (`renderMissionList(missions, { readOnly: true })`).
 
-Compute XP dynamically from DB. Do not store a running total.
+Five missions per day (`MISSION_NEW_WORDS = 15`, `MISSION_REVIEW_CURVE = 30`):
 
-Levels are tied to ESL fluency milestones (~10 XP per word interaction, ~25 XP per mastered word).
+1. **Add 15 new words** — always unlocked.
+2. **Review today's new words** ┐
+3. **Meaning quiz (today's words)** ├─ unlock once mission 1 is met; targets scale to the number of words added today.
+4. **Spelling quiz (today's words)** ┘
+5. **Review older words** — always unlocked; target is min(30, still-due curve words).
 
-| Level | Name | Min XP | ESL milestone |
-| --- | --- | --- | --- |
-| 1 | Seedling | 0 | Just starting |
-| 2 | Explorer | 50 | ~50 words |
-| 3 | Adventurer | 200 | ~150 words |
-| 4 | Word Collector | 500 | ~300 words |
-| 5 | Scholar | 1,200 | A1 — survival vocabulary (~500 words) |
-| 6 | Linguist | 3,000 | A2 — everyday topics (~1,000 words) |
-| 7 | Word Builder | 6,000 | B1 — general fluency (~2,000 words) |
-| 8 | Word Master | 15,000 | B2 — academic/professional (~3,500 words) |
-| 9 | Vocabulary Wizard | 30,000 | C1 — advanced (~6,000 words) |
-| 10 | Word Champion | 80,000 | C2 — near-native (~10,000+ words) |
+Missions 2–4 only count `test_results` rows for **today's** new words; mission 5 counts older words. Reviews count via `test_type = 'review'` (see `test_results` note above).
+
+### Mission history (parent dashboard)
+
+`db.getMissionHistory(userId, days = 14)` returns one row per day (newest first) reconstructed from `words.created_at` and `test_results`: `{ date, wordsAdded, reviewsNew, reviewsCurve, meaning, spelling, totalTests, hasActivity, coreDone }`. Each parent dashboard card has a lazy-loaded "View mission history" toggle that renders the days with activity.
+
+`coreDone` reflects the add goal **plus** the three new-word practice missions only — the "review older words" mission is excluded because its point-in-time due-state can't be reconstructed historically.
 
 ---
 
-## Achievements
+## Parent Views
 
-| Code | Trigger |
+All parent pages (`parent-dashboard`, `parent-words`, `parent-activity`) and the compare screen order learners consistently via `js/lib/parent-stats.js`:
+
+- `loadLearnersSorted()` — fetches learner profiles + stats, sorted by **Sunlight desc, then words desc**.
+- `compareByStats(a, b)` — the shared comparator.
+- `isInactive(stats)` — true when Sunlight is 0 **or** words is 0. On the dashboard, inactive learners render as a collapsed `<details>` card ("No activity yet") instead of a full card; they're also excluded from the activity chart.
+- `fetchStreak(userId)` — consecutive-day activity streak (used by compare).
+
+Navigation between parent pages is the responsibility of the top navbar (`app.js renderNavbar`); pages do **not** repeat nav links beside their `<h2>`. The dashboard's only header action is "Compare learners".
+
+---
+
+## The Reward System (connected backbone)
+
+Two currencies + granular badges + instant effects, all wired through one
+connector. Every activity page (add word, finish review, finish quiz) calls
+`runAfterActivity(hints)` in `js/lib/awards.js`, which recomputes Sunlight,
+Coins and badges in one place and returns an `events[]` array that
+`js/lib/celebrate.js` renders. **Both currencies are derived from countable
+history — never stored as a running total** (only coin *purchases* are stored).
+
+```
+activity → awards.runAfterActivity() → { Sunlight↑ rank, Coins↑ balance, new badges }
+                                      → events[] → celebrate.js (confetti/coin/badge/rankUp)
+```
+
+### Sunlight ☀️ & Gardener Ranks (`js/lib/growth.js`)
+
+Sunlight is the permanent progress currency (drives ranks + leaderboard, never
+spent). Same earn formula as the old XP; thresholds unchanged (ESL milestones).
+
+```
+Add a word:       +1 Sunlight
+Complete review:  +2 Sunlight
+Correct answer:   +3 Sunlight
+```
+
+Ranks are botanical and describe the *gardener* (kept distinct from per-word
+plant stages in `srs.js`):
+
+| Rank | Name | Min ☀️ | | Rank | Name | Min ☀️ |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 🌱 Sprout Scout | 0 | | 6 | 🌳 Grove Guardian | 3,000 |
+| 2 | 🪴 Seedling Sitter | 50 | | 7 | 🍀 Green Thumb | 6,000 |
+| 3 | 🌿 Leaf Learner | 200 | | 8 | 🏡 Garden Master | 15,000 |
+| 4 | 🌻 Bud Tender | 500 | | 9 | 🦋 Nature Sage | 30,000 |
+| 5 | 🐝 Garden Keeper | 1,200 | | 10 | 👑 Master Botanist | 80,000 |
+
+### Coins 🪙 (`js/lib/coins.js`)
+
+The spendable garden currency. `balance = earned − Σ(purchased item costs)`;
+earned is derived (`computeCoins`), purchases live in `garden_items`.
+
+```
++1 🪙 per word added · +1 🪙 per answer · +1 🪙 per correct · +5 🪙 per badge
+```
+
+`SHOP` catalog maps `item_code → { name, icon, cost, layer, type }`.
+`type: 'decoration'` (a 3D prop) or `'booster'` (**cosmetic-only — never touches
+SRS/mastery**). Spent in the Garden Shop (see Word Garden).
+
+---
+
+## Achievements / Badges (`js/lib/achievements.js`)
+
+Many small, garden-themed, quickly-earned badges (stored in `achievements`,
+UNIQUE per code; each is also worth +5 🪙). `ACHIEVEMENTS[code]` carries
+`{ icon, label, desc, category, tier }`; the Awards page groups by `category`.
+`checkAndAward(stats)` reads stats built by `runAfterActivity`
+(`wordsAdded`, `masteredCount`, `streak`, `correctTotal`, `maxCombo`,
+`perfectSession`, `allMissions`, `sessionType`) and inserts any newly-passed
+rule, returning the new codes.
+
+| Category | Codes (thresholds) |
 |---|---|
-| `BRONZE_100` | 100 words added |
-| `SILVER_500` | 500 words added |
-| `GOLD_1000` | 1000 words added |
-| `PLATINUM_2000` | 2000 words added |
-| `STREAK_7` | 7-day streak |
-| `STREAK_30` | 30-day streak |
-| `STREAK_100` | 100-day streak |
-| `PERFECT_WEEK` | 7 days with no missed reviews |
-| `SPEED_READER` | 100 reviews in one day |
-| `WORD_COLLECTOR` | 1000 unique words |
+| Words | FIRST_SEED(1) · SPROUTS_10 · PATCH_25 · GARDEN_50 · GROVE_100 · ORCHARD_250 · FOREST_500 · JUNGLE_1000 |
+| Blooms (mastered) | FIRST_BLOOM(1) · BLOOMS_5/10/25/50/100 |
+| Streaks | STREAK_3/7/14/30/60/100 |
+| Practice | SHARP_25/100/500 (correct) · FIRST_REVIEW · FIRST_QUIZ |
+| Skill | HOT_5/10/20 (combo) · PERFECT_REVIEW · PERFECT_QUIZ · GREEN_THUMB_DAY (all daily missions) |
 
-Check achievements after every word add or review completion.
+In-session **combos** (5/10/20 correct in a row) fire a `comboPopup` every time;
+the first ever also unlocks the matching HOT_x badge. Badges are checked after
+every word add, review, and quiz (via `runAfterActivity`).
 
 ---
 
-## Word Garden
+## Word Garden (`#/learner/garden`)
 
-Query count of mastered words (`review_level >= 4`). Render as SVG in `#/learner/garden`.
+Full-screen (minus navbar) **3D scene** rendered with Three.js
+(`js/lib/garden3d.js`). Flat colours, **no gradients** — a Minecraft-style grid
+of dirt+grass **voxel blocks**, one plant per block. The renderer is transparent
+so the **flat** CSS sky colour on `.garden-fs` shows behind it (sky tint warms
+with Gardener rank and goes dark when the 🌙 theme is owned).
 
-```
-0–9 mastered    → seeds (small dots)
-10–49 mastered  → sprouts (small green shapes)
-50–99 mastered  → flowers (colored blooms)
-100–499 mastered → trees
-500+  mastered  → dense forest
-```
+- **Plants** are billboard sprites on blocks — emoji = SRS stage (`masteryEmoji`),
+  bigger as mastered. Due plants droop, desaturate, float a 💧. Tapping a due
+  plant runs a **quick inline review right in the popup** (Water it → I knew it /
+  Forgot): it calls `completeReview` + `recordTestResult` + `runAfterActivity`,
+  then `controller.growPlant()` regrows the sprite and the top-bar counts/wallet
+  update live — no jump to the review page. (The top-bar "Review all →" still
+  opens a full session.)
+- **Top action bar** merges everything: rank + Sunlight, per-mastery counts
+  (🌱🌿🌷🌳🏆 from `gardenStats`), the 🪙 wallet, 🛒 Shop, 🔊 music toggle,
+  `?` help, the "💧 N need watering → Review" CTA, plus Add and Quiz.
+- **Garden Shop** (bottom sheet) spends coins via `buyGardenItem()`. Items
+  **stack** — buy as many butterflies as you can afford (decorations show ×count;
+  boosters are one-off). Each purchase adds one instance live
+  (`controller.addDecoration`) and persists (`getGardenItems`). Boosters are
+  cosmetic only.
+- **Critters** (butterflies/bees/bird) wander slowly with random behaviour —
+  free flight, landing on a plant, or grouping up — show speech bubbles, and make
+  their natural sound on a per-critter cooldown (bees buzz, birds tweet,
+  butterflies silent).
+- **Audio** (`js/lib/audio.js`): NES-style chiptune loop (4 phrases, ~12s) + a
+  buzzing `bee()` and tweeting `bird()` via Web Audio (no files). Starts on first
+  tap (autoplay rules); on/off persists in localStorage; 🔊 toggle in the top bar.
+- **Help** (`js/lib/help.js`): the `?` button (home + garden) opens a modal
+  explaining how Sunlight and Coins are earned.
+- **Controls:** pointer-based — 1 finger orbit, 2-finger pinch zoom, tap to
+  select, idle auto-spin (no extra addon; avoids a 2nd Three.js copy). Scene is
+  disposed + music stopped on navigation (RAF/GL freed) via a `hashchange` listener.
 
-Keep v1 simple — a grid of SVG shapes is fine.
+`js/lib/garden.js` still exports `gardenStats(words)` (per-mastery counts).
 
 ---
 
@@ -458,7 +567,7 @@ Build in this sequence. The app should be usable at every step.
 4. `word-list.js` — word list + add/edit drawer (replaces separate add-word page)
 5. `review.js` — SRS session, update `review_schedule` on completion
 6. `quiz.js` — meaning quiz first, spelling quiz second
-7. `learner-home.js` — XP, streak, due review count, embedded month calendar
+7. `learner-home.js` — Sunlight, Coins, streak, due review count, embedded month calendar
 8. `achievements.js` — check and display badges
 9. `garden.js` — SVG Word Garden
 10. `parent-dashboard.js` — Chart.js charts, CSV export
