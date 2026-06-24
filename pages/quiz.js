@@ -155,11 +155,11 @@ async function startMeaning(container, allWords) {
                 }
 
                 grid.querySelectorAll('button').forEach(b => b.disabled = true);
-                btn.style.background = isCorrect ? '#28a745' : '#dc3545';
+                btn.style.background = isCorrect ? 'var(--success-color)' : 'var(--danger-color)';
                 btn.style.color = 'white';
                 if (!isCorrect) {
                     grid.querySelectorAll('button').forEach(b => {
-                        if (b.dataset.correct === '1') { b.style.background = '#28a745'; b.style.color = 'white'; }
+                        if (b.dataset.correct === '1') { b.style.background = 'var(--success-color)'; b.style.color = 'white'; }
                     });
                 }
                 refreshHintButtons();
@@ -329,7 +329,7 @@ async function startSpelling(container, allWords) {
 
             const fb = document.getElementById('feedback');
             fb.textContent = isCorrect ? '✓ Correct!' : `✗ The answer was: ${word.word}`;
-            fb.style.color = isCorrect ? '#28a745' : '#dc3545';
+            fb.style.color = isCorrect ? 'var(--success-color)' : 'var(--danger-color)';
 
             submit.disabled = true;
             inputs.forEach(inp => inp.disabled = true);

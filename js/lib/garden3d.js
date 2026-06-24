@@ -236,7 +236,7 @@ export function createGarden(canvas, opts = {}) {
 
     function addDecoration(code) {
         const info = SHOP[code];
-        if (!info || info.layer === 'theme') return;   // boosters/night handled elsewhere
+        if (!info || info.layer === 'theme' || info.type === 'hint') return;   // boosters/night/hints handled elsewhere
         if (STRUCTURES[code]) {
             return;
         }

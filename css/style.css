@@ -4,16 +4,16 @@
  */
 
 :root {
-    --primary-color: #007bff;
-    --secondary-color: #6c757d;
-    --success-color: #28a745;
-    --danger-color: #dc3545;
-    --warning-color: #ffc107;
-    --dark-color: #343a40;
-    --light-color: #f8f9fa;
-    --border-color: #dee2e6;
-    --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.15);
+    --primary-color: #3b82f6;      /* Playful primary blue */
+    --secondary-color: #9b5de5;    /* Vibrant purple (kid-friendly replacement for gray) */
+    --success-color: #2ec4b6;      /* Vibrant minty teal */
+    --danger-color: #ff5470;       /* Bright friendly coral red */
+    --warning-color: #ff9f1c;      /* Warm golden orange */
+    --dark-color: #2d3748;         /* Soft dark charcoal */
+    --light-color: #f7fafc;        /* Soft off-white */
+    --border-color: #e2e8f0;       /* Light border */
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
 
     --spacing-xs: 0.25rem;
     --spacing-sm: 0.5rem;
@@ -21,8 +21,8 @@
     --spacing-lg: 1.5rem;
     --spacing-xl: 2rem;
 
-    --border-radius: 0.375rem;
-    --border-radius-lg: 0.5rem;
+    --border-radius: 12px;         /* Friendly rounded corners */
+    --border-radius-lg: 16px;      /* Large friendly corners */
 
     --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-size-sm: 0.875rem;
@@ -283,11 +283,34 @@ label {
 
 .btn {
     padding: var(--spacing-sm) var(--spacing-lg);
-    border-radius: var(--border-radius);
+    border-radius: 24px; /* Playful pill buttons */
     font-size: var(--font-size-base);
-    font-weight: 500;
-    transition: all 0.2s ease;
-    display: inline-block;
+    font-weight: 600; /* Bolder text for kids */
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* bounce transition */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    border: none;
+    text-decoration: none !important;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active {
+    transform: translateY(-0.5px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.btn:disabled, .btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
 }
 
 .btn-primary {
@@ -296,7 +319,7 @@ label {
 }
 
 .btn-primary:hover {
-    background-color: #0056b3;
+    background-color: #2563eb;
 }
 
 .btn-secondary {
@@ -305,7 +328,7 @@ label {
 }
 
 .btn-secondary:hover {
-    background-color: #545b62;
+    background-color: #8338ec;
 }
 
 .btn-success {
@@ -314,7 +337,7 @@ label {
 }
 
 .btn-success:hover {
-    background-color: #218838;
+    background-color: #1aa195;
 }
 
 .btn-danger {
@@ -323,17 +346,18 @@ label {
 }
 
 .btn-danger:hover {
-    background-color: #c82333;
+    background-color: #e03e5c;
 }
 
 .btn-block {
-    display: block;
+    display: flex;
     width: 100%;
 }
 
 .btn-sm {
-    padding: var(--spacing-xs) var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-md);
     font-size: var(--font-size-sm);
+    border-radius: 16px; /* Slightly smaller pill for small buttons */
 }
 
 /* ============================================================================
@@ -1274,7 +1298,10 @@ input.letter-box:focus { border-color: var(--primary-color); outline: none; box-
 
     .card { padding: var(--spacing-md); }
 
-    button, .btn { min-height: 44px; }
+    button:not(.btn-sm):not(.gt-icon-btn):not(.coin-btn),
+    .btn:not(.btn-sm):not(.gt-icon-btn):not(.coin-btn) {
+        min-height: 44px;
+    }
 
     input, select, textarea {
         min-height: 44px;
@@ -1316,12 +1343,21 @@ input.letter-box:focus { border-color: var(--primary-color); outline: none; box-
     font-size: 0.8rem; font-weight: 800; color: #5b4500;
     background: linear-gradient(180deg, #ffe27a 0%, #ffc824 52%, #e8a200 100%);
     border: 1px solid #c98a08;
-    border-radius: 12px;
+    border-radius: 16px; /* Playful rounded shape */
     padding: 6px 12px; min-height: 36px; cursor: pointer;
     text-shadow: 0 1px 0 rgba(255,255,255,0.45);
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.65), 0 1px 2px rgba(120,80,0,0.25);
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-.coin-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.coin-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.65), 0 4px 10px rgba(120,80,0,0.35);
+}
+.coin-btn:active:not(:disabled) {
+    transform: translateY(-0.5px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), 0 2px 4px rgba(120,80,0,0.2);
+}
+.coin-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; box-shadow: inset 0 1px 0 rgba(255,255,255,0.65), 0 1px 2px rgba(120,80,0,0.25) !important; }
 .coin-btn .coin-cost { font-weight: 900; }
 
 .session-coins {
