@@ -7,8 +7,8 @@ import { supabase } from "./supabase.js";
 import { getCurrentUser } from "./auth.js";
 import { nextLevel, nextReviewDate, intervalDays } from "./lib/srs.js";
 import { computeSunlight } from "./lib/growth.js";
-import { computeCoins, itemCost } from "./lib/coins.js";
-import { MISSION_NEW_WORDS } from "./lib/missions.js";
+import { computeCoins, itemCost, isOneOffItem } from "./lib/coins.js";
+import { MISSION_NEW_WORDS, missionThreshold } from "./lib/missions.js";
 
 function localYMD(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -623,7 +623,14 @@ export async function getUserCoins() {
     const badgeCount   = badgeRes.count || 0;
 
     const earned = computeCoins({ wordsAdded, testsTaken, testsCorrect, badgeCount });
-    const spent  = (itemsRes.data || []).reduce((s, r) => s + itemCost(r.item_code), 0);
+    const seenOneOff = new Set();
+    const spent  = (itemsRes.data || []).reduce((s, r) => {
+        if (isOneOffItem(r.item_code)) {
+            if (seenOneOff.has(r.item_code)) return s;
+            seenOneOff.add(r.item_code);
+        }
+        return s + itemCost(r.item_code);
+    }, 0);
     return { earned, spent, balance: earned - spent };
 }
 
@@ -648,6 +655,17 @@ export async function buyGardenItem(itemCode) {
 
     const { balance } = await getUserCoins();
     if (balance < cost) throw new Error("Not enough coins");
+
+    if (isOneOffItem(itemCode)) {
+        const { data: existing, error: existingError } = await supabase
+            .from("garden_items")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("item_code", itemCode)
+            .limit(1);
+        if (existingError) throw existingError;
+        if ((existing || []).length) throw new Error("Already owned");
+    }
 
     const { error } = await supabase
         .from("garden_items")
@@ -696,13 +714,16 @@ export async function getUserStreak() {
 }
 
 /**
- * Daily mission progress. All "done" counts are distinct words touched today.
+ * Daily mission progress. The "done" counts are distinct words answered
+ * CORRECTLY today (a wrong answer doesn't advance the goal); the *Acc fields are
+ * accuracy over attempts.
  * Returns:
  *   wordsAdded        — words created today
- *   reviewsNewDone    — today's new words reviewed today (test_type 'review')
- *   reviewsCurveDone  — older words reviewed today (test_type 'review')
- *   meaningQuizCount  — today's new words answered in a meaning quiz today
- *   spellingQuizCount — today's new words answered in a spelling quiz today
+ *   reviewsNewDone    — today's new words reviewed correctly today (test_type 'review')
+ *   reviewsCurveDone  — older words reviewed correctly today (test_type 'review')
+ *   meaningQuizCount  — today's new words answered correctly in a meaning quiz today
+ *   spellingQuizCount — today's new words answered correctly in a spelling quiz today
+ *   reviewsNewAcc/reviewsCurveAcc/meaningAcc/spellingAcc — % correct over attempts (null if none)
  *   newDue            — today's new words still due (not yet reviewed)
  *   curveDue          — older words still due, capped at 30
  */
@@ -711,7 +732,7 @@ export async function getDailyProgress(userId) {
         const user = await getCurrentUser();
         userId = user?.id;
     }
-    if (!userId) return { wordsAdded: 0, reviewsNewDone: 0, reviewsCurveDone: 0, meaningQuizCount: 0, spellingQuizCount: 0, newDue: 0, curveDue: 0 };
+    if (!userId) return { wordsAdded: 0, reviewsNewDone: 0, reviewsCurveDone: 0, meaningQuizCount: 0, spellingQuizCount: 0, newDue: 0, curveDue: 0, reviewsNewAcc: null, reviewsCurveAcc: null, meaningAcc: null, spellingAcc: null };
 
     const now   = new Date();
     const today = localYMD(now);
@@ -725,7 +746,7 @@ export async function getDailyProgress(userId) {
             .gte('created_at', start)
             .lt('created_at', end),
         supabase.from('test_results')
-            .select('word_id, test_type')
+            .select('word_id, test_type, correct')
             .eq('user_id', userId)
             .gte('tested_at', start)
             .lt('tested_at', end),
@@ -739,23 +760,39 @@ export async function getDailyProgress(userId) {
     const wordsAdded   = todayWordIds.size;
     const tests        = testsRes.data || [];
 
-    // Distinct words per mission today.
-    const distinct = (type, pred = () => true) =>
-        new Set(tests.filter(t => t.test_type === type && pred(t.word_id)).map(t => t.word_id)).size;
+    // Distinct words answered CORRECTLY today — a failed word does NOT count
+    // toward a mission's goal, so getting things wrong lowers the numerator and
+    // the 85% completion threshold has to be earned.
+    const distinctCorrect = (type, pred = () => true) =>
+        new Set(tests.filter(t => t.test_type === type && t.correct && pred(t.word_id)).map(t => t.word_id)).size;
 
     // Missions 2-4 track today's NEW words only (they're gated by mission 1).
     const isToday = id => todayWordIds.has(id);
-    const reviewsNewDone    = distinct('review',  isToday);
-    const reviewsCurveDone  = distinct('review',  id => !todayWordIds.has(id));
-    const meaningQuizCount  = distinct('meaning', isToday);
-    const spellingQuizCount = distinct('spelling', isToday);
+    const reviewsNewDone    = distinctCorrect('review',  isToday);
+    const reviewsCurveDone  = distinctCorrect('review',  id => !todayWordIds.has(id));
+    const meaningQuizCount  = distinctCorrect('meaning', isToday);
+    const spellingQuizCount = distinctCorrect('spelling', isToday);
+
+    // Today's accuracy per mission scope (over attempts, not distinct words).
+    // null when there are no attempts yet, so the UI can hide it.
+    const accuracy = (type, pred = () => true) => {
+        const rows = tests.filter(t => t.test_type === type && pred(t.word_id));
+        return rows.length ? Math.round(rows.filter(t => t.correct).length / rows.length * 100) : null;
+    };
+    const reviewsNewAcc   = accuracy('review',  isToday);
+    const reviewsCurveAcc = accuracy('review',  id => !todayWordIds.has(id));
+    const meaningAcc      = accuracy('meaning', isToday);
+    const spellingAcc     = accuracy('spelling', isToday);
 
     // Still-due queues, split new vs curve.
     const due = (dueRes.data || []).filter(r => r.words?.deleted_at == null);
     const newDue   = due.filter(r => localYMD(new Date(r.words.created_at)) === today).length;
     const curveDue = Math.min(30, due.filter(r => localYMD(new Date(r.words.created_at)) !== today).length);
 
-    return { wordsAdded, reviewsNewDone, reviewsCurveDone, meaningQuizCount, spellingQuizCount, newDue, curveDue };
+    return {
+        wordsAdded, reviewsNewDone, reviewsCurveDone, meaningQuizCount, spellingQuizCount, newDue, curveDue,
+        reviewsNewAcc, reviewsCurveAcc, meaningAcc, spellingAcc,
+    };
 }
 
 /**
@@ -780,7 +817,7 @@ export async function getMissionHistory(userId, days = 14) {
 
     const [wordsRes, testsRes] = await Promise.all([
         supabase.from('words').select('id, created_at').eq('user_id', userId).is('deleted_at', null).gte('created_at', start),
-        supabase.from('test_results').select('word_id, test_type, tested_at').eq('user_id', userId).gte('tested_at', start),
+        supabase.from('test_results').select('word_id, test_type, correct, tested_at').eq('user_id', userId).gte('tested_at', start),
     ]);
 
     const wordsByDay = new Map();   // ymd -> Set(wordId) of words created that day
@@ -806,8 +843,9 @@ export async function getMissionHistory(userId, days = 14) {
         const wordsAdded = newSet.size;
         const dayTests   = testsByDay.get(ymd) || [];
 
+        // Distinct words answered CORRECTLY (matches getDailyProgress).
         const distinct = (type, pred) =>
-            new Set(dayTests.filter(t => t.test_type === type && pred(t.word_id)).map(t => t.word_id)).size;
+            new Set(dayTests.filter(t => t.test_type === type && t.correct && pred(t.word_id)).map(t => t.word_id)).size;
         const isNew = id => newSet.has(id);
 
         const reviewsNew   = distinct('review',   isNew);
@@ -815,8 +853,10 @@ export async function getMissionHistory(userId, days = 14) {
         const meaning      = distinct('meaning',  isNew);
         const spelling     = distinct('spelling', isNew);
 
-        const coreDone = wordsAdded >= MISSION_NEW_WORDS
-            && reviewsNew >= wordsAdded && meaning >= wordsAdded && spelling >= wordsAdded;
+        // Mirror buildMissions: 85% of each target counts as complete.
+        const practiceNeed = missionThreshold(wordsAdded);
+        const coreDone = wordsAdded >= missionThreshold(MISSION_NEW_WORDS)
+            && reviewsNew >= practiceNeed && meaning >= practiceNeed && spelling >= practiceNeed;
 
         out.push({
             date: ymd, wordsAdded, reviewsNew, reviewsCurve, meaning, spelling,

@@ -1,9 +1,22 @@
-import { getPrioritizedWords, recordTestResult } from '../js/db.js';
+import { getPrioritizedWords, recordTestResult, getUserCoins, buyGardenItem } from '../js/db.js';
 import { runAfterActivity } from '../js/lib/awards.js';
 import { celebrateEvents, comboPopup } from '../js/lib/celebrate.js';
 
 const FALLBACK_WORDS = ['curious', 'adventure', 'brilliant', 'mysterious', 'eloquent'];
 const QUIZ_SIZE = 15;
+
+// Quiz deck size: normally 15, but if more than 15 new words were added today the
+// deck grows to cover ALL of today's new words (so the practice missions, whose
+// target scales with today's words, can actually be completed).
+function deckSizeFor(words) {
+    const today = localYMD(new Date());
+    const newToday = words.filter(w => w.created_at && localYMD(new Date(w.created_at)) === today).length;
+    return Math.max(QUIZ_SIZE, newToday);
+}
+
+function localYMD(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 export async function render(container) {
     // Deck is ordered today's-words-first, then by memory curve (getPrioritizedWords).
@@ -48,24 +61,47 @@ export async function render(container) {
 }
 
 // ============================================================================
+// Coin wallet helper — hints are spent live during a quiz. Each hint persists a
+// garden_items row (a real coin cost) and we track the running balance locally
+// so buttons disable the moment the learner can't afford the next hint.
+// ============================================================================
+function makeWallet(startBalance) {
+    let balance = startBalance;
+    let spent   = 0;
+    return {
+        get balance() { return balance; },
+        get spent()   { return spent; },
+        canAfford()   { return balance >= 1; },
+        // Optimistically deduct (we pre-check affordability) then persist.
+        spend(code) {
+            balance -= 1;
+            spent   += 1;
+            buyGardenItem(code).then(r => { balance = r.balance; }).catch(() => {});
+        },
+    };
+}
+
+// ============================================================================
 // Meaning quiz
 // ============================================================================
 
-function startMeaning(container, allWords) {
+async function startMeaning(container, allWords) {
     // allWords is pre-ordered today-first then by memory curve — keep that order.
-    const deck = allWords.slice(0, QUIZ_SIZE);
+    const deck = allWords.slice(0, deckSizeFor(allWords));
     let idx = 0, score = 0, combo = 0, maxCombo = 0;
+    const wallet = makeWallet((await getUserCoins()).balance);
 
     function renderQ() {
         const word     = deck[idx];
         const options  = buildOptions(word, allWords);
         const total    = deck.length;
         const pct      = Math.round((idx / total) * 100);
+        const hasChi   = options.some(o => o.chinese);   // any option has a Chinese meaning
 
         container.innerHTML = `
             <div style="max-width:560px;margin:0 auto">
                 <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:#666;margin-bottom:0.5rem">
-                    <span>${idx + 1} / ${total}</span><span>${score} correct</span>
+                    <span>${idx + 1} / ${total}</span><span>${score} correct${idx > 0 ? ` · ${Math.round((score / idx) * 100)}%` : ''} · 🪙 <span id="walletNum">${wallet.balance}</span></span>
                 </div>
                 <div class="progress-bar-wrap" style="margin-bottom:1.5rem">
                     <div class="progress-bar-fill" style="width:${pct}%"></div>
@@ -76,16 +112,38 @@ function startMeaning(container, allWords) {
                     ${word.part_of_speech ? `<div class="review-pos">${esc(word.part_of_speech)}</div>` : ''}
                     <p style="color:#666;margin-top:0.75rem">Which definition is correct?</p>
                     <div class="quiz-options" id="optionGrid"></div>
+                    <div class="quiz-hints" style="display:flex;gap:0.5rem;justify-content:center;margin-top:1rem;flex-wrap:wrap">
+                        <button id="hint5050" class="coin-btn" type="button">➗ Remove 2 Answers <span class="coin-cost">🪙</span></button>
+                        ${hasChi ? `<button id="hintChi" class="coin-btn" type="button">🇨🇳 Reveal Chinese Meanings <span class="coin-cost">🪙</span></button>` : ''}
+                    </div>
                 </div>
             </div>`;
 
-        const grid = document.getElementById('optionGrid');
+        const grid       = document.getElementById('optionGrid');
+        const hint5050   = document.getElementById('hint5050');
+        const hintChi    = document.getElementById('hintChi');
+        const walletNum  = document.getElementById('walletNum');
+        let answered     = false;
+        let excludeUsed  = false;
+        let chiUsed      = false;
+
+        function refreshHintButtons() {
+            walletNum.textContent = wallet.balance;
+            hint5050.disabled = answered || excludeUsed || !wallet.canAfford();
+            if (hintChi) hintChi.disabled = answered || chiUsed || !wallet.canAfford();
+        }
+
+        const optionBtns = [];
         options.forEach(opt => {
             const btn = document.createElement('button');
             btn.className = 'btn btn-secondary';
-            btn.style.cssText = 'text-align:left;font-size:0.9rem;padding:0.75rem;min-height:56px';
-            btn.textContent = opt.text;
+            btn.style.cssText = 'text-align:left;font-size:0.9rem;padding:0.75rem;min-height:56px;display:flex;flex-direction:column;gap:4px;align-items:flex-start';
+            btn.innerHTML = `<span>${esc(opt.text)}</span>`
+                + (opt.chinese ? `<span class="opt-chi" style="display:none;font-size:0.85rem;font-weight:600">🇨🇳 ${esc(opt.chinese)}</span>` : '');
+            btn.dataset.correct = opt.id === word.id ? '1' : '0';
             btn.addEventListener('click', () => {
+                if (answered) return;
+                answered = true;
                 const isCorrect = opt.id === word.id;
                 if (isCorrect) {
                     score++;
@@ -101,18 +159,38 @@ function startMeaning(container, allWords) {
                 btn.style.color = 'white';
                 if (!isCorrect) {
                     grid.querySelectorAll('button').forEach(b => {
-                        if (b.textContent === options.find(o => o.id === word.id)?.text) {
-                            b.style.background = '#28a745';
-                            b.style.color = 'white';
-                        }
+                        if (b.dataset.correct === '1') { b.style.background = '#28a745'; b.style.color = 'white'; }
                     });
                 }
+                refreshHintButtons();
 
                 recordTestResult(word.id, 'meaning', isCorrect);
-                setTimeout(() => { idx++; idx < deck.length ? renderQ() : showResult(container, score, deck.length, 'meaning', maxCombo); }, 900);
+                setTimeout(() => { idx++; idx < deck.length ? renderQ() : showResult(container, score, deck.length, 'meaning', maxCombo, wallet.spent); }, 900);
             });
             grid.appendChild(btn);
+            optionBtns.push(btn);
         });
+
+        // 50/50 — fade out 2 wrong options for one coin.
+        hint5050.addEventListener('click', () => {
+            if (answered || excludeUsed || !wallet.canAfford()) return;
+            const wrong = shuffle(optionBtns.filter(b => b.dataset.correct === '0')).slice(0, 2);
+            wrong.forEach(b => { b.disabled = true; b.style.opacity = '0.3'; b.style.textDecoration = 'line-through'; });
+            excludeUsed = true;
+            wallet.spend('hint5050');
+            refreshHintButtons();
+        });
+
+        // Reveal each option's own Chinese meaning — costs one coin.
+        hintChi?.addEventListener('click', () => {
+            if (answered || chiUsed || !wallet.canAfford()) return;
+            grid.querySelectorAll('.opt-chi').forEach(el => { el.style.display = 'block'; });
+            chiUsed = true;
+            wallet.spend('hintMeaningChi');
+            refreshHintButtons();
+        });
+
+        refreshHintButtons();
     }
 
     renderQ();
@@ -128,17 +206,19 @@ function pickBestDef(text) {
 }
 
 function buildOptions(word, allWords) {
+    // Each option carries the Chinese meaning of ITS OWN word, so the "Reveal
+    // Chinese Meanings" hint can annotate every option, not just the question.
     const correctText = pickBestDef(word.english_definition) || word.word;
-    const correct = { id: word.id, text: correctText };
+    const correct = { id: word.id, text: correctText, chinese: word.chinese_definition || null };
     const distractors = shuffle(
         allWords
             .filter(w => w.id !== word.id && w.english_definition)
-            .map(w => ({ id: w.id, text: pickBestDef(w.english_definition) }))
+            .map(w => ({ id: w.id, text: pickBestDef(w.english_definition), chinese: w.chinese_definition || null }))
             .filter(w => w.text)
     ).slice(0, 3);
 
     while (distractors.length < 3) {
-        distractors.push({ id: `fallback-${distractors.length}`, text: `Definition of ${FALLBACK_WORDS[distractors.length]}` });
+        distractors.push({ id: `fallback-${distractors.length}`, text: `Definition of ${FALLBACK_WORDS[distractors.length]}`, chinese: null });
     }
 
     return shuffle([correct, ...distractors]);
@@ -148,44 +228,96 @@ function buildOptions(word, allWords) {
 // Spelling quiz
 // ============================================================================
 
-function startSpelling(container, allWords) {
+async function startSpelling(container, allWords) {
     const eligible = allWords.filter(w => w.chinese_definition || w.english_definition);
-    const deck     = eligible.slice(0, QUIZ_SIZE);
+    const deck     = eligible.slice(0, deckSizeFor(eligible));
     let idx = 0, score = 0, combo = 0, maxCombo = 0;
+    const wallet = makeWallet((await getUserCoins()).balance);
 
     function renderQ() {
         const word  = deck[idx];
         const total = deck.length;
         const pct   = Math.round((idx / total) * 100);
-        const clue  = word.chinese_definition || word.english_definition;
 
         container.innerHTML = `
             <div style="max-width:560px;margin:0 auto">
                 <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:#666;margin-bottom:0.5rem">
-                    <span>${idx + 1} / ${total}</span><span>${score} correct</span>
+                    <span>${idx + 1} / ${total}</span><span>${score} correct${idx > 0 ? ` · ${Math.round((score / idx) * 100)}%` : ''} · 🪙 <span id="walletNum">${wallet.balance}</span></span>
                 </div>
                 <div class="progress-bar-wrap" style="margin-bottom:1.5rem">
                     <div class="progress-bar-fill" style="width:${pct}%"></div>
                 </div>
                 <div class="review-card">
-                    <p style="color:#666;margin-bottom:0.5rem">Type the word that matches this definition:</p>
-                    <p style="font-size:1.2rem;font-weight:600;margin-bottom:1.5rem">${esc(clue)}</p>
-                    <input type="text" id="spellingInput" placeholder="Type the word…"
-                           autocomplete="off" autocorrect="off" spellcheck="false"
-                           style="font-size:1.2rem;text-align:center">
+                    <p style="color:#666;margin-bottom:0.5rem">Spell the word that matches:</p>
+                    ${spellingClueHtml(word)}
+                    <div id="letterBoxes" class="letter-boxes">${letterBoxesHtml(word.word)}</div>
                     <div id="feedback" style="min-height:1.5rem;margin-top:0.75rem;text-align:center;font-weight:600"></div>
+                    <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.5rem;flex-wrap:wrap">
+                        <button id="hintSpelling" class="coin-btn" type="button">💡 First &amp; last letter <span class="coin-cost">🪙1</span></button>
+                    </div>
                     <button id="submitSpelling" class="btn btn-primary btn-block" style="margin-top:1rem">Check</button>
                 </div>
             </div>`;
 
-        const input  = document.getElementById('spellingInput');
-        const submit = document.getElementById('submitSpelling');
+        const boxesWrap = document.getElementById('letterBoxes');
+        const submit    = document.getElementById('submitSpelling');
+        const hintBtn   = document.getElementById('hintSpelling');
+        const walletNum = document.getElementById('walletNum');
+        let answered    = false;
 
-        input.focus();
+        // Editable letter inputs in left-to-right order (non-letter cells are static).
+        const inputs = [...boxesWrap.querySelectorAll('input.letter-box')];
+
+        function focusInput(i) { if (inputs[i]) inputs[i].focus(); }
+
+        inputs.forEach((inp, i) => {
+            inp.addEventListener('input', () => {
+                inp.value = inp.value.replace(/[^a-zA-Z]/g, '').slice(-1);
+                if (inp.value) focusInput(i + 1);
+            });
+            inp.addEventListener('keydown', e => {
+                if (e.key === 'Enter') { e.preventDefault(); check(); }
+                else if (e.key === 'Backspace' && !inp.value && i > 0) {
+                    e.preventDefault();
+                    inputs[i - 1].value = '';
+                    focusInput(i - 1);
+                }
+            });
+        });
+        focusInput(0);
+
+        function refreshHint() {
+            walletNum.textContent = wallet.balance;
+            hintBtn.disabled = answered || !wallet.canAfford() || hintBtn.dataset.used === '1';
+        }
+
+        // First & last editable letters revealed and locked, for one coin.
+        hintBtn.addEventListener('click', () => {
+            if (answered || !wallet.canAfford() || hintBtn.dataset.used === '1') return;
+            const targets = inputs.length === 1 ? [inputs[0]] : [inputs[0], inputs[inputs.length - 1]];
+            targets.forEach(inp => {
+                inp.value = word.word[Number(inp.dataset.pos)];
+                inp.readOnly = true;
+                inp.classList.add('revealed');
+            });
+            hintBtn.dataset.used = '1';
+            wallet.spend('hintSpelling');
+            refreshHint();
+            focusInput(inputs.findIndex(inp => !inp.readOnly));
+        });
+
+        function buildGuess() {
+            // Reconstruct the word from boxes: static cells already hold their char.
+            return [...boxesWrap.children].map(cell => {
+                if (cell.tagName === 'INPUT') return cell.value;
+                return cell.dataset.char ?? '';
+            }).join('');
+        }
 
         function check() {
-            const answer    = input.value.trim().toLowerCase();
-            const isCorrect = answer === word.word.toLowerCase();
+            if (answered) return;
+            answered = true;
+            const isCorrect = buildGuess().trim().toLowerCase() === word.word.toLowerCase();
             if (isCorrect) {
                 score++;
                 combo++;
@@ -195,30 +327,62 @@ function startSpelling(container, allWords) {
                 combo = 0;
             }
 
-            document.getElementById('feedback').textContent = isCorrect
-                ? '✓ Correct!'
-                : `✗ The answer was: ${word.word}`;
-            document.getElementById('feedback').style.color = isCorrect ? '#28a745' : '#dc3545';
+            const fb = document.getElementById('feedback');
+            fb.textContent = isCorrect ? '✓ Correct!' : `✗ The answer was: ${word.word}`;
+            fb.style.color = isCorrect ? '#28a745' : '#dc3545';
 
             submit.disabled = true;
-            input.disabled  = true;
+            inputs.forEach(inp => inp.disabled = true);
+            refreshHint();
 
             recordTestResult(word.id, 'spelling', isCorrect);
-            setTimeout(() => { idx++; idx < deck.length ? renderQ() : showResult(container, score, deck.length, 'spelling', maxCombo); }, 1000);
+            setTimeout(() => { idx++; idx < deck.length ? renderQ() : showResult(container, score, deck.length, 'spelling', maxCombo, wallet.spent); }, 1100);
         }
 
         submit.addEventListener('click', check);
-        input.addEventListener('keydown', e => { if (e.key === 'Enter') check(); });
+        refreshHint();
     }
 
     renderQ();
+}
+
+// Prompt for the spelling quiz: part of speech + English + Chinese meanings.
+function spellingClueHtml(word) {
+    const parts = [];
+    if (word.part_of_speech) {
+        parts.push(`<p style="color:#888;font-style:italic;margin:0 0 0.35rem">${esc(word.part_of_speech)}</p>`);
+    }
+    const engLines = (word.english_definition || '').split('\n').filter(Boolean);
+    if (engLines.length) {
+        const body = engLines.length === 1
+            ? `<p style="font-size:1.05rem;font-weight:600;margin:0 0 0.35rem">${esc(engLines[0])}</p>`
+            : `<ol style="margin:0 0 0.35rem 1.25rem;padding:0;font-size:0.95rem;font-weight:500">${engLines.map(l => `<li>${esc(l)}</li>`).join('')}</ol>`;
+        parts.push(body);
+    }
+    if (word.chinese_definition) {
+        parts.push(`<p style="font-size:1.1rem;font-weight:600;margin:0 0 0.5rem">🇨🇳 ${esc(word.chinese_definition)}</p>`);
+    }
+    return parts.join('') || '<p style="margin-bottom:0.5rem">Spell this word</p>';
+}
+
+// One box per character: letters are editable inputs; everything else (spaces,
+// hyphens, apostrophes…) is revealed up-front as a static cell.
+function letterBoxesHtml(word) {
+    return [...word].map((ch, i) => {
+        if (/[a-zA-Z]/.test(ch)) {
+            return `<input class="letter-box" data-pos="${i}" type="text" inputmode="latin"
+                       maxlength="1" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">`;
+        }
+        const display = ch === ' ' ? '&nbsp;' : esc(ch);
+        return `<span class="letter-box letter-static" data-char="${esc(ch)}">${display}</span>`;
+    }).join('');
 }
 
 // ============================================================================
 // Result screen
 // ============================================================================
 
-async function showResult(container, score, total, mode, maxCombo = 0) {
+async function showResult(container, score, total, mode, maxCombo = 0, hintsSpent = 0) {
     const pct     = Math.round((score / total) * 100);
     const perfect = score === total && total > 0;
     const trophy  = pct >= 80 ? '🌟' : pct >= 50 ? '👍' : '💪';
@@ -228,12 +392,22 @@ async function showResult(container, score, total, mode, maxCombo = 0) {
         answered: total, correct: score, maxCombo, perfectSession: perfect,
     });
 
+    // Hints already cost real coins (persisted), so subtract them from the
+    // celebrated earnings to match the wallet the learner now sees.
+    const netCoins = Math.max(0, result.coinsDelta - hintsSpent);
+    const coinsEvent = result.events.find(e => e.type === 'coins');
+    if (coinsEvent) {
+        coinsEvent.payload.amount = netCoins;
+        if (netCoins === 0) result.events = result.events.filter(e => e !== coinsEvent);
+    }
+
     container.innerHTML = `
         <div class="review-card" style="max-width:480px;margin:2rem auto;text-align:center">
             <div style="font-size:3rem;margin-bottom:1rem">${trophy}</div>
             <h2>Quiz Complete!</h2>
             <p style="font-size:1.15rem;color:#666;margin:0.75rem 0">${score} / ${total} correct (${pct}%)</p>
-            ${result.coinsDelta > 0 ? `<p class="session-coins">🪙 +${result.coinsDelta} coins earned!</p>` : ''}
+            ${netCoins > 0 ? `<p class="session-coins">🪙 +${netCoins} coins earned!</p>` : ''}
+            ${hintsSpent > 0 ? `<p style="font-size:0.85rem;color:#999;margin:0">💡 ${hintsSpent} coin${hintsSpent === 1 ? '' : 's'} spent on hints</p>` : ''}
             <div style="display:flex;gap:0.75rem;justify-content:center;margin-top:1.5rem;flex-wrap:wrap">
                 <button id="playAgainBtn" class="btn btn-primary">Play Again</button>
                 <a href="#/learner/garden" class="btn btn-secondary">🌳 Garden</a>

@@ -121,14 +121,14 @@ function renderNavbar(profile) {
     const navbar = document.getElementById('navbar');
     if (!profile) return;
 
+    // Review and Awards have no nav tab on purpose: reviews are reached from the
+    // Home missions / Garden, and Awards from the Home header medal chip.
     const links = profile.role === 'parent'
         ? [{ href: '/parent/dashboard', label: 'Dashboard' }, { href: '/parent/words', label: 'Word Lists' }, { href: '/parent/activity', label: 'Activity' }]
         : [
             { href: '/learner/home',        label: 'Home' },
             { href: '/learner/words',       label: 'My Words' },
-            { href: '/learner/review',      label: 'Review' },
             { href: '/learner/garden',      label: 'Garden' },
-            { href: '/learner/achievements', label: 'Awards' },
             { href: '/learner/leaderboard', label: 'Leaderboard' },
           ];
 

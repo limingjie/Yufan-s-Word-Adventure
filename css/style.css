@@ -731,21 +731,37 @@ label {
 .mission-list-readonly .mission-card { cursor: default; box-shadow: none; }
 .mission-list-readonly .mission-card.mission-active { box-shadow: none; border-color: #e8e8e8; }
 
-.mission-icon  { font-size: 1.4rem; flex-shrink: 0; }
+.mission-icon  {
+    font-size: 1.4rem; flex-shrink: 0;
+    width: 38px; height: 38px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--mc, #888) 16%, #fff);
+}
 .mission-info  { flex: 1; min-width: 0; }
 .mission-title { font-size: 0.88rem; font-weight: 600; margin-bottom: 2px; color: var(--text-color, #222); }
 .mission-suffix { font-weight: 400; font-size: 0.78rem; color: #888; }
 .mission-sub { font-size: 0.76rem; color: #888; margin-bottom: 4px; }
+.mission-acc { color: #1a7f37; font-weight: 600; margin-left: 0.2rem; }
 .mission-bar-wrap { background: #e9ecef; border-radius: 4px; height: 6px; }
 .mission-bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, #52c41a, #1890ff);
+    background: var(--mc, #1890ff);
     border-radius: 4px;
     transition: width 0.6s ease;
     max-width: 100%;
 }
-.mission-cta { font-size: 0.8rem; font-weight: 700; color: #1890ff; margin-top: 6px; }
+.mission-cta { font-size: 0.8rem; font-weight: 700; color: var(--mc, #1890ff); margin-top: 6px; }
 .mission-reward { font-size: 1.25rem; flex-shrink: 0; }
+
+/* Per-mission color (themed): a left accent stripe + tinted icon + bar.
+   The [data-key] attribute selector outranks the state classes, so the stripe
+   stays the mission's color in every state. */
+.mission-card[data-key] { border-left: 5px solid var(--mc, #ccc); }
+.mission-card[data-key="add"]         { --mc: #1890ff; }  /* blue   */
+.mission-card[data-key="reviewNew"]   { --mc: #13c2c2; }  /* teal   */
+.mission-card[data-key="meaning"]     { --mc: #722ed1; }  /* purple */
+.mission-card[data-key="spelling"]    { --mc: #fa8c16; }  /* orange */
+.mission-card[data-key="reviewCurve"] { --mc: #52c41a; }  /* green  */
 
 .all-done-banner {
     background: linear-gradient(135deg, #52c41a, #87d068);
@@ -788,32 +804,58 @@ label {
 .avatar-emoji { font-size: 1.6rem; }
 .avatar-btn.avatar-emoji { font-size: 1.9rem; }
 
-/* Avatar picker — preview + color + free emoji input */
-.avatar-edit-top {
-    display: flex; align-items: center; gap: 0.75rem;
-    margin-bottom: 1rem;
+/* Avatar picker — preview row, avatar grid, color grid */
+.avatar-preview-row {
+    display: flex; align-items: center; gap: 1rem;
+    margin-bottom: 1.25rem;
 }
 .avatar-preview {
     width: 56px; height: 56px; font-size: 2rem; flex-shrink: 0;
 }
-.avatar-field { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.72rem; color: #888; font-weight: 600; }
-.avatar-field input[type="color"] { width: 100%; height: 38px; padding: 2px; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; }
-.avatar-field input[type="text"] { width: 100%; height: 38px; font-size: 1.3rem; text-align: center; border: 1px solid #ddd; border-radius: 8px; }
+.avatar-preview-row .btn { flex: 1; }
 
-.emoji-grid {
+.avatar-section-label {
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+    color: #999; margin: 0.75rem 0 0.4rem;
+}
+
+.avatar-grid, .color-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 0.4rem;
 }
-.emoji-option {
-    aspect-ratio: 1; min-height: 44px;
-    background: #f7f7f9; border: 1.5px solid transparent; border-radius: 10px;
-    font-size: 1.5rem; cursor: pointer;
+
+/* Every cell is a square slot */
+.cell-box {
+    aspect-ratio: 1; width: 100%; min-height: 0;
+    border: 1.5px solid transparent; border-radius: 10px;
+    cursor: pointer; padding: 0;
     display: flex; align-items: center; justify-content: center;
 }
+.emoji-option { background: #f7f7f9; font-size: 1.5rem; }
 .emoji-option:hover { border-color: #1890ff; background: #eef6ff; }
 .emoji-option.selected { border-color: #1890ff; background: #e0ecff; }
 .emoji-initial { font-size: 1.2rem; font-weight: 700; color: #555; }
+
+.avatar-input {
+    background: #fff; border: 1.5px dashed #c4c4cc;
+    font-size: 1.3rem; text-align: center; color: #222;
+}
+.avatar-input:focus { outline: none; border-color: #1890ff; border-style: solid; }
+.avatar-input.selected { border-color: #1890ff; border-style: solid; background: #e0ecff; }
+
+.color-swatch { box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+.color-swatch.selected { border-color: #222; box-shadow: 0 0 0 2px #fff inset, 0 0 0 2px #222; }
+.color-input-cell {
+    position: relative; overflow: hidden;
+    background:
+        conic-gradient(from 0deg, #ff6b6b, #ffd43b, #51cf66, #22b8cf, #845ef7, #f783ac, #ff6b6b);
+    border: 1.5px solid #ddd;
+}
+.color-input-cell input[type="color"] {
+    position: absolute; inset: -25%; width: 150%; height: 150%;
+    border: none; padding: 0; cursor: pointer; opacity: 0;
+}
 
 /* ============================================================================
  * Activity calendar (GitHub-contribution style)
@@ -1086,6 +1128,24 @@ button.pron-chip-uk:hover { background-color: #011247; }
     margin-top: var(--spacing-lg);
 }
 
+/* Spelling quiz — one box per letter */
+.letter-boxes {
+    display: flex; flex-wrap: wrap; gap: 0.4rem;
+    justify-content: center; margin-top: 1rem;
+}
+.letter-box {
+    width: 2.6rem; height: 3rem;
+    border: 2px solid #d0d7de; border-radius: 8px;
+    font-size: 1.5rem; font-weight: 600; text-align: center;
+    text-transform: uppercase;
+    display: flex; align-items: center; justify-content: center;
+    background: #fff; color: #222; padding: 0;
+}
+input.letter-box:focus { border-color: var(--primary-color); outline: none; box-shadow: 0 0 0 3px rgba(0,123,255,.15); }
+.letter-box.letter-static { border-color: transparent; background: transparent; color: #888; }
+.letter-box.revealed { background: #fff8e1; border-color: #f0c419; color: #8a6d00; }
+.letter-box:disabled { opacity: 1; }
+
 /* ============================================================================
  * Empty state
  * ============================================================================ */
@@ -1241,6 +1301,29 @@ button.pron-chip-uk:hover { background-color: #011247; }
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.65), 0 1px 2px rgba(120,80,0,0.25);
 }
 
+/* Medals & badges summary chip in the home header — links to the Awards page */
+.medal-chip {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 0.8rem; font-weight: 800; color: #6b3b00;
+    background: #fff3e0; border: 1px solid #ffb74d; border-radius: 12px;
+    padding: 2px 9px; text-decoration: none; white-space: nowrap;
+}
+.medal-chip:hover { background: #ffe0b2; }
+
+/* Paid hint buttons — golden, matching the home coin chip */
+.coin-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 0.8rem; font-weight: 800; color: #5b4500;
+    background: linear-gradient(180deg, #ffe27a 0%, #ffc824 52%, #e8a200 100%);
+    border: 1px solid #c98a08;
+    border-radius: 12px;
+    padding: 6px 12px; min-height: 36px; cursor: pointer;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.45);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.65), 0 1px 2px rgba(120,80,0,0.25);
+}
+.coin-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.coin-btn .coin-cost { font-weight: 900; }
+
 .session-coins {
     display: inline-block;
     font-size: 1.1rem;
@@ -1391,6 +1474,12 @@ body.garden-page .main-content {
     max-width: none;
     display: flex;
     flex-direction: column;
+    min-height: 0;
+}
+
+body.garden-page .app-container {
+    height: 100svh;
+    overflow: hidden;
 }
 
 .garden-fs {
@@ -1398,7 +1487,7 @@ body.garden-page .main-content {
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 70vh;
+    min-height: 0;
     overflow: hidden;
     /* Flat pixel-style sky (no gradients). The 3D voxel ground is drawn over it. */
     background: #7ec8e8;
@@ -1411,11 +1500,38 @@ body.garden-page .main-content {
 .garden-fs[data-night="1"] .gt-rank,
 .garden-fs[data-night="1"] .gt-sun { color: #eaf2ff; }
 
+.garden-sky-decor {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    overflow: hidden;
+}
+.sky-body {
+    position: absolute;
+    top: 5.1rem;
+    right: clamp(1rem, 7vw, 5rem);
+    font-size: clamp(2.1rem, 5vw, 4rem);
+    filter: drop-shadow(0 3px 4px rgba(0,0,0,0.12));
+}
+.sky-cloud {
+    position: absolute;
+    color: rgba(255,255,255,0.88);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    font-size: clamp(1.35rem, 3.4vw, 2.8rem);
+}
+.sky-cloud-a { top: 7.2rem; left: 9%; }
+.sky-cloud-b { top: 10.4rem; left: 33%; font-size: clamp(1.05rem, 2.6vw, 2.1rem); opacity: 0.82; }
+.sky-cloud-c { top: 8.6rem; right: 20%; opacity: 0.76; }
+.garden-fs[data-night="1"] .sky-cloud { color: rgba(205,220,244,0.64); }
+
 .garden-canvas {
     flex: 1;
     width: 100%;
     display: block;
     touch-action: none;   /* gestures are handled by garden3d controls */
+    position: relative;
+    z-index: 2;
 }
 
 .garden-topbar {
@@ -1439,6 +1555,32 @@ body.garden-page .main-content {
 /* Compact icon buttons in the top bar */
 .gt-icon-btn { padding: 0 0.55rem; min-width: 40px; }
 .gt-actions .btn { flex: 0 1 auto; }
+
+.theme-switch {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid rgba(0,0,0,0.12);
+    border-radius: 999px;
+    background: rgba(255,255,255,0.62);
+}
+.theme-choice {
+    width: 30px;
+    height: 26px;
+    min-width: 30px;
+    padding: 0;
+    border-radius: 999px;
+    background: transparent;
+    font-size: 0.95rem;
+    line-height: 1;
+}
+.theme-choice.active {
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+}
+.theme-choice.locked {
+    opacity: 0.45;
+}
 
 /* Speech bubbles floating above critters */
 .garden-bubbles { position: absolute; inset: 0; pointer-events: none; z-index: 4; overflow: hidden; }
@@ -1524,7 +1666,9 @@ body.garden-page .main-content {
     transform: translateX(-50%);
     width: min(420px, calc(100% - 1.5rem));
     z-index: 6;
+    animation-name: popupFadeOnly;
 }
+@keyframes popupFadeOnly { from { opacity: 0; } to { opacity: 1; } }
 
 /* Garden shop — bottom sheet */
 .garden-shop {

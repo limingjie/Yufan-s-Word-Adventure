@@ -9,6 +9,8 @@ import { toast, celebrateEvents } from '../js/lib/celebrate.js';
 import { showEarnHelp } from '../js/lib/help.js';
 import { ensureStarted, stopMusic, toggle as toggleMusic, isOn as musicOn } from '../js/lib/audio.js';
 
+const THEME_KEY = 'wordAdventureGardenTheme';
+
 export async function render(container) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">🌱</div><p>Growing your garden…</p></div>`;
 
@@ -27,6 +29,7 @@ export async function render(container) {
     const itemCounts = new Map();
     items.forEach(i => itemCounts.set(i.item_code, (itemCounts.get(i.item_code) || 0) + 1));
     let   balance  = coins.balance;
+    let   activeTheme = initialTheme(owned);
 
     // Recomputed live after an in-garden review (word objects are shared with `words`).
     const countsHtml = () => {
@@ -46,12 +49,13 @@ export async function render(container) {
     };
 
     container.innerHTML = `
-        <div class="garden-fs" data-night="${owned.has('night') ? '1' : '0'}" data-rank="${rank.level}">
+        <div class="garden-fs" data-night="${activeTheme === 'night' ? '1' : '0'}" data-theme="${activeTheme}" data-rank="${rank.level}">
             <div class="garden-topbar">
                 <div class="gt-row gt-top">
                     <span class="gt-rank">${rank.emoji} ${esc(rank.name)}</span>
                     <span class="gt-sun">☀️ ${sunData.sun}</span>
                     <span class="gt-counts">${countsHtml()}</span>
+                    <span id="themeSwitch" class="theme-switch"${owned.has('night') || owned.has('sunnyday') ? '' : ' hidden'}>${themeSwitchHtml(activeTheme, owned.has('night'))}</span>
                     <span style="flex:1"></span>
                     <span class="coin-chip" id="coinWallet">🪙 ${balance}</span>
                     <button id="shopBtn" class="btn btn-secondary btn-sm gt-icon-btn">🛒 Shop</button>
@@ -63,6 +67,13 @@ export async function render(container) {
                     <a class="btn btn-secondary btn-sm" href="#/learner/words">＋ Add</a>
                     <a class="btn btn-secondary btn-sm" href="#/learner/quiz">📝 Quiz</a>
                 </div>
+            </div>
+
+            <div class="garden-sky-decor" aria-hidden="true">
+                <span id="skyBody" class="sky-body">${activeTheme === 'night' ? '🌙' : '☀️'}</span>
+                <span class="sky-cloud sky-cloud-a">☁️</span>
+                <span class="sky-cloud sky-cloud-b">☁️</span>
+                <span class="sky-cloud sky-cloud-c">☁️</span>
             </div>
 
             ${words.length === 0
@@ -91,8 +102,8 @@ export async function render(container) {
         controller = createGarden(canvas, {
             words, dueIds,
             items: items.map(i => i.item_code),       // duplicates kept → decorations stack
-            night: owned.has('night'),
-            warm:  owned.has('sunnyday'),
+            night: activeTheme === 'night',
+            warm:  activeTheme === 'sunnyday' && owned.has('sunnyday'),
             onPlantClick: (id) => showPlantPopup(wordById.get(id)),
         });
     }
@@ -102,19 +113,23 @@ export async function render(container) {
     document.addEventListener('pointerdown', startAudioOnce);
 
     // Dispose the WebGL scene + stop music when navigating away.
-    const onLeave = () => {
+    let cleanedUp = false;
+    const cleanupGarden = () => {
+        if (cleanedUp) return;
+        cleanedUp = true;
         controller?.dispose();
         stopMusic();
         document.removeEventListener('pointerdown', startAudioOnce);
-        globalThis.removeEventListener('hashchange', onLeave);
+        globalThis.removeEventListener('hashchange', cleanupGarden);
     };
-    globalThis.addEventListener('hashchange', onLeave);
+    globalThis.addEventListener('hashchange', cleanupGarden);
 
     // ── Top-bar buttons: help + music ──────────────────────────────────────────
     document.getElementById('helpBtn').addEventListener('click', showEarnHelp);
     document.getElementById('musicBtn').addEventListener('click', (e) => {
         e.currentTarget.textContent = toggleMusic() ? '🔊' : '🔇';
     });
+    bindThemeButtons();
 
     // ── Plant popup ───────────────────────────────────────────────────────────
     const popup = document.getElementById('plantPopup');
@@ -122,6 +137,32 @@ export async function render(container) {
     function refreshTopbar() {
         document.querySelector('.gt-counts').innerHTML = countsHtml();
         document.getElementById('waterSlot').innerHTML = waterCtaHtml();
+    }
+
+    function setActiveTheme(theme) {
+        if (theme === 'night' && !owned.has('night')) return;
+        activeTheme = theme === 'night' ? 'night' : 'sunnyday';
+        localStorage.setItem(THEME_KEY, activeTheme);
+        applyTheme();
+    }
+
+    function applyTheme() {
+        const fs = document.querySelector('.garden-fs');
+        const night = activeTheme === 'night';
+        fs.dataset.night = night ? '1' : '0';
+        fs.dataset.theme = activeTheme;
+        document.getElementById('skyBody').textContent = night ? '🌙' : '☀️';
+        document.getElementById('themeSwitch').innerHTML = themeSwitchHtml(activeTheme, owned.has('night'));
+        controller?.setTheme({ night, warm: activeTheme === 'sunnyday' && owned.has('sunnyday') });
+        bindThemeButtons();
+    }
+
+    function bindThemeButtons() {
+        document.querySelectorAll('.theme-choice').forEach(b =>
+            b.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setActiveTheme(b.dataset.themeChoice);
+            }));
     }
 
     function showPlantPopup(word) {
@@ -149,15 +190,22 @@ export async function render(container) {
         defEl.style.display = chiEl.style.display = 'none';
         actions.innerHTML = '<button id="gWater" class="btn btn-primary btn-sm" style="width:100%">💧 Water it — do you remember?</button>';
         popup.style.display = 'block';
-        document.getElementById('gWater').addEventListener('click', () => {
+        document.getElementById('gWater').addEventListener('click', (e) => {
+            e.stopPropagation();
             defEl.style.display = chiEl.style.display = 'block';
             actions.innerHTML = `
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
                     <button id="gWrong" class="btn btn-danger btn-sm">✗ Forgot</button>
                     <button id="gRight" class="btn btn-success btn-sm">✓ I knew it</button>
                 </div>`;
-            document.getElementById('gRight').addEventListener('click', () => handleGardenReview(word, true));
-            document.getElementById('gWrong').addEventListener('click', () => handleGardenReview(word, false));
+            document.getElementById('gRight').addEventListener('click', (e) => {
+                e.stopPropagation();
+                handleGardenReview(word, true);
+            });
+            document.getElementById('gWrong').addEventListener('click', (e) => {
+                e.stopPropagation();
+                handleGardenReview(word, false);
+            });
         });
     }
 
@@ -184,6 +232,7 @@ export async function render(container) {
     // Tap anywhere that isn't the canvas (raycaster handles that) or the popup closes it.
     document.querySelector('.garden-fs').addEventListener('click', (e) => {
         if (e.target.id === 'gardenCanvas') return;
+        if (e.target.closest('.garden-topbar, .garden-shop')) return;
         if (popup.style.display === 'block' && !popup.contains(e.target)) popup.style.display = 'none';
     });
 
@@ -198,20 +247,25 @@ export async function render(container) {
         const rows = shopList().map(it => {
             const qty    = itemCounts.get(it.code) || 0;
             const afford = balance >= it.cost;
-            const isBooster = it.type === 'booster';
-            // Boosters are one-off toggles; decorations stack (buy as many as you like).
+            const oneOff = !!it.oneOff || it.type === 'theme' || it.type === 'booster';
             let btn;
-            if (isBooster && qty > 0) {
-                btn = `<span class="shop-owned">Owned ✓</span>`;
+            if (oneOff && qty > 0) {
+                if (it.type === 'theme') {
+                    btn = it.code === activeTheme
+                        ? `<span class="shop-owned">Active ✓</span>`
+                        : `<button class="btn btn-secondary btn-sm shop-theme" data-code="${it.code}">Use</button>`;
+                } else {
+                    btn = `<span class="shop-owned">Owned ✓</span>`;
+                }
             } else {
                 btn = `<button class="btn btn-primary btn-sm shop-buy" data-code="${it.code}" ${afford ? '' : 'disabled'}>${it.cost} 🪙</button>`;
             }
-            const countBadge = (!isBooster && qty > 0) ? `<span class="shop-count">×${qty}</span>` : '';
+            const countBadge = (!oneOff && qty > 0) ? `<span class="shop-count">×${qty}</span>` : '';
             return `
                 <div class="shop-item ${qty > 0 ? 'owned' : ''}">
                     <span class="shop-ic">${it.icon}</span>
                     <div class="shop-info">
-                        <div class="shop-name">${esc(it.name)}${isBooster ? ' <span class="shop-tag">booster</span>' : ''}${countBadge}</div>
+                        <div class="shop-name">${esc(it.name)}${it.type === 'theme' ? ' <span class="shop-tag">theme</span>' : ''}${it.type === 'booster' ? ' <span class="shop-tag">booster</span>' : ''}${countBadge}</div>
                         ${it.desc ? `<div class="shop-desc">${esc(it.desc)}</div>` : ''}
                     </div>
                     ${btn}
@@ -229,6 +283,11 @@ export async function render(container) {
         drawer.querySelector('#shopClose').addEventListener('click', () => { drawer.style.display = 'none'; });
         drawer.querySelectorAll('.shop-buy').forEach(b =>
             b.addEventListener('click', () => buy(b.dataset.code)));
+        drawer.querySelectorAll('.shop-theme').forEach(b =>
+            b.addEventListener('click', () => {
+                setActiveTheme(b.dataset.code);
+                renderShop();
+            }));
     }
 
     async function buy(code) {
@@ -238,14 +297,34 @@ export async function render(container) {
             owned.add(code);
             itemCounts.set(code, (itemCounts.get(code) || 0) + 1);
             document.getElementById('coinWallet').textContent = `🪙 ${balance}`;
-            if (code === 'night') document.querySelector('.garden-fs').dataset.night = '1';
+            if (SHOP[code]?.type === 'theme') setActiveTheme(code);
+            document.getElementById('themeSwitch').hidden = !(owned.has('night') || owned.has('sunnyday'));
+            if (['pond', 'fountain', 'cottage'].includes(code)) {
+                toast(`${SHOP[code].icon} ${SHOP[code].name} added to your garden!`);
+                cleanupGarden();
+                await render(container);
+                return;
+            }
             controller?.addDecoration(code);   // adds ONE instance (theme/boosters skipped inside)
             toast(`${SHOP[code].icon} ${SHOP[code].name} added to your garden!`);
             renderShop();
         } catch (err) {
-            toast(err.message === 'Not enough coins' ? '🪙 Not enough coins yet — keep learning!' : 'Could not buy that.');
+            toast(err.message === 'Not enough coins' ? '🪙 Not enough coins yet — keep learning!' : (err.message === 'Already owned' ? 'Already in your garden.' : 'Could not buy that.'));
         }
     }
+}
+
+function initialTheme(owned) {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === 'night' && owned.has('night')) return 'night';
+    return 'sunnyday';
+}
+
+function themeSwitchHtml(activeTheme, canUseNight = false) {
+    const activeDay = activeTheme !== 'night';
+    return `
+        <button class="theme-choice${activeDay ? ' active' : ''}" data-theme-choice="sunnyday" title="Sunny day">☀️</button>
+        <button class="theme-choice${!activeDay ? ' active' : ''}${canUseNight ? '' : ' locked'}" data-theme-choice="night" title="${canUseNight ? 'Night' : 'Buy Night Theme to use'}" ${canUseNight ? '' : 'disabled'}>🌙</button>`;
 }
 
 function esc(str) {

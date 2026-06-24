@@ -23,11 +23,20 @@ import { creatureSound } from './audio.js';
 
 const PLANT_CAP = 80;
 const PHRASES = ['Great!', 'Yay!', 'Nice!', 'Wow!', 'Bloom! 🌸', 'Keep going!', 'Lovely!', 'Hello! 👋', 'So pretty!'];
+const STRUCTURES = {
+    pond:     { w: 2, h: 2 },
+    cottage:  { w: 2, h: 2 },
+    fountain: { w: 1, h: 1 },
+};
 
 export function createGarden(canvas, opts = {}) {
     const words   = (opts.words || []).slice(0, PLANT_CAP);
     const dueIds  = opts.dueIds || new Set();
     const onClick = opts.onPlantClick || (() => {});
+    const ownedItems = opts.items || [];
+    const hasItem = (code) => ownedItems.includes(code);
+    let isNight = !!opts.night;
+    let isWarm  = !!opts.warm;
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -36,32 +45,94 @@ export function createGarden(canvas, opts = {}) {
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
 
     // Flat lighting (no gradients). Warmer if "Sunny Day"; dimmer at night.
-    const amb = opts.night ? 0.55 : (opts.warm ? 0.95 : 0.82);
-    scene.add(new THREE.AmbientLight(0xffffff, amb));
-    const sun = new THREE.DirectionalLight(opts.warm ? 0xfff0c0 : 0xffffff, opts.night ? 0.5 : 0.9);
-    sun.position.set(6, 14, 8);
-    scene.add(sun);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.82);
+    scene.add(ambientLight);
+    const sunLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    sunLight.position.set(6, 14, 8);
+    scene.add(sunLight);
+    function setTheme({ night = isNight, warm = isWarm } = {}) {
+        isNight = !!night;
+        isWarm = !!warm;
+        ambientLight.intensity = isNight ? 0.55 : (isWarm ? 0.95 : 0.82);
+        sunLight.color.set(isWarm && !isNight ? 0xfff0c0 : 0xffffff);
+        sunLight.intensity = isNight ? 0.5 : 0.9;
+        updateGnomeSleep();
+    }
 
     // ── Voxel ground: a grid of dirt blocks with grass tops ───────────────────
-    const cols    = Math.max(1, Math.ceil(Math.sqrt(words.length || 1)));
-    const rows    = Math.max(1, Math.ceil((words.length || 1) / cols));
+    const structureCodes = Object.keys(STRUCTURES).filter(hasItem);
+    const reservedArea = structureCodes.reduce((sum, code) => sum + STRUCTURES[code].w * STRUCTURES[code].h, 0);
+    const cellCount = Math.max(1, words.length + reservedArea);
+    const cols    = Math.max(2, Math.ceil(Math.sqrt(cellCount)));
+    const rows    = Math.max(2, Math.ceil(cellCount / cols));
     const SP       = 1.0;                       // blocks sit flush, Minecraft-style
     const offX     = ((cols - 1) * SP) / 2;
     const offZ     = ((rows - 1) * SP) / 2;
     const TOP      = 0.5;                        // block top surface y
+    const cellKey  = (c, r) => `${c}:${r}`;
+
+    const reserved = new Map();
+    const structurePlacements = [];
+    function findStructureSpot(w, h) {
+        const centerC = (cols - w) / 2;
+        const centerR = (rows - h) / 2;
+        const spots = [];
+        for (let r = 0; r <= rows - h; r++) {
+            for (let c = 0; c <= cols - w; c++) {
+                let open = true;
+                for (let rr = r; rr < r + h; rr++) {
+                    for (let cc = c; cc < c + w; cc++) {
+                        if (reserved.has(cellKey(cc, rr))) open = false;
+                    }
+                }
+                if (open) spots.push({ c, r, score: Math.hypot(c - centerC, r - centerR) });
+            }
+        }
+        spots.sort((a, b) => a.score - b.score);
+        return spots[0] || { c: 0, r: 0 };
+    }
+    for (const code of structureCodes) {
+        const spec = STRUCTURES[code];
+        const spot = findStructureSpot(spec.w, spec.h);
+        for (let r = spot.r; r < spot.r + spec.h; r++) {
+            for (let c = spot.c; c < spot.c + spec.w; c++) {
+                reserved.set(cellKey(c, r), { code, primary: c === spot.c && r === spot.r });
+            }
+        }
+        structurePlacements.push({
+            code,
+            x: (spot.c + (spec.w - 1) / 2) * SP - offX,
+            z: (spot.r + (spec.h - 1) / 2) * SP - offZ,
+            w: spec.w,
+            h: spec.h,
+        });
+    }
+    const plantCells = [];
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            if (!reserved.has(cellKey(c, r))) plantCells.push({ c, r });
+        }
+    }
 
     const dirtMat  = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 1, flatShading: true });
     const grassMat = new THREE.MeshStandardMaterial({ color: 0x5fae3a, roughness: 1, flatShading: true });
     const grassMatAlt = new THREE.MeshStandardMaterial({ color: 0x69b943, roughness: 1, flatShading: true });
+    const waterMat = new THREE.MeshStandardMaterial({ color: 0x2f8fe8, roughness: 0.7, flatShading: true });
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0xb8bec8, roughness: 1, flatShading: true });
     // BoxGeometry material order: +x,-x,+y(top),-y,+z,-z
     const blockMats   = (top) => [dirtMat, dirtMat, top, dirtMat, dirtMat, dirtMat];
+    const solidMats   = (mat) => [mat, mat, mat, mat, mat, mat];
     const blockGeo    = new THREE.BoxGeometry(SP, 1, SP);
 
     const blocks = new THREE.Group();
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-            const top = (r + c) % 2 ? grassMat : grassMatAlt;     // subtle checker, still flat
-            const b = new THREE.Mesh(blockGeo, blockMats(top));
+            const reservedCell = reserved.get(cellKey(c, r));
+            const top = reservedCell?.code === 'fountain'
+                ? stoneMat
+                : ((r + c) % 2 ? grassMat : grassMatAlt);     // subtle checker, still flat
+            const mats = reservedCell?.code === 'pond' ? solidMats(waterMat) : blockMats(top);
+            const b = new THREE.Mesh(blockGeo, mats);
             b.position.set(c * SP - offX, 0, r * SP - offZ);
             blocks.add(b);
         }
@@ -97,8 +168,9 @@ export function createGarden(canvas, opts = {}) {
     words.forEach((w, i) => {
         const level = w.review_level ?? 0;
         const due   = dueIds.has(w.id);
-        const x = (i % cols) * SP - offX;
-        const z = Math.floor(i / cols) * SP - offZ;
+        const cell = plantCells[i] || { c: i % cols, r: Math.floor(i / cols) };
+        const x = cell.c * SP - offX;
+        const z = cell.r * SP - offZ;
         const scale = 1.0 + Math.min(level, 5) * 0.16;
         const baseY = TOP + scale / 2 - (due ? 0.18 : 0);
         const sprite = makeSprite(masteryEmoji(level), scale, due);
@@ -118,6 +190,17 @@ export function createGarden(canvas, opts = {}) {
             entry.dropEntry = dropEntry;          // linked so growPlant can remove it
         }
     });
+
+    let cottageSpot = null;
+    for (const p of structurePlacements) {
+        if (p.code === 'pond') continue;
+        const emoji = p.code === 'cottage' ? '🏡' : '⛲';
+        const scale = p.code === 'cottage' ? 2.4 : 1.35;
+        const s = makeSprite(emoji, scale);
+        s.position.set(p.x, TOP + scale / 2 - 0.05, p.z);
+        scene.add(s);
+        if (p.code === 'cottage') cottageSpot = new THREE.Vector3(p.x, TOP + 0.65, p.z);
+    }
 
     // Re-grow a plant in place after an in-garden review (no page reload).
     function growPlant(wordId, level) {
@@ -147,18 +230,17 @@ export function createGarden(canvas, opts = {}) {
 
     // ── Decorations & creatures (each addDecoration adds ONE instance) ─────────
     const creatures = [];      // wandering sky critters
+    const gnomes = [];         // ground wanderers
     const plotR = Math.max(cols, rows) * SP * 0.6 + 1;
     let groundSlot = 0;
 
     function addDecoration(code) {
         const info = SHOP[code];
         if (!info || info.layer === 'theme') return;   // boosters/night handled elsewhere
-        if (code === 'rainbow') {
-            const s = makeSprite('🌈', 9);
-            s.position.set((Math.random() - 0.5) * 4, 8.5, -plotR - 4);
-            scene.add(s);
+        if (STRUCTURES[code]) {
             return;
         }
+        if (code === 'gnome') return addGnome();
         if (info.layer === 'sky') {
             const s = makeSprite(info.icon, 0.8);
             const kind = code === 'bees' ? 'bee' : (code === 'bird' ? 'bird' : 'butterfly');
@@ -179,6 +261,60 @@ export function createGarden(canvas, opts = {}) {
         const ang = (groundSlot++) * 1.1;
         s.position.set(Math.cos(ang) * (plotR + 2.5), TOP + 1.1, Math.sin(ang) * (plotR + 2.5));
         scene.add(s);
+    }
+
+    function randomFieldPoint() {
+        return new THREE.Vector3(
+            (Math.random() - 0.5) * Math.max(1, cols - 1) * SP,
+            TOP + 0.55,
+            (Math.random() - 0.5) * Math.max(1, rows - 1) * SP,
+        );
+    }
+
+    function addGnome() {
+        const s = makeSprite('🧙', 1.15);
+        const pos = randomFieldPoint();
+        const g = {
+            sprite: s,
+            pos,
+            target: pos.clone(),
+            timer: 0,
+            phase: Math.random() * 6,
+            sleepBubble: null,
+        };
+        s.position.copy(pos);
+        scene.add(s);
+        gnomes.push(g);
+        pickGnomeTarget(g);
+        updateGnomeSleep();
+    }
+
+    function pickGnomeTarget(g) {
+        if (isNight) return;
+        if (cottageSpot && Math.random() < 0.28) {
+            g.target.copy(cottageSpot);
+        } else {
+            g.target.copy(randomFieldPoint());
+        }
+        g.timer = 4 + Math.random() * 5;
+    }
+
+    function updateGnomeSleep() {
+        if (!gnomes) return;
+        for (const g of gnomes) {
+            if (isNight) {
+                const bed = cottageSpot || g.pos;
+                g.target.copy(bed);
+                if (!g.sleepBubble) {
+                    g.sleepBubble = makeSprite('💤', 0.5, true);
+                    scene.add(g.sleepBubble);
+                }
+            } else if (g.sleepBubble) {
+                scene.remove(g.sleepBubble);
+                g.sleepBubble = null;
+                pickGnomeTarget(g);
+            }
+        }
     }
 
     function pickBehavior(c) {
@@ -229,9 +365,9 @@ export function createGarden(canvas, opts = {}) {
     }
 
     // ── Camera controls (pointer: 1 = rotate, 2 = pinch, tap = raycast) ─────────
-    let azim = 0.6, polar = 1.02, dist = Math.max(12, cols * 2.2);
-    const target = new THREE.Vector3(0, 0.8, 0);
-    let idle = 0, moved = false, pinchD = 0;
+    let azim = 0.6, polar = 1.02, dist = Math.max(8, Math.max(cols, rows) * 1.8 + 4);
+    const target = new THREE.Vector3(0, 0.72, 0);
+    let idle = 0, moved = false, pinchD = 0, userChangedView = false;
     const pointers = new Map();
 
     function applyCamera() {
@@ -258,7 +394,7 @@ export function createGarden(canvas, opts = {}) {
         const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         idle = 0;
-        if (pointers.size >= 2) { const d = pinchDist(); if (pinchD) { dist *= pinchD / d; applyCamera(); } pinchD = d; moved = true; return; }
+        if (pointers.size >= 2) { const d = pinchDist(); if (pinchD) { dist *= pinchD / d; userChangedView = true; applyCamera(); } pinchD = d; moved = true; return; }
         if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
         azim -= dx * 0.008; polar -= dy * 0.006; applyCamera();
     }
@@ -267,7 +403,7 @@ export function createGarden(canvas, opts = {}) {
         pointers.delete(e.pointerId); pinchD = 0;
         if (wasSingle && !moved) raycastClick(e);
     }
-    function onWheel(e) { e.preventDefault(); dist *= 1 + Math.sign(e.deltaY) * 0.1; applyCamera(); idle = 0; }
+    function onWheel(e) { e.preventDefault(); dist *= 1 + Math.sign(e.deltaY) * 0.1; userChangedView = true; applyCamera(); idle = 0; }
 
     const ray = new THREE.Raycaster();
     const ndc = new THREE.Vector2();
@@ -294,14 +430,20 @@ export function createGarden(canvas, opts = {}) {
         renderer.setSize(w, h, false);
         camera.aspect = w / Math.max(1, h);
         camera.updateProjectionMatrix();
+        if (!userChangedView) {
+            const footprint = Math.max(cols, rows);
+            const aspect = w / Math.max(1, h);
+            dist = Math.max(7, footprint * (aspect > 1.25 ? 1.45 : 1.85) + 4.5);
+        }
+        applyCamera();
     }
     const ro = new ResizeObserver(resize);
     ro.observe(canvas.parentElement);
     resize();
-    applyCamera();
 
     // ── Seed initial decorations (stacked: one call per owned row) ─────────────
     (opts.items || []).forEach(addDecoration);
+    setTheme({ night: isNight, warm: isWarm });
 
     // ── Render loop ────────────────────────────────────────────────────────────
     let raf = 0;
@@ -340,6 +482,21 @@ export function createGarden(canvas, opts = {}) {
             if (c.timer <= 0) pickBehavior(c);
         }
 
+        for (const g of gnomes) {
+            const speed = isNight ? 0.35 : 0.55;
+            const step = speed * dt;
+            g.pos.x += (g.target.x - g.pos.x) * Math.min(1, step);
+            g.pos.z += (g.target.z - g.pos.z) * Math.min(1, step);
+            g.pos.y = TOP + 0.55;
+            const arrived = g.pos.distanceTo(g.target) < 0.12;
+            const bob = isNight || arrived ? 0 : Math.sin(t * 5 + g.phase) * 0.04;
+            g.sprite.position.set(g.pos.x, g.pos.y + bob, g.pos.z);
+            g.sprite.material.rotation = isNight ? -0.1 : Math.sin(t * 2 + g.phase) * 0.08;
+            if (g.sleepBubble) g.sleepBubble.position.set(g.pos.x + 0.25, g.pos.y + 0.8, g.pos.z);
+            g.timer -= dt;
+            if (!isNight && (g.timer <= 0 || arrived)) pickGnomeTarget(g);
+        }
+
         projectBubbles(t);
 
         idle += dt;
@@ -369,5 +526,5 @@ export function createGarden(canvas, opts = {}) {
         renderer.dispose();
     }
 
-    return { dispose, addDecoration, waterPlant, growPlant };
+    return { dispose, addDecoration, waterPlant, growPlant, setTheme };
 }

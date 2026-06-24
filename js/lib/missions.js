@@ -15,13 +15,24 @@
 export const MISSION_NEW_WORDS    = 15;
 export const MISSION_REVIEW_CURVE = 30;
 
+// A mission counts as complete once 85% of its daily target is reached — a
+// little slack so a missed word or two doesn't block the day. Same rule applies
+// everywhere (learner home, parent dashboard, mission history).
+export const MISSION_TARGET_PCT = 0.85;
+
+/** Words needed to complete a mission whose full target is `target`. */
+export function missionThreshold(target) {
+    return target > 0 ? Math.ceil(target * MISSION_TARGET_PCT) : 0;
+}
+
 /**
  * Build the 5 mission descriptors from a getDailyProgress() result.
  * Each descriptor carries its own `done` and `locked` state.
  */
 export function buildMissions(daily) {
-    const mission1Done   = daily.wordsAdded >= MISSION_NEW_WORDS;
+    const mission1Done   = daily.wordsAdded >= missionThreshold(MISSION_NEW_WORDS);
     const practiceTarget = daily.wordsAdded;              // scales with today's words
+    const curveTarget    = Math.min(MISSION_REVIEW_CURVE, daily.reviewsCurveDone + daily.curveDue);
 
     return [
         {
@@ -31,27 +42,27 @@ export function buildMissions(daily) {
         },
         {
             key: 'reviewNew', icon: '💧', title: "Review today's new words",
-            current: daily.reviewsNewDone, target: practiceTarget,
-            done: mission1Done && daily.reviewsNewDone >= practiceTarget,
+            current: daily.reviewsNewDone, target: practiceTarget, accuracy: daily.reviewsNewAcc,
+            done: mission1Done && daily.reviewsNewDone >= missionThreshold(practiceTarget),
             locked: !mission1Done, cta: 'Start review',
         },
         {
             key: 'meaning', icon: '📖', title: 'Meaning quiz', subtitleSuffix: "(today's words)",
-            current: daily.meaningQuizCount, target: practiceTarget,
-            done: mission1Done && daily.meaningQuizCount >= practiceTarget,
+            current: daily.meaningQuizCount, target: practiceTarget, accuracy: daily.meaningAcc,
+            done: mission1Done && daily.meaningQuizCount >= missionThreshold(practiceTarget),
             locked: !mission1Done, cta: 'Start quiz',
         },
         {
             key: 'spelling', icon: '✍️', title: 'Spelling quiz', subtitleSuffix: "(today's words)",
-            current: daily.spellingQuizCount, target: practiceTarget,
-            done: mission1Done && daily.spellingQuizCount >= practiceTarget,
+            current: daily.spellingQuizCount, target: practiceTarget, accuracy: daily.spellingAcc,
+            done: mission1Done && daily.spellingQuizCount >= missionThreshold(practiceTarget),
             locked: !mission1Done, cta: 'Start quiz',
         },
         {
             key: 'reviewCurve', icon: '🔁', title: 'Review older words',
             current: daily.reviewsCurveDone,
-            target: Math.min(MISSION_REVIEW_CURVE, daily.reviewsCurveDone + daily.curveDue),
-            done: daily.curveDue === 0 || daily.reviewsCurveDone >= MISSION_REVIEW_CURVE,
+            target: curveTarget, accuracy: daily.reviewsCurveAcc,
+            done: daily.curveDue === 0 || daily.reviewsCurveDone >= missionThreshold(curveTarget),
             locked: false, cta: 'Start review', emptyLabel: 'Nothing due yet',
         },
     ];
@@ -81,9 +92,10 @@ function missionCard(m, i, activeIndex, readOnly) {
     else if (i === activeIndex) state = 'active';
     else                      state = 'available';
 
-    const pct = m.target > 0
-        ? Math.min(100, Math.round((m.current / m.target) * 100))
-        : (m.done ? 100 : 0);
+    // Show the exact portion (a completed mission at 14/16 reads ~88%, not 100%).
+    let pct;
+    if (m.target > 0)  pct = Math.min(100, Math.round((m.current / m.target) * 100));
+    else               pct = m.done ? 100 : 0;
     const titleHtml = m.title + (m.subtitleSuffix ? ` <span class="mission-suffix">${m.subtitleSuffix}</span>` : '');
 
     let subtitle;
@@ -91,6 +103,11 @@ function missionCard(m, i, activeIndex, readOnly) {
     else if (m.done)         subtitle = m.target > 0 ? `Done — ${m.current} / ${m.target} ✨` : 'All caught up ✨';
     else if (m.target === 0) subtitle = m.emptyLabel || '—';
     else                     subtitle = `${m.current} / ${m.target}`;
+
+    // Today's accuracy for tested missions (null when nothing attempted yet).
+    if (!m.locked && m.accuracy != null) {
+        subtitle += ` <span class="mission-acc">🎯 ${m.accuracy}%</span>`;
+    }
 
     const reward = m.done ? '✅' : m.locked ? '🔒' : (state === 'active' ? '▶' : '○');
     const ctaHtml = (!readOnly && state === 'active' && m.target > 0)

@@ -1,12 +1,18 @@
 import { getCurrentProfile, getCurrentUser, patchCurrentProfile } from '../js/auth.js';
-import { getUserSunlight, getUserCoins, getUserStreak, getDailyProgress, updateAvatar } from '../js/db.js';
+import { getUserSunlight, getUserCoins, getUserStreak, getDailyProgress, updateAvatar, getBadgeCount } from '../js/db.js';
 import { getRankInfo, getRankProgress } from '../js/lib/growth.js';
 import { buildMissions, renderMissionList, allMissionsDone } from '../js/lib/missions.js';
 import { showEarnHelp } from '../js/lib/help.js';
 import { supabase } from '../js/supabase.js';
 
-// Kid-friendly emoji quick-picks (the avatar picker also accepts any typed emoji)
-const AVATAR_EMOJIS = ['🦊','🐰','🐱','🐶','🐼','🐨','🦁','🐯','🐸','🐵','🐧','🐢','🦉','🦄','🐙','🦋','🐝','🐬','🐳','🐞','🌟','🌈','🚀','⚽','🎨','🎸','📚','🍓','🍉','🌸','🔥','💎'];
+// Kid-friendly animal & plant quick-picks (18 — the picker also accepts any
+// typed emoji or up to 2 letters). 5 per row → 4 tidy rows with the input +
+// initial cells, no scrolling.
+const AVATAR_EMOJIS = ['🦊','🐰','🐱','🐶','🐼','🐨','🦁','🐯','🐸','🐵','🦉','🦄','🌸','🌻','🌷','🌵','🍀','🌳'];
+
+// Background palette (the picker also accepts any custom color). 9 → 2 rows of 5
+// with the custom-color cell.
+const AVATAR_COLORS = ['#007BFF','#FF6B6B','#FFA94D','#FFD43B','#51CF66','#20C997','#22B8CF','#845EF7','#F783AC'];
 
 // GitHub-contribution green scale, keyed by words added that day
 const CAL_SHADES = ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'];
@@ -14,13 +20,14 @@ const CAL_SHADES = ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'];
 export async function render(container) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">⏳</div><p>Loading…</p></div>`;
 
-    const [profile, user, sunData, coins, streak, daily] = await Promise.all([
+    const [profile, user, sunData, coins, streak, daily, badgeCount] = await Promise.all([
         getCurrentProfile(),
         getCurrentUser(),
         getUserSunlight(),
         getUserCoins(),
         getUserStreak(),
         getDailyProgress(),
+        getBadgeCount(),
     ]);
 
     const { sun }   = sunData;
@@ -50,6 +57,7 @@ export async function render(container) {
                         <span class="level-badge" style="font-size:0.78rem">${rankInfo.emoji} ${rankInfo.name}</span>
                         <span class="xp-chip">${sunChip}</span>
                         <span class="coin-chip" title="Coins to spend in the Garden">🪙 ${coins.balance}</span>
+                        <a href="#/learner/achievements" class="medal-chip" title="See your medals & badges">🏅 ${badgeCount}</a>
                     </div>
                     <div class="xp-mini-wrap"><div class="xp-mini-fill" style="width:${progress}%"></div></div>
                 </div>
@@ -110,34 +118,42 @@ export async function render(container) {
     function openAvatarPicker() {
         let selEmoji = profile?.avatar_emoji || '';   // '' = use initial
         let selColor = profile?.avatar_color || color;
+        // The custom-emoji input only holds a value the quick-picks don't cover.
+        const customStart = selEmoji && !AVATAR_EMOJIS.includes(selEmoji) ? selEmoji : '';
 
         const overlay = document.createElement('div');
         overlay.className = 'modal';
         overlay.innerHTML = `
-            <div class="modal-content" style="max-width:360px">
+            <div class="modal-content avatar-modal" style="max-width:360px">
                 <div class="modal-header">
                     <h2 style="font-size:1.2rem">Choose your avatar</h2>
                     <button class="modal-close" id="avatarClose">✕</button>
                 </div>
 
-                <div class="avatar-edit-top">
+                <!-- Preview + confirm -->
+                <div class="avatar-preview-row">
                     <div id="avatarPreview" class="avatar avatar-preview"></div>
-                    <label class="avatar-field">
-                        <span>Background</span>
+                    <button class="btn btn-primary" id="avatarSave">Confirm</button>
+                </div>
+
+                <!-- Avatar grid: custom input + initial + animal/plant quick-picks -->
+                <div class="avatar-section-label">Avatar</div>
+                <div class="avatar-grid">
+                    <input type="text" id="avatarInput" class="cell-box avatar-input" maxlength="2"
+                           inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off"
+                           spellcheck="false" value="${esc(customStart)}">
+                    <button class="cell-box emoji-option emoji-initial" data-emoji="">${initial}</button>
+                    ${AVATAR_EMOJIS.map(e => `<button class="cell-box emoji-option" data-emoji="${e}">${e}</button>`).join('')}
+                </div>
+
+                <!-- Background grid: custom color + palette -->
+                <div class="avatar-section-label">Background color</div>
+                <div class="color-grid">
+                    <label class="cell-box color-input-cell">
                         <input type="color" id="avatarColor" value="${selColor}">
                     </label>
-                    <label class="avatar-field">
-                        <span>Type any emoji</span>
-                        <input type="text" id="avatarInput" inputmode="text" maxlength="4" placeholder="🎈" value="${selEmoji}">
-                    </label>
+                    ${AVATAR_COLORS.map(c => `<button class="cell-box color-swatch" data-color="${c}" style="background:${c}"></button>`).join('')}
                 </div>
-
-                <div class="emoji-grid">
-                    <button class="emoji-option emoji-initial" data-emoji="">${initial}</button>
-                    ${AVATAR_EMOJIS.map(e => `<button class="emoji-option" data-emoji="${e}">${e}</button>`).join('')}
-                </div>
-
-                <button class="btn btn-primary btn-block" id="avatarSave" style="margin-top:1rem">Save</button>
             </div>`;
         document.body.appendChild(overlay);
 
@@ -146,12 +162,16 @@ export async function render(container) {
         const emojiInput = overlay.querySelector('#avatarInput');
 
         function syncPreview() {
-            const face = selEmoji || initial;
-            preview.textContent = face;
+            preview.textContent = selEmoji || initial;
             preview.style.background = selColor;
             preview.classList.toggle('avatar-emoji', !!selEmoji);
+
+            const isCustom = !!selEmoji && !AVATAR_EMOJIS.includes(selEmoji);
+            emojiInput.classList.toggle('selected', isCustom);
             overlay.querySelectorAll('.emoji-option').forEach(b =>
-                b.classList.toggle('selected', b.dataset.emoji === selEmoji));
+                b.classList.toggle('selected', b.dataset.emoji === selEmoji && !isCustom));
+            overlay.querySelectorAll('.color-swatch').forEach(b =>
+                b.classList.toggle('selected', b.dataset.color.toLowerCase() === selColor.toLowerCase()));
         }
         syncPreview();
 
@@ -162,7 +182,9 @@ export async function render(container) {
         colorInput.addEventListener('input', () => { selColor = colorInput.value; syncPreview(); });
         emojiInput.addEventListener('input', () => { selEmoji = emojiInput.value.trim(); syncPreview(); });
         overlay.querySelectorAll('.emoji-option').forEach(b =>
-            b.addEventListener('click', () => { selEmoji = b.dataset.emoji; emojiInput.value = selEmoji; syncPreview(); }));
+            b.addEventListener('click', () => { selEmoji = b.dataset.emoji; emojiInput.value = ''; syncPreview(); }));
+        overlay.querySelectorAll('.color-swatch').forEach(b =>
+            b.addEventListener('click', () => { selColor = b.dataset.color; colorInput.value = selColor; syncPreview(); }));
 
         overlay.querySelector('#avatarSave').addEventListener('click', async () => {
             const emoji = selEmoji || null;

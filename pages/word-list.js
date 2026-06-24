@@ -73,32 +73,26 @@ export async function render(container) {
                     <div id="drawerFormsChips" style="display:flex;flex-wrap:wrap;gap:4px"></div>
                 </div>
                 <div style="margin-bottom:0.5rem">
-                    <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Definitions <span style="font-weight:400;color:#aaa">(one per line)</span></label>
+                    <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Part of speech <span style="color:#dc3545">*</span></label>
+                    <select id="drawerPos" style="font-size:0.9rem;width:100%">
+                        <option value="">—</option>
+                        ${PARTS_OF_SPEECH.map(p => `<option value="${p}">${p}</option>`).join('')}
+                    </select>
+                </div>
+                <div style="margin-bottom:0.5rem">
+                    <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Definitions <span style="color:#dc3545">*</span> <span style="font-weight:400;color:#aaa">(one per line)</span></label>
                     <textarea id="drawerEngDef" rows="3" style="font-size:0.9rem;width:100%;resize:vertical"></textarea>
                 </div>
                 <div style="margin-bottom:0.75rem">
-                    <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Chinese</label>
-                    <textarea id="drawerChiDef" rows="2" style="font-size:0.9rem;width:100%;resize:vertical"></textarea>
+                    <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Chinese <span style="color:#dc3545">*</span> <span style="font-weight:400;color:#aaa">(Chinese characters only)</span></label>
+                    <textarea id="drawerChiDef" rows="2" lang="zh" style="font-size:0.9rem;width:100%;resize:vertical"></textarea>
                 </div>
 
                 <button id="drawerMoreBtn" style="background:none;border:none;color:#007bff;font-size:0.82rem;padding:0 0 0.6rem;cursor:pointer;text-decoration:underline;display:block">More details ▾</button>
                 <div id="drawerMoreSection" style="display:none">
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem">
-                        <div>
-                            <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">IPA</label>
-                            <input type="text" id="drawerIpa" style="font-size:0.9rem;width:100%">
-                        </div>
-                        <div>
-                            <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Part of speech</label>
-                            <select id="drawerPos" style="font-size:0.9rem;width:100%">
-                                <option value="">—</option>
-                                ${PARTS_OF_SPEECH.map(p => `<option value="${p}">${p}</option>`).join('')}
-                            </select>
-                        </div>
-                    </div>
                     <div style="margin-bottom:0.5rem">
-                        <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Example</label>
-                        <textarea id="drawerExample" rows="2" style="font-size:0.9rem;width:100%;resize:vertical"></textarea>
+                        <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">IPA</label>
+                        <input type="text" id="drawerIpa" style="font-size:0.9rem;width:100%">
                     </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.5rem">
                         <div>
@@ -109,6 +103,10 @@ export async function render(container) {
                             <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Antonyms</label>
                             <textarea id="drawerAntonyms" rows="2" style="font-size:0.85rem;width:100%;resize:vertical" placeholder="comma separated"></textarea>
                         </div>
+                    </div>
+                    <div style="margin-bottom:0.5rem">
+                        <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Example</label>
+                        <textarea id="drawerExample" rows="2" style="font-size:0.9rem;width:100%;resize:vertical"></textarea>
                     </div>
                     <div style="margin-bottom:0.75rem">
                         <label style="font-size:0.78rem;color:#555;display:block;margin-bottom:2px">Quotes <span style="font-weight:400;color:#aaa">(one per line)</span></label>
@@ -672,7 +670,7 @@ export async function render(container) {
         if (data.ipa != null)               document.getElementById('drawerIpa').value      = data.ipa;
         if (data.part_of_speech != null)    document.getElementById('drawerPos').value       = data.part_of_speech;
         if (data.english_definition != null)document.getElementById('drawerEngDef').value    = data.english_definition;
-        if (data.chinese_definition != null)document.getElementById('drawerChiDef').value    = data.chinese_definition;
+        if (data.chinese_definition != null)document.getElementById('drawerChiDef').value    = zhOnly(data.chinese_definition);
         if (data.example_sentence != null)  document.getElementById('drawerExample').value   = data.example_sentence;
         if (data.synonyms != null)          document.getElementById('drawerSynonyms').value  = data.synonyms;
         if (data.antonyms != null)          document.getElementById('drawerAntonyms').value  = data.antonyms;
@@ -704,6 +702,21 @@ export async function render(container) {
             : allWords.some(w => w.word === word && w.id !== editingWordId);
         if (dupExists) {
             errEl.textContent = `"${word}" is already in your word list.`;
+            errEl.style.display = 'block';
+            return;
+        }
+
+        // Mandatory fields: part of speech, definitions, Chinese.
+        const posVal = document.getElementById('drawerPos').value;
+        const engVal = document.getElementById('drawerEngDef').value.trim();
+        const chiVal = zhOnly(document.getElementById('drawerChiDef').value).trim();
+        document.getElementById('drawerChiDef').value = chiVal;
+        const missing = [];
+        if (!posVal) missing.push('part of speech');
+        if (!engVal) missing.push('a definition');
+        if (!chiVal) missing.push('the Chinese meaning');
+        if (missing.length) {
+            errEl.textContent = `Please add ${missing.join(', ')} before saving.`;
             errEl.style.display = 'block';
             return;
         }
@@ -828,6 +841,13 @@ function extractSimplified(word) {
     return (slash >= 0 ? word.slice(slash + 1) : word).trim();
 }
 
+// Keep only non-ASCII characters (Chinese chars + Chinese punctuation), dropping
+// any Latin letters/digits/ASCII punctuation. This stops English from leaking
+// into the Chinese field, which would give away spelling-quiz answers.
+function zhOnly(str) {
+    return String(str ?? '').replace(/[\x00-\x7F]/g, '');
+}
+
 function localYMD(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
@@ -916,7 +936,8 @@ function wordCardBody(w) {
         ? `<p style="font-size:0.78rem;color:#999;margin:0.1rem 0">Category: ${esc(w.category)}</p>`
         : '';
 
-    const extraContent = extraDefs + exampleHtml + synHtml + antHtml + qHtml + catHtml;
+    // Example sits directly above quotes (matches the add-word drawer order).
+    const extraContent = extraDefs + synHtml + antHtml + exampleHtml + qHtml + catHtml;
     const wid = esc(w.id);
     const moreSection  = extraContent
         ? '<button class="expand-more-btn" data-id="' + wid + '"'

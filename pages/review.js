@@ -36,6 +36,7 @@ export async function render(container) {
         shown = false;
         const total  = words.length;
         const pct    = Math.round((idx / total) * 100);
+        const acc    = idx > 0 ? Math.round((correct / idx) * 100) : null;
         const item   = words[idx];
         const w      = item.words;
 
@@ -43,7 +44,7 @@ export async function render(container) {
             <div style="max-width:560px;margin:0 auto">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
                     <span style="font-size:0.85rem;color:#666">${idx + 1} of ${total}</span>
-                    <span style="font-size:0.85rem;color:#666">${correct} correct</span>
+                    <span style="font-size:0.85rem;color:#666">${correct} correct${acc !== null ? ` · ${acc}%` : ''}</span>
                 </div>
                 <div class="progress-bar-wrap" style="margin-bottom:1.5rem">
                     <div class="progress-bar-fill" style="width:${pct}%"></div>

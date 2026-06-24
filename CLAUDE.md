@@ -7,6 +7,29 @@ Designed to be fully usable on smartphones — responsive layout required throug
 
 ---
 
+## Key Decisions (locked — do not change without explicit confirmation)
+
+These are settled product/architecture decisions. **Do not change, reverse, or
+"refactor away" any of them without the user explicitly asking.** If a request
+seems to conflict with one, call it out and confirm first. If you're unsure
+whether something not listed here is also a key decision, **ask the user**.
+
+1. **No framework, no build step, no npm.** Vanilla JS, ES modules, plain CSS. Runtime deps load from CDN only (Supabase, Three.js). Don't introduce React/Tailwind/a bundler/a package.json.
+2. **Single parent + two learners.** No multi-tenancy, no auth/role beyond `learner`/`parent`, no social features.
+3. **Currencies are derived, never stored as running totals.** Sunlight (`growth.js`) and Coins (`coins.js`) are computed from countable history; only coin *purchases/spends* are persisted (`garden_items`). Never add a stored balance column.
+4. **One reward connector.** Every activity (add/review/quiz) goes through `runAfterActivity()` in `awards.js`, which recomputes Sunlight/Coins/badges and returns `events[]`. Don't award XP/coins/badges anywhere else.
+5. **SRS is a fixed interval ladder** (0→1,1→3,2→7,3→14,4→30,5→60 days; mastered ≥ level 4). No SM-2 / ease-factor scheduling.
+6. **Chinese field is Chinese-only, enforced at save** (`zhOnly()` strips ASCII on save/update; not filtered while typing, to allow IME). This is anti-cheat for the spelling quiz — keep it.
+7. **Daily missions complete at 85% of target, counting correct answers.** `MISSION_TARGET_PCT = 0.85`; practice/quiz/review counts are distinct words answered *correctly*. Learner home and parent dashboard share `buildMissions`/`getDailyProgress` so the view is identical.
+8. **Quiz hints cost coins** via hidden `SHOP` `type:'hint'` entries (non-one-off, so each use deducts a coin), styled with the golden `.coin-btn`. Meaning quiz: "Remove 2 Answers" and "Reveal Chinese Meanings" (per-option Chinese). Spelling quiz: "First & last letter".
+9. **Navigation tabs are intentionally minimal.** Learner: Home · My Words · Garden · Leaderboard. Review and Awards have **no tab** (reached from Home/Garden, and the Home medal chip). Parent: Dashboard · Word Lists · Activity.
+10. **Word Garden is a full-screen 3D voxel scene** rendered with Three.js (ESM from CDN), flat colours / Minecraft-style blocks — not a 2D view. The legacy 2D SVG garden is not the product.
+11. **Quiz & review cover ALL of today's new words when more than 15 were added.** `deckSizeFor() = max(15, newWordsToday)`; review scope `'new'` is uncapped (`'curve'`/`'all'` stay capped at 30). Keeps the daily missions completable.
+12. **Word lookup uses Free Dictionary API v1** (IPA/defs/built-in Chinese, `translations=true`) with a **MyMemory fallback** for Chinese, both called directly from the browser (CORS-safe, no backend).
+13. **Earn formulas are fixed.** Sunlight: +1 add / +2 review / +3 correct. Coins: +1 add / +1 answer / +1 correct / +5 badge. Gardener rank thresholds are the ESL-milestone ladder in `growth.js`.
+
+---
+
 ## Tech Stack
 
 | Layer | Choice |
@@ -64,7 +87,7 @@ Load Supabase from CDN:
 │
 ├── pages/
 │   ├── login.js
-│   ├── learner-home.js      — dashboard + missions + embedded month calendar
+│   ├── learner-home.js      — dashboard + missions + medal chip (→Awards) + embedded month calendar
 │   ├── word-list.js         — word list + add/edit drawer + trash section
 │   ├── review.js            — SRS session; logs each review as test_type 'review'
 │   ├── quiz.js
@@ -98,10 +121,10 @@ Hash-based. `app.js` listens to `hashchange` and `DOMContentLoaded`.
 | `#/login` | Login | Public |
 | `#/learner/home` | Dashboard + Calendar | Learner |
 | `#/learner/words` | Word List + Add/Edit Drawer | Learner |
-| `#/learner/review` | Review Session | Learner |
+| `#/learner/review` | Review Session | Learner — **no nav tab** (reached from Home missions & Garden) |
 | `#/learner/quiz` | Quiz Session | Learner |
 | `#/learner/garden` | Word Garden | Learner |
-| `#/learner/achievements` | Medals & Badges | Learner |
+| `#/learner/achievements` | Medals & Badges | Learner — **no nav tab** (reached from the Home header medal chip) |
 | `#/learner/leaderboard` | Leaderboard (Sunlight / Mastered / Streaks / Words) | Learner |
 | `#/learner/compare/:id` | Head-to-Head Comparison | Learner + Parent |
 | `#/learner/settings` | Privacy Settings | Learner |
@@ -116,6 +139,8 @@ Hash-based. `app.js` listens to `hashchange` and `DOMContentLoaded`.
 **Calendar is embedded in `#/learner/home`** — no separate route. Clicking a day with activity sets `sessionStorage.wordDateFilter` and navigates to `#/learner/words`, which reads and applies the filter on load.
 
 Auth guard: after login, check `profiles.role`. Redirect learner to `#/learner/home`, parent to `#/parent/dashboard`. Block cross-role access.
+
+**Learner nav tabs** (`app.js renderNavbar`): Home · My Words · Garden · Leaderboard. **Review and Awards deliberately have no tab** — reviews are launched from the Home missions and the Garden's "💧 … Review all →" CTA (plus the Garden's inline quick-review); Awards (`#/learner/achievements`) is opened from the **medal chip** in the Home header (`🏅 N`, linking to the Awards page, count from `getBadgeCount()`). Both routes remain in `LEARNER_ROUTES`/`ROUTES` so they stay directly reachable.
 
 ---
 
@@ -329,7 +354,13 @@ Five missions per day (`MISSION_NEW_WORDS = 15`, `MISSION_REVIEW_CURVE = 30`):
 4. **Spelling quiz (today's words)** ┘
 5. **Review older words** — always unlocked; target is min(30, still-due curve words).
 
-Missions 2–4 only count `test_results` rows for **today's** new words; mission 5 counts older words. Reviews count via `test_type = 'review'` (see `test_results` note above).
+Missions 2–4 only count `test_results` rows for **today's** new words; mission 5 counts older words. Reviews count via `test_type = 'review'` (see `test_results` note above). The progress number is **distinct words answered *correctly* today** — a wrong answer does not advance the goal, so failing words lowers the count and the 85% threshold has to be earned.
+
+**Completion threshold: 85%.** A mission is "done" once `current >= ceil(target × MISSION_TARGET_PCT)` (`MISSION_TARGET_PCT = 0.85`, exported from `missions.js` as `missionThreshold(target)`) — a little slack so a missed word or two doesn't block the day. The displayed target stays the full number; the progress bar snaps to full when the 85% mark is reached. The rule is applied in `buildMissions` (learner home + parent dashboard share it, so the view is identical) and mirrored in `getMissionHistory`'s `coreDone`.
+
+**Per-mission color (themed).** Each card is tinted by its `data-key` via a `--mc` CSS variable (left accent stripe + icon chip + progress bar): add = blue, reviewNew = teal, meaning = purple, spelling = orange, reviewCurve = green. The `.mission-card[data-key]` attribute selector outranks the state classes so the stripe keeps its color in every state.
+
+**Today's accuracy in the description.** `getDailyProgress` also returns today's accuracy per tested mission (`reviewsNewAcc`, `reviewsCurveAcc`, `meaningAcc`, `spellingAcc` — % correct over *attempts*, scoped the same way as each mission's count, `null` when nothing attempted yet). `buildMissions` carries it as `accuracy` and the mission subtitle appends `🎯 N%` (the `add` mission has none). Shown on both learner home and parent dashboard.
 
 ### Mission history (parent dashboard)
 
@@ -494,25 +525,44 @@ The pronunciation span uses `pronHtmlFor(src, ipa, role)` which renders:
 1. Word forms chips (past, past part., 3rd, -ing, pl., comp., superl.) — **top**
 2. English definitions (numbered list if multi-line, plain text if single)
 3. Chinese definition
-4. Example sentence (italic)
-5. Synonyms / Antonyms (comma-separated, small text)
+4. Synonyms / Antonyms (comma-separated, small text)
+5. Example sentence (italic) — sits directly **above** quotes
 6. Quotes (up to 2, blockquote style)
 7. Category (if not "general")
+
+The add-word drawer matches this order (Example directly above Quotes in the "More details" section). It also puts **Part of speech above the definitions and always visible** (no longer inside "More details"), and **Part of speech, Definitions and Chinese are mandatory** on save. The Chinese field accepts **Chinese characters only**: the field is *not* filtered while typing (so an IME's in-progress pinyin isn't destroyed) — instead `zhOnly()` strips all ASCII (Latin letters/digits/punctuation) at **save/update** time. So an English word can't leak in to give away spelling-quiz answers; if a learner typed only ASCII it's stripped to empty and the mandatory-Chinese check blocks the save.
 
 ---
 
 ## Quiz Types
+
+Every review and quiz session shows a **live accuracy rate** in the in-session header (e.g. `7 correct · 88%`, computed from answers so far), and the completion screen shows the final `X / Y correct (pct%)`.
+
+**Deck size:** a quiz is normally 15 words, but if more than 15 new words were added today the deck grows to cover **all** of today's new words (`deckSizeFor()` = `max(15, newWordsToday)`), so the day's practice missions stay completable. Review scope `'new'` is already uncapped (`getWordsForReviewToday('new')`); the `'curve'`/`'all'` review queues stay capped at 30.
 
 ### Meaning Quiz
 - Show the word
 - 4 options: 1 correct + 3 random distractors from word list
 - Option text = **single best definition** via `pickBestDef()`: picks the longest line from `english_definition`, strips the leading "(pos) " tag — prevents the full multi-definition dump from making the answer obvious
 - If word list < 4 words, pad with hardcoded common words
+- Each option carries the Chinese meaning of **its own** word (`buildOptions` adds `chinese` per option), shown as a hidden `.opt-chi` line under each option button.
+- **Two paid hint buttons, each costs 1 coin:**
+  - "➗ Remove 2 Answers" — fades out two wrong options.
+  - "🇨🇳 Reveal Chinese Meanings" — reveals **every** option's own Chinese meaning (the corresponding Chinese of each definition, not the question word's); only rendered when at least one option has a Chinese meaning.
+  - The two are independent (no ordering/gating between them). Each is single-use per question and disables once used, after the question is answered, or when the wallet can't afford it.
 
 ### Spelling Quiz
-- Show the Chinese definition (or English if no Chinese)
-- User types the spelling
-- Compare case-insensitive, trimmed
+
+- Prompt shows **part of speech + English definition(s) + Chinese meaning** (all three)
+- Input is **one box per letter** (so the word length is visible by default). Editable boxes accept a single letter each and auto-advance; non-letter characters (spaces, hyphens, apostrophes…) render as **pre-revealed** static cells
+- **Hint (cost 1 🪙):** "💡 First & last letter" reveals and locks the first and last letter boxes
+- Compare case-insensitive, trimmed (reconstructed from the boxes)
+
+### Quiz hint coins
+
+Hints are spent live via `buyGardenItem()` against hidden `SHOP` entries (`hint5050`, `hintMeaningChi`, `hintSpelling`, each `type: 'hint'`, `cost: 1`, `hidden: true`). Because `type: 'hint'` is **not** one-off, every purchase is re-counted in `getUserCoins()` — i.e. each hint really costs a coin. `shopList()` filters out `hidden` items so they never appear in the Garden Shop. The quiz result screen subtracts hint coins from the celebrated earnings.
+
+**Hint button styling:** paid hint buttons use the `.coin-btn` class — a **golden background + border** matching the home coin chip (`.coin-chip`). They do **not** show a minus sign, parentheses, or a number; the cost is shown as a plain `🪙` (just the coin glyph) in a `.coin-cost` span. Used in both quizzes (meaning: "Remove 2 Answers" / "Reveal Chinese Meanings"; spelling: "First & last letter").
 
 ### Listening Quiz (Phase 2)
 - Use browser `SpeechSynthesis` API — no external API needed
