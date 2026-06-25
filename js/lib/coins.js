@@ -23,7 +23,7 @@ export const SHOP = {
     // --- Decorations ---
     butterflies: { name: 'Butterflies', icon: '🦋', cost: 15,  layer: 'sky',    type: 'decoration' },
     bees:        { name: 'Bees',        icon: '🐝', cost: 25,  layer: 'sky',    type: 'decoration' },
-    bird:        { name: 'Bird',        icon: '🐦', cost: 30,  layer: 'sky',    type: 'decoration' },
+    bird:        { name: 'Bird',        icon: '🕊️', cost: 30,  layer: 'sky',    type: 'decoration' },
     pond:        { name: 'Pond',        icon: '🟦', cost: 50,  layer: 'ground', type: 'decoration', oneOff: true },
     gnome:       { name: 'Garden Gnome', icon: '🧙', cost: 70, layer: 'ground', type: 'decoration', oneOff: true },
     fountain:    { name: 'Fountain',    icon: '⛲', cost: 80,  layer: 'ground', type: 'decoration', oneOff: true },
