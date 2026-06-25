@@ -296,14 +296,22 @@ CREATE POLICY "users_select_own_stats_cache"
 -- db.getUserCoins(). Boosters are cosmetic-only (never touch SRS/mastery).
 
 -- Items STACK: one row per purchase (quantity = row count per item_code).
+-- Placeable items (road/rail/car/train) also remember WHERE they sit:
+-- col/grid_row are NULL while the item is still in the tray (unplaced).
 CREATE TABLE IF NOT EXISTS garden_items (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id    uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   item_code  text NOT NULL,
+  col        int,
+  grid_row   int,
+  rotation   int DEFAULT 0,
   created_at timestamptz DEFAULT now()
 );
+ALTER TABLE garden_items ADD COLUMN IF NOT EXISTS col      int;
+ALTER TABLE garden_items ADD COLUMN IF NOT EXISTS grid_row int;
+ALTER TABLE garden_items ADD COLUMN IF NOT EXISTS rotation int DEFAULT 0;
 
-CREATE INDEX idx_garden_items_user ON garden_items(user_id);
+CREATE INDEX IF NOT EXISTS idx_garden_items_user ON garden_items(user_id);
 
 ALTER TABLE garden_items ENABLE ROW LEVEL SECURITY;
 
@@ -313,6 +321,11 @@ CREATE POLICY "users_select_own_garden_items"
 
 CREATE POLICY "users_insert_own_garden_items"
   ON garden_items FOR INSERT
+  WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "users_update_own_garden_items"
+  ON garden_items FOR UPDATE
+  USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
 CREATE POLICY "users_delete_own_garden_items"
@@ -325,4 +338,33 @@ CREATE POLICY "public_learner_garden_items_readable"
 
 CREATE POLICY "parent_select_learner_garden_items"
   ON garden_items FOR SELECT
+  USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'parent');
+
+-- ── Plant positions ─────────────────────────────────────────────────────────
+-- The garden layout is no longer fully derived: every plant remembers its block.
+-- A word with no row here = "needs a home" (auto-assigned on next garden open).
+-- ON DELETE CASCADE makes orphan cleanup automatic when a word is hard-deleted.
+CREATE TABLE IF NOT EXISTS garden_plants (
+  user_id  uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  word_id  uuid NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+  col      int NOT NULL,
+  grid_row int NOT NULL,
+  PRIMARY KEY (user_id, word_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_garden_plants_user ON garden_plants(user_id);
+
+ALTER TABLE garden_plants ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users_rw_own_garden_plants"
+  ON garden_plants FOR ALL
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "public_learner_garden_plants_readable"
+  ON garden_plants FOR SELECT
+  USING (user_id IN (SELECT id FROM profiles WHERE is_public = true AND role = 'learner'));
+
+CREATE POLICY "parent_select_learner_garden_plants"
+  ON garden_plants FOR SELECT
   USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'parent');

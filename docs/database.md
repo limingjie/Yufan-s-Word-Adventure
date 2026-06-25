@@ -86,6 +86,33 @@ earned_at         timestamptz DEFAULT now()
 UNIQUE (user_id, achievement_code)   -- prevent duplicate awards
 ```
 
+### `garden_items` (shop purchases — coin sink)
+```sql
+id         uuid PRIMARY KEY DEFAULT gen_random_uuid()
+user_id    uuid REFERENCES profiles(id) ON DELETE CASCADE
+item_code  text NOT NULL            -- maps to coins.js SHOP
+col        int                      -- placeable items only: chosen block…
+grid_row   int                      -- …NULL = still in the tray (unplaced)
+rotation   int  DEFAULT 0           -- 0/90/180/270 (vehicle facing; Phase-2 travel)
+created_at timestamptz DEFAULT now()
+```
+Items **stack** (one row per purchase). Coin balance is derived as
+`earned − Σ(item costs)` (`getUserCoins`), so deleting a row refunds it; never add
+a stored balance. Placeable items (road/rail/car/train) carry their position here.
+
+### `garden_plants` (stored plant positions)
+```sql
+user_id  uuid REFERENCES profiles(id) ON DELETE CASCADE
+word_id  uuid REFERENCES words(id)    ON DELETE CASCADE
+col      int NOT NULL
+grid_row int NOT NULL
+PRIMARY KEY (user_id, word_id)
+```
+The garden layout is **stored, not derived**: each plant remembers its block. A
+word with no row here has no home yet → the garden auto-assigns the nearest free
+cell on open and persists it. `ON DELETE CASCADE` cleans up when a word is
+hard-deleted. See [garden.md](garden.md).
+
 ### `daily_stats` (optional — can be computed dynamically)
 ```sql
 date                date NOT NULL

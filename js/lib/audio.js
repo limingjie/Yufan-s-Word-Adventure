@@ -165,3 +165,46 @@ export function creatureSound(kind) {
     else if (kind === 'butterfly') { /* butterflies are silent */ }
     else genericChirp();
 }
+
+// ── Vehicle sounds (the driving playset) ─────────────────────────────────────
+
+// Car: a short low engine rev that swells and settles.
+function carEngine() {
+    const t = ctx.currentTime;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(68, t);
+    o.frequency.linearRampToValueAtTime(124, t + 0.22);
+    o.frequency.linearRampToValueAtTime(96, t + 0.5);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.11, t + 0.05);
+    g.gain.setValueAtTime(0.09, t + 0.4);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + 0.57);
+}
+
+// Train: a two-tone whistle "whoo" (a friendly perfect-fifth horn).
+function trainWhistle() {
+    const t = ctx.currentTime;
+    for (const f of [392, 587]) {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(0.08, t + 0.06);
+        g.gain.setValueAtTime(0.08, t + 0.42);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+        o.connect(g); g.connect(master);
+        o.start(t); o.stop(t + 0.57);
+    }
+}
+
+/** Play a vehicle's sound. kind: 'car' | 'train'. */
+export function vehicleSound(kind) {
+    if (!ready()) return;
+    if (kind === 'car') carEngine();
+    else if (kind === 'train') trainWhistle();
+}

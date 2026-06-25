@@ -1745,3 +1745,45 @@ body.garden-page .app-container {
 .shop-tag { font-size: 0.65rem; color: #fff; background: #7aa86b; border-radius: 6px; padding: 1px 5px; vertical-align: middle; }
 .shop-desc { font-size: 0.78rem; color: #777; }
 .shop-owned { color: #2e7d32; font-weight: 600; font-size: 0.82rem; }
+
+/* ── Arrange mode: bottom tray + selected-item panel ─────────────────────── */
+.garden-tray {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    z-index: 7;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    background: rgba(255,255,255,0.96);
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 30px rgba(0,0,0,0.18);
+    padding: 0.6rem 0.9rem 1rem;
+    animation: shopUp 0.2s ease-out;
+}
+.tray-hint { font-size: 0.8rem; color: #666; }
+.tray-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.tray-chip {
+    display: flex; align-items: center; gap: 0.35rem;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid #d8d8d8; border-radius: 12px;
+    background: #fafafa; cursor: grab; touch-action: none;
+}
+.tray-chip:active { cursor: grabbing; transform: scale(0.97); }
+.tray-ic { font-size: 1.4rem; }
+.tray-name { font-size: 0.85rem; font-weight: 600; }
+.tray-n { font-size: 0.78rem; color: #888; }
+
+.garden-itempanel {
+    position: absolute;
+    left: 50%; bottom: 5.5rem; transform: translateX(-50%);
+    z-index: 8;
+    display: flex; gap: 0.5rem;
+    background: rgba(255,255,255,0.97);
+    border-radius: 12px;
+    box-shadow: 0 6px 22px rgba(0,0,0,0.2);
+    padding: 0.5rem 0.6rem;
+}
+.garden-fs[data-night="1"] .garden-tray,
+.garden-fs[data-night="1"] .garden-itempanel { background: rgba(20,33,61,0.92); color: #eaf2ff; }
+.garden-fs[data-night="1"] .tray-hint { color: #b9c6e0; }
+.garden-fs[data-night="1"] .tray-chip { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); color: #eaf2ff; }

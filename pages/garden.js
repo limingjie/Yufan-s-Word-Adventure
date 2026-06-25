@@ -1,9 +1,10 @@
-import { getWordsWithSRS, getWordsForReviewToday, getUserSunlight, getUserCoins, getGardenItems, buyGardenItem, completeReview, recordTestResult } from '../js/db.js';
+import { getWordsWithSRS, getWordsForReviewToday, getUserSunlight, getUserCoins, getGardenItems, buyGardenItem, completeReview, recordTestResult,
+         getGardenPlants, setPlantPosition, setPlantPositions, placeGardenItem, removeGardenItem } from '../js/db.js';
 import { getRankInfo }   from '../js/lib/growth.js';
 import { gardenStats }   from '../js/lib/garden.js';
 import { srsLabel }      from '../js/lib/srs.js';
 import { createGarden }  from '../js/lib/garden3d.js';
-import { shopList, SHOP } from '../js/lib/coins.js';
+import { shopList, SHOP, isPlaceable } from '../js/lib/coins.js';
 import { runAfterActivity } from '../js/lib/awards.js';
 import { toast, celebrateEvents } from '../js/lib/celebrate.js';
 import { showEarnHelp } from '../js/lib/help.js';
@@ -14,12 +15,13 @@ const THEME_KEY = 'wordAdventureGardenTheme';
 export async function render(container) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">🌱</div><p>Growing your garden…</p></div>`;
 
-    const [words, dueRows, sunData, coins, items] = await Promise.all([
+    const [words, dueRows, sunData, coins, items, plantRows] = await Promise.all([
         getWordsWithSRS(),
         getWordsForReviewToday(),
         getUserSunlight(),
         getUserCoins(),
         getGardenItems(),
+        getGardenPlants(),
     ]);
 
     const dueIds   = new Set(dueRows.map(r => r.word_id));
@@ -30,6 +32,19 @@ export async function render(container) {
     items.forEach(i => itemCounts.set(i.item_code, (itemCounts.get(i.item_code) || 0) + 1));
     let   balance  = coins.balance;
     let   activeTheme = initialTheme(owned);
+
+    // Stored layout: plant positions + positioned ground items. Structures
+    // (pond/fountain/cottage) are positioned too — passed even when col is null
+    // so the garden auto-assigns + persists a home for them.
+    const STRUCTURES = ['pond', 'fountain', 'cottage'];
+    const isGround   = (code) => isPlaceable(code) || STRUCTURES.includes(code);
+    const plantPos = new Map(plantRows.map(p => [p.word_id, { col: p.col, row: p.grid_row }]));
+    const placed   = items.filter(i => STRUCTURES.includes(i.item_code) || (isPlaceable(i.item_code) && i.col != null))
+                          .map(i => ({ id: i.id, code: i.item_code, col: i.col ?? null, row: i.grid_row ?? null, rotation: i.rotation || 0 }));
+    let   unplaced = items.filter(i => isPlaceable(i.item_code) && i.col == null)
+                          .map(i => ({ id: i.id, code: i.item_code }));
+    // Free-roaming decorations only (sky critters / gnome) still passed by code.
+    const decorCodes = items.filter(i => !isGround(i.item_code)).map(i => i.item_code);
 
     // Recomputed live after an in-garden review (word objects are shared with `words`).
     const countsHtml = () => {
@@ -64,6 +79,7 @@ export async function render(container) {
                 </div>
                 <div class="gt-row gt-actions">
                     <span id="waterSlot">${waterCtaHtml()}</span>
+                    <button id="arrangeBtn" class="btn btn-secondary btn-sm">✋ Arrange</button>
                 </div>
             </div>
 
@@ -91,6 +107,9 @@ export async function render(container) {
             </div>
 
             <div id="shopDrawer" class="garden-shop" style="display:none"></div>
+
+            <div id="arrangeTray" class="garden-tray" style="display:none"></div>
+            <div id="itemPanel" class="garden-itempanel" style="display:none"></div>
         </div>`;
 
     // ── 3D scene ────────────────────────────────────────────────────────────
@@ -98,11 +117,20 @@ export async function render(container) {
     if (words.length) {
         const canvas = document.getElementById('gardenCanvas');
         controller = createGarden(canvas, {
-            words, dueIds,
-            items: items.map(i => i.item_code),       // duplicates kept → decorations stack
+            words, dueIds, plantPos, placed,
+            items: decorCodes,                        // sky critters / gnome / structures (stack)
             night: activeTheme === 'night',
             warm:  activeTheme === 'sunnyday' && owned.has('sunnyday'),
             onPlantClick: (id) => showPlantPopup(wordById.get(id)),
+            onAssignHomes: (homes) => { if (homes.length) setPlantPositions(homes).catch(() => {}); },
+            onPlantMoved:  (wordId, col, row) => { setPlantPosition(wordId, col, row).catch(() => {}); },
+            onItemMoved:   (id, col, row, rotation) => {
+                placeGardenItem(id, col, row, rotation).catch(() => {});
+                if (unplaced.some(u => u.id === id)) { unplaced = unplaced.filter(u => u.id !== id); renderTray(); }
+            },
+            onItemRemoved: (id) => onItemRemoved(id),
+            onSelectItem:  (id) => showItemPanel(id),
+            onInvalidDrop: (reason) => toast(reason),
         });
     }
 
@@ -234,6 +262,76 @@ export async function render(container) {
         if (popup.style.display === 'block' && !popup.contains(e.target)) popup.style.display = 'none';
     });
 
+    // ── Arrange mode: tray + drag-to-place + selected-item panel ───────────────
+    const tray  = document.getElementById('arrangeTray');
+    const panel = document.getElementById('itemPanel');
+    let arrangeOn = false;
+
+    const arrangeBtn = document.getElementById('arrangeBtn');
+    arrangeBtn?.addEventListener('click', () => setArrange(!arrangeOn));
+
+    function setArrange(on) {
+        arrangeOn = on && !!controller;
+        controller?.setArrangeMode(arrangeOn);
+        arrangeBtn.textContent = arrangeOn ? '✓ Done' : '✋ Arrange';
+        arrangeBtn.classList.toggle('btn-primary', arrangeOn);
+        tray.style.display = arrangeOn ? 'flex' : 'none';
+        panel.style.display = 'none';
+        popup.style.display = 'none';
+        if (arrangeOn) renderTray();
+    }
+
+    function renderTray() {
+        // group unplaced placeable items by code, show one draggable chip each
+        const byCode = new Map();
+        unplaced.forEach(u => byCode.set(u.code, (byCode.get(u.code) || 0) + 1));
+        const chips = [...byCode.entries()].map(([code, n]) =>
+            `<button class="tray-chip" data-code="${code}">
+                <span class="tray-ic">${SHOP[code].icon}</span>
+                <span class="tray-name">${esc(SHOP[code].name)}</span>
+                <span class="tray-n">×${n}</span>
+             </button>`).join('');
+        tray.innerHTML = `
+            <div class="tray-hint">${unplaced.length
+                ? 'Drag onto a block. Tap a placed item to rotate or remove it.'
+                : 'Buy road, rail, car or train in the 🛒 Shop, then drag them here.'}</div>
+            <div class="tray-row">${chips}</div>`;
+        tray.querySelectorAll('.tray-chip').forEach(chip =>
+            chip.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                const code = chip.dataset.code;
+                const next = unplaced.find(u => u.code === code);
+                if (next) controller?.beginPlaceFromTray(code, next.id, e);
+            }));
+    }
+
+    function showItemPanel(id) {
+        if (!id) { panel.style.display = 'none'; return; }
+        panel.innerHTML = `
+            <button id="rotItem" class="btn btn-secondary btn-sm">↻ Rotate</button>
+            <button id="delItem" class="btn btn-danger btn-sm">🗑 Remove</button>`;
+        panel.style.display = 'flex';
+        panel.querySelector('#rotItem').addEventListener('click', () => controller?.rotateSelected());
+        panel.querySelector('#delItem').addEventListener('click', () => controller?.removeSelected());
+    }
+
+    async function onItemRemoved(id) {
+        panel.style.display = 'none';
+        const row = items.find(i => i.id === id);
+        try {
+            await removeGardenItem(id);
+            if (row) {
+                itemCounts.set(row.item_code, Math.max(0, (itemCounts.get(row.item_code) || 1) - 1));
+                balance += SHOP[row.item_code]?.cost || 0;     // derived balance refunds on delete
+                document.getElementById('coinWallet').textContent = `🪙 ${balance}`;
+            }
+            unplaced = unplaced.filter(u => u.id !== id);
+            toast('Removed — coins refunded.');
+        } catch {
+            toast('Could not remove that.');
+        }
+    }
+
     // ── Shop drawer ─────────────────────────────────────────────────────────
     const drawer = document.getElementById('shopDrawer');
     document.getElementById('shopBtn').addEventListener('click', () => {
@@ -294,13 +392,23 @@ export async function render(container) {
             balance = res.balance;
             owned.add(code);
             itemCounts.set(code, (itemCounts.get(code) || 0) + 1);
+            items.push({ id: res.id, item_code: code, col: null, grid_row: null, rotation: 0 });
             document.getElementById('coinWallet').textContent = `🪙 ${balance}`;
             if (SHOP[code]?.type === 'theme') setActiveTheme(code);
             document.getElementById('themeSwitch').hidden = !(owned.has('night') || owned.has('sunnyday'));
-            if (['pond', 'fountain', 'cottage'].includes(code)) {
+            if (isPlaceable(code)) {
+                // Goes to the tray; the shop STAYS OPEN so the learner can stock
+                // up on roads/rails, then hit ✋ Arrange and drag them on.
+                unplaced.push({ id: res.id, code });
+                if (arrangeOn) renderTray();
+                toast(`${SHOP[code].icon} ${SHOP[code].name} added to your tray — open ✋ Arrange to place it.`);
+                renderShop();
+                return;
+            }
+            if (STRUCTURES.includes(code)) {
+                controller?.addStructure(res.id, code);   // auto-placed + persisted live
                 toast(`${SHOP[code].icon} ${SHOP[code].name} added to your garden!`);
-                cleanupGarden();
-                await render(container);
+                renderShop();
                 return;
             }
             controller?.addDecoration(code);   // adds ONE instance (theme/boosters skipped inside)

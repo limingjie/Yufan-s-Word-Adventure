@@ -639,10 +639,71 @@ export async function getGardenItems() {
     if (!user) return [];
     const { data, error } = await supabase
         .from("garden_items")
-        .select("item_code, created_at")
+        .select("id, item_code, col, grid_row, rotation, created_at")
         .eq("user_id", user.id);
     if (error) throw error;
     return data || [];
+}
+
+// Plant positions — { word_id, col, grid_row }. A word missing here has no home
+// block yet; the garden auto-assigns one and persists it via setPlantPositions.
+export async function getGardenPlants() {
+    const user = await getCurrentUser();
+    if (!user) return [];
+    const { data, error } = await supabase
+        .from("garden_plants")
+        .select("word_id, col, grid_row")
+        .eq("user_id", user.id);
+    if (error) throw error;
+    return data || [];
+}
+
+/** Upsert one plant's block position. */
+export async function setPlantPosition(wordId, col, gridRow) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
+    const { error } = await supabase
+        .from("garden_plants")
+        .upsert({ user_id: user.id, word_id: wordId, col, grid_row: gridRow },
+                { onConflict: "user_id,word_id" });
+    if (error) throw error;
+}
+
+/** Batch upsert plant positions: [{ wordId, col, gridRow }]. */
+export async function setPlantPositions(rows) {
+    const user = await getCurrentUser();
+    if (!user || !rows?.length) return;
+    const payload = rows.map((r) => ({
+        user_id: user.id, word_id: r.wordId, col: r.col, grid_row: r.gridRow,
+    }));
+    const { error } = await supabase
+        .from("garden_plants")
+        .upsert(payload, { onConflict: "user_id,word_id" });
+    if (error) throw error;
+}
+
+/** Move/rotate a placed item (or send it back to the tray with null col/row). */
+export async function placeGardenItem(id, col, gridRow, rotation = 0) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
+    const { error } = await supabase
+        .from("garden_items")
+        .update({ col, grid_row: gridRow, rotation })
+        .eq("id", id)
+        .eq("user_id", user.id);
+    if (error) throw error;
+}
+
+/** Delete a placed/owned item. Coins refund automatically (balance is derived). */
+export async function removeGardenItem(id) {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Not authenticated");
+    const { error } = await supabase
+        .from("garden_items")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id);
+    if (error) throw error;
 }
 
 /** Buy a shop item. Re-checks balance before inserting. Returns new balance. */
@@ -667,12 +728,14 @@ export async function buyGardenItem(itemCode) {
         if ((existing || []).length) throw new Error("Already owned");
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
         .from("garden_items")
-        .insert({ user_id: user.id, item_code: itemCode });
+        .insert({ user_id: user.id, item_code: itemCode })
+        .select("id")
+        .single();
     if (error) throw error;
 
-    return { balance: balance - cost };
+    return { balance: balance - cost, id: data?.id };
 }
 
 export async function getUserStreak() {

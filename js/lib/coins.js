@@ -19,6 +19,9 @@ export function computeCoins({ wordsAdded = 0, testsTaken = 0, testsCorrect = 0,
 // ============================================================================
 // layer: where a decoration renders in the 3D scene ('sky' | 'ground' | 'theme').
 // type:  'decoration' (a 3D prop) or 'booster' (cosmetic-only — NO SRS/level effect).
+// placeable: true → the learner drags it from the tray onto a specific block and
+//   it remembers its position (col/grid_row/rotation in garden_items). Surface
+//   tiles (road/rail) sit on a grass block; vehicles (car/train) ride a track.
 export const SHOP = {
     // --- Decorations ---
     butterflies: { name: 'Butterflies', icon: '🦋', cost: 15,  layer: 'sky',    type: 'decoration' },
@@ -28,6 +31,17 @@ export const SHOP = {
     gnome:       { name: 'Garden Gnome', icon: '🧙', cost: 70, layer: 'ground', type: 'decoration', oneOff: true },
     fountain:    { name: 'Fountain',    icon: '⛲', cost: 80,  layer: 'ground', type: 'decoration', oneOff: true },
     cottage:     { name: 'Cottage',     icon: '🏡', cost: 150, layer: 'ground', type: 'decoration', oneOff: true },
+
+    // --- Placeable playset: buy many, drag onto blocks, rearrange any time ---
+    // Cheap tracks, pricier vehicles. A car needs a road under it, a train a rail.
+    road:        { name: 'Road',  icon: '🛣️', cost: 5,  layer: 'ground', type: 'decoration', placeable: true, surface: 'road',
+                   desc: 'A path tile — roads auto-connect' },
+    rail:        { name: 'Rail',  icon: '🛤️', cost: 5,  layer: 'ground', type: 'decoration', placeable: true, surface: 'rail',
+                   desc: 'A track tile — rails auto-connect' },
+    car:         { name: 'Car',   icon: '🚗', cost: 40, layer: 'ground', type: 'decoration', placeable: true, vehicle: 'road',
+                   desc: 'Drives along your roads' },
+    train:       { name: 'Train', icon: '🚂', cost: 60, layer: 'ground', type: 'decoration', placeable: true, vehicle: 'rail',
+                   desc: 'Runs along your rails' },
 
     // --- Themes and boosters (cosmetic only — deliberately do NOT touch SRS/mastery) ---
     sunnyday:    { name: 'Sunny Day',    icon: '☀️', cost: 20,  layer: 'theme', type: 'theme', oneOff: true,
@@ -59,4 +73,9 @@ export function shopList() {
 export function isOneOffItem(itemCode) {
     const info = SHOP[itemCode];
     return !!info && (info.oneOff || info.type === 'theme' || info.type === 'booster');
+}
+
+// Placeable items are dragged onto a chosen block and remember col/grid_row.
+export function isPlaceable(itemCode) {
+    return !!SHOP[itemCode]?.placeable;
 }
