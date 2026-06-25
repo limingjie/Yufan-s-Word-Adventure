@@ -30,3 +30,7 @@ yarn-debug.log*
 .cache/
 tmp/
 temp/
+
+# Throwaway DB migration scratch files — DDL must be merged into
+# sql/SUPABASE_SETUP.sql and the tmp file deleted (never committed).
+sql/tmp_*.sql
