@@ -180,4 +180,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('navMenu')?.classList.remove('open');
         renderPage(routeFromHash());
     });
+
+    // Re-render the navbar when the profile changes (e.g. avatar edited on Home)
+    // so the navbar avatar updates immediately without a page reload.
+    globalThis.addEventListener('profile-updated', async () => {
+        if (currentRoute !== '/login') renderNavbar(await getCurrentProfile());
+    });
 });

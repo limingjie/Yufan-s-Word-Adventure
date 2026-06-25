@@ -60,12 +60,10 @@ export async function render(container) {
                     <span class="coin-chip" id="coinWallet">🪙 ${balance}</span>
                     <button id="shopBtn" class="btn btn-secondary btn-sm gt-icon-btn">🛒 Shop</button>
                     <button id="musicBtn" class="btn btn-secondary btn-sm gt-icon-btn" title="Music">${musicOn() ? '🔊' : '🔇'}</button>
-                    <button id="helpBtn" class="btn btn-secondary btn-sm gt-icon-btn" title="How to earn">?</button>
+                    <button id="helpBtn" class="help-btn" title="How to earn">?</button>
                 </div>
                 <div class="gt-row gt-actions">
                     <span id="waterSlot">${waterCtaHtml()}</span>
-                    <a class="btn btn-secondary btn-sm" href="#/learner/words">＋ Add</a>
-                    <a class="btn btn-secondary btn-sm" href="#/learner/quiz">📝 Quiz</a>
                 </div>
             </div>
 

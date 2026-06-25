@@ -14,7 +14,7 @@ export async function render(container) {
 
     const [user, learnersResult] = await Promise.all([
         getCurrentUser(),
-        supabase.from('profiles').select('id,display_name,avatar_color').eq('role', 'learner').eq('is_public', true),
+        supabase.from('profiles').select('id,display_name,avatar_color,avatar_emoji').eq('role', 'learner').eq('is_public', true),
     ]);
 
     const learners = learnersResult.data || [];
@@ -53,12 +53,13 @@ export async function render(container) {
         const rowsHTML = sorted.map((r, i) => {
             const isMe    = r.id === user?.id;
             const initial = (r.display_name || '?')[0].toUpperCase();
+            const face    = r.avatar_emoji || initial;
             const medal   = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null;
 
             return `
                 <div class="leaderboard-row${isMe ? ' me' : ''}">
                     <span class="leaderboard-rank${i < 3 ? ' gold' : ''}">${medal || (i + 1)}</span>
-                    <div class="avatar" style="background:${r.avatar_color || '#007BFF'};width:34px;height:34px;font-size:0.85rem">${initial}</div>
+                    <div class="avatar${r.avatar_emoji ? ' avatar-emoji' : ''}" style="background:${r.avatar_color || '#007BFF'};width:34px;height:34px;font-size:0.85rem">${face}</div>
                     <span style="font-weight:${isMe ? '600' : '400'}">${esc(r.display_name)}${isMe ? ' (you)' : ''}</span>
                     <span class="leaderboard-score">${col[activeTab](r)}</span>
                 </div>`;

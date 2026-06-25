@@ -9,7 +9,8 @@ export async function render(container) {
     container.innerHTML = `
         <div style="max-width:700px;margin:0 auto">
             <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;flex-wrap:wrap">
-                <h2 style="margin:0;flex:1">My Words</h2>
+                <h2 style="margin:0">My Words</h2>
+                <span id="wordCount" style="flex:1;font-size:0.85rem;color:#888;font-weight:600"></span>
                 <div style="position:relative">
                     <button id="sortBtn" class="btn btn-secondary btn-sm">📅 By Date ▾</button>
                     <div id="sortMenu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid #dee2e6;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:20;min-width:140px;overflow:hidden">
@@ -177,6 +178,15 @@ export async function render(container) {
         const words = filteredWords();
         const list  = document.getElementById('wordList');
         if (!list) return;
+
+        const countEl = document.getElementById('wordCount');
+        if (countEl) {
+            const total = allWords.length;
+            const noun  = total === 1 ? 'word' : 'words';
+            countEl.textContent = words.length === total
+                ? `${total} ${noun}`
+                : `${words.length} of ${total} ${noun}`;
+        }
 
         if (words.length === 0) {
             list.innerHTML = `

@@ -5,7 +5,7 @@
 
 :root {
     --primary-color: #3b82f6;      /* Playful primary blue */
-    --secondary-color: #9b5de5;    /* Vibrant purple (kid-friendly replacement for gray) */
+    --secondary-color: #64748b;    /* Slate blue-gray secondary (no purple) */
     --success-color: #2ec4b6;      /* Vibrant minty teal */
     --danger-color: #ff5470;       /* Bright friendly coral red */
     --warning-color: #ff9f1c;      /* Warm golden orange */
@@ -328,7 +328,7 @@ label {
 }
 
 .btn-secondary:hover {
-    background-color: #8338ec;
+    background-color: #475569;
 }
 
 .btn-success {
@@ -783,7 +783,7 @@ label {
 .mission-card[data-key] { border-left: 5px solid var(--mc, #ccc); }
 .mission-card[data-key="add"]         { --mc: #1890ff; }  /* blue   */
 .mission-card[data-key="reviewNew"]   { --mc: #13c2c2; }  /* teal   */
-.mission-card[data-key="meaning"]     { --mc: #722ed1; }  /* purple */
+.mission-card[data-key="meaning"]     { --mc: #e11d8f; }  /* rose */
 .mission-card[data-key="spelling"]    { --mc: #fa8c16; }  /* orange */
 .mission-card[data-key="reviewCurve"] { --mc: #52c41a; }  /* green  */
 
@@ -802,9 +802,15 @@ label {
 .home-id { flex: 1; min-width: 0; }
 .home-name { font-size: 1.15rem; font-weight: 700; }
 .home-meta { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 2px; }
-.xp-chip { font-size: 0.74rem; color: #888; font-weight: 600; white-space: nowrap; }
+.xp-chip {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 0.74rem; font-weight: 700; white-space: nowrap;
+    color: #1f7a3d; background: #e6f7e9;
+    border: 1px solid #95d5a3; border-radius: 12px;
+    padding: 2px 9px;
+}
 .xp-mini-wrap { background: #e9ecef; border-radius: 6px; height: 5px; margin-top: 5px; overflow: hidden; }
-.xp-mini-fill { height: 100%; background: linear-gradient(90deg, #6610f2, #0d6efd); border-radius: 6px; transition: width 0.6s ease; }
+.xp-mini-fill { height: 100%; background: linear-gradient(90deg, #57c97e, #34b864); border-radius: 6px; transition: width 0.6s ease; }
 .home-actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
 .streak-chip { font-size: 0.85rem; color: #ff7d00; font-weight: 700; white-space: nowrap; }
 .icon-btn {
@@ -847,6 +853,7 @@ label {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 0.4rem;
+    align-items: start;   /* let every cell honor aspect-ratio equally (no stretch) */
 }
 
 /* Every cell is a square slot */
@@ -869,7 +876,7 @@ label {
 .avatar-input.selected { border-color: #1890ff; border-style: solid; background: #e0ecff; }
 
 .color-swatch { box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
-.color-swatch.selected { border-color: #222; box-shadow: 0 0 0 2px #fff inset, 0 0 0 2px #222; }
+.color-swatch.selected { border-color: #222; box-shadow: 0 0 0 2px #fff inset, 0 0 0 3px #222 inset; }
 .color-input-cell {
     position: relative; overflow: hidden;
     background:
@@ -1298,12 +1305,12 @@ input.letter-box:focus { border-color: var(--primary-color); outline: none; box-
 
     .card { padding: var(--spacing-md); }
 
-    button:not(.btn-sm):not(.gt-icon-btn):not(.coin-btn),
-    .btn:not(.btn-sm):not(.gt-icon-btn):not(.coin-btn) {
+    button:not(.btn-sm):not(.gt-icon-btn):not(.coin-btn):not(.help-btn):not(.cell-box),
+    .btn:not(.btn-sm):not(.gt-icon-btn):not(.coin-btn):not(.help-btn):not(.cell-box) {
         min-height: 44px;
     }
 
-    input, select, textarea {
+    input:not(.cell-box), select, textarea {
         min-height: 44px;
         font-size: 16px;
     }
@@ -1643,6 +1650,14 @@ body.garden-page .app-container {
 /* Round "?" help button (home + garden) */
 .help-btn {
     width: 30px; height: 30px;
+    flex: 0 0 30px;
+    aspect-ratio: 1 / 1;
+    padding: 0;
+    box-sizing: border-box;
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 50%;
     border: 1px solid var(--border-color, #ddd);
     background: #fff;

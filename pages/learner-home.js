@@ -197,6 +197,7 @@ export async function render(container) {
                 await updateAvatar(emoji, selColor);
                 patchCurrentProfile({ avatar_emoji: emoji, avatar_color: selColor });
                 if (profile) { profile.avatar_emoji = emoji; profile.avatar_color = selColor; }
+                globalThis.dispatchEvent(new Event('profile-updated'));
             } catch (err) {
                 console.error('Failed to save avatar:', err);
             }
