@@ -21,7 +21,6 @@ import { masteryEmoji } from './srs.js';
 import { SHOP } from './coins.js';
 import { creatureSound } from './audio.js';
 
-const PLANT_CAP = 80;
 const PHRASES = ['Great!', 'Yay!', 'Nice!', 'Wow!', 'Bloom! 🌸', 'Keep going!', 'Lovely!', 'Hello! 👋', 'So pretty!'];
 const STRUCTURES = {
     pond:     { w: 2, h: 2 },
@@ -30,7 +29,7 @@ const STRUCTURES = {
 };
 
 export function createGarden(canvas, opts = {}) {
-    const words   = (opts.words || []).slice(0, PLANT_CAP);
+    const words   = opts.words || [];
     const dueIds  = opts.dueIds || new Set();
     const onClick = opts.onPlantClick || (() => {});
     const ownedItems = opts.items || [];
