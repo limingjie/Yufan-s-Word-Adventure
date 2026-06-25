@@ -1,4 +1,4 @@
-import { getPrioritizedWords, recordTestResult, getUserCoins, buyGardenItem } from '../js/db.js';
+import { getPrioritizedWords, recordTestResult, getUserCoins, buyGardenItem, completeReview } from '../js/db.js';
 import { runAfterActivity } from '../js/lib/awards.js';
 import { celebrateEvents, comboPopup } from '../js/lib/celebrate.js';
 
@@ -36,8 +36,8 @@ export async function render(container) {
     // Launch directly into a mode when a mission set one; else show the selector.
     const presetMode = sessionStorage.getItem('quizMode');
     sessionStorage.removeItem('quizMode');
-    if (presetMode === 'meaning')  { startMeaning(container, allWords);  return; }
-    if (presetMode === 'spelling') { startSpelling(container, allWords); return; }
+    if (presetMode === 'meaning')  { await startMeaning(container, allWords);  return; }
+    if (presetMode === 'spelling') { await startSpelling(container, allWords); return; }
 
     // --- Mode selector ---
     container.innerHTML = `
@@ -65,7 +65,7 @@ export async function render(container) {
 // garden_items row (a real coin cost) and we track the running balance locally
 // so buttons disable the moment the learner can't afford the next hint.
 // ============================================================================
-function makeWallet(startBalance) {
+export function makeWallet(startBalance) {
     let balance = startBalance;
     let spent   = 0;
     return {
@@ -85,11 +85,16 @@ function makeWallet(startBalance) {
 // Meaning quiz
 // ============================================================================
 
-async function startMeaning(container, allWords) {
+// opts (all optional) — used by the older-word mixed drill (curve-drill.js):
+//   deck         pre-built word list to quiz (else today-first deck)
+//   wallet       shared coin wallet across drill phases
+//   advanceSrs   also move each word along the SRS ladder (older-word drill only)
+//   onComplete   called with { score, total, maxCombo } instead of the result screen
+export async function startMeaning(container, allWords, opts = {}) {
     // allWords is pre-ordered today-first then by memory curve — keep that order.
-    const deck = allWords.slice(0, deckSizeFor(allWords));
+    const deck = opts.deck || allWords.slice(0, deckSizeFor(allWords));
     let idx = 0, score = 0, combo = 0, maxCombo = 0;
-    const wallet = makeWallet((await getUserCoins()).balance);
+    const wallet = opts.wallet || makeWallet((await getUserCoins()).balance);
 
     function renderQ() {
         const word     = deck[idx];
@@ -165,7 +170,13 @@ async function startMeaning(container, allWords) {
                 refreshHintButtons();
 
                 recordTestResult(word.id, 'meaning', isCorrect);
-                setTimeout(() => { idx++; idx < deck.length ? renderQ() : showResult(container, score, deck.length, 'meaning', maxCombo, wallet.spent); }, 900);
+                if (opts.advanceSrs) completeReview(word.id, isCorrect);
+                setTimeout(() => {
+                    idx++;
+                    if (idx < deck.length) renderQ();
+                    else if (opts.onComplete) opts.onComplete({ score, total: deck.length, maxCombo });
+                    else showResult(container, score, deck.length, 'meaning', maxCombo, wallet.spent);
+                }, 900);
             });
             grid.appendChild(btn);
             optionBtns.push(btn);
@@ -228,11 +239,12 @@ function buildOptions(word, allWords) {
 // Spelling quiz
 // ============================================================================
 
-async function startSpelling(container, allWords) {
-    const eligible = allWords.filter(w => w.chinese_definition || w.english_definition);
-    const deck     = eligible.slice(0, deckSizeFor(eligible));
+// opts: same shape as startMeaning (deck / wallet / advanceSrs / onComplete).
+export async function startSpelling(container, allWords, opts = {}) {
+    const eligible = (opts.deck || allWords).filter(w => w.chinese_definition || w.english_definition);
+    const deck     = opts.deck ? eligible : eligible.slice(0, deckSizeFor(eligible));
     let idx = 0, score = 0, combo = 0, maxCombo = 0;
-    const wallet = makeWallet((await getUserCoins()).balance);
+    const wallet = opts.wallet || makeWallet((await getUserCoins()).balance);
 
     function renderQ() {
         const word  = deck[idx];
@@ -336,7 +348,13 @@ async function startSpelling(container, allWords) {
             refreshHint();
 
             recordTestResult(word.id, 'spelling', isCorrect);
-            setTimeout(() => { idx++; idx < deck.length ? renderQ() : showResult(container, score, deck.length, 'spelling', maxCombo, wallet.spent); }, 1100);
+            if (opts.advanceSrs) completeReview(word.id, isCorrect);
+            setTimeout(() => {
+                idx++;
+                if (idx < deck.length) renderQ();
+                else if (opts.onComplete) opts.onComplete({ score, total: deck.length, maxCombo });
+                else showResult(container, score, deck.length, 'spelling', maxCombo, wallet.spent);
+            }, 1100);
         }
 
         submit.addEventListener('click', check);

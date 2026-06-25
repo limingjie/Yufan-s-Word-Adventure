@@ -23,6 +23,14 @@ Wrong answer:   level = 0, next_review_date = tomorrow
 "Due today" = `next_review_date <= CURRENT_DATE`
 "Mastered" = `review_level >= 4`
 
+**What advances the ladder.** Reaching mastery takes ~4 correct reviews over
+~25 days, so most retention work is re-practising *older* words. A flashcard
+review (`completeReview`) always advances the ladder. Meaning/spelling quizzes
+on **today's** new words do **not** (those are pure same-day practice — missions
+3–4). But in the **older-word mixed drill** (mission 5), every modality advances
+the ladder: a correct recall in review *or* meaning *or* spelling counts and
+reschedules the word. Quiz pages take `advanceSrs` for this (`pages/quiz.js`).
+
 ---
 
 ## Daily Missions
@@ -35,9 +43,13 @@ Five missions per day (`MISSION_NEW_WORDS = 15`, `MISSION_REVIEW_CURVE = 30`):
 2. **Review today's new words** ┐
 3. **Meaning quiz (today's words)** ├─ unlock once mission 1 is met; targets scale to the number of words added today.
 4. **Spelling quiz (today's words)** ┘
-5. **Review older words** — always unlocked; target is min(30, still-due curve words).
+5. **Practice older words** — always unlocked; the older-word **mixed drill** (see below); target is min(30, still-due curve words).
 
-Missions 2–4 only count `test_results` rows for **today's** new words; mission 5 counts older words. Reviews count via `test_type = 'review'` (see `test_results` note above). The progress number is **distinct words answered *correctly* today** — a wrong answer does not advance the goal, so failing words lowers the count and the 85% threshold has to be earned.
+Missions 2–4 only count `test_results` rows for **today's** new words (mission 2 via `test_type = 'review'`, missions 3–4 via `'meaning'`/`'spelling'`). Mission 5 counts **older** words (created before today) answered correctly in **any** of the three modalities — `getDailyProgress.reviewsCurveDone` is the distinct-older-word union across `review`/`meaning`/`spelling`. The progress number is always **distinct words answered *correctly* today** — a wrong answer does not advance the goal, so failing words lowers the count and the 85% threshold has to be earned.
+
+### Older-word mixed drill (mission 5)
+
+`pages/curve-drill.js` (route `#/learner/curve-drill`, no nav tab — reached from the mission card). It pulls the SRS-due older words (`getWordsForReviewToday('curve')`, capped at 30), **round-robins** them across three back-to-back phases — flashcard review → meaning quiz → spelling quiz (≈10/10/10, balanced even when fewer are due, e.g. 12 → 4/4/4) — and shows **one** result screen with a single `runAfterActivity` for the whole drill. A shared coin wallet carries hint spending across phases. Every phase runs with `advanceSrs`, so each due word climbs the ladder once. The drill reuses the same renderers as the standalone pages: `runReviewSession` (exported from `pages/review.js`) and `startMeaning`/`startSpelling` (exported from `pages/quiz.js`, which take an injected `deck` + `wallet` + `advanceSrs` + `onComplete`).
 
 **Completion threshold: 85%.** A mission is "done" once `current >= ceil(target × MISSION_TARGET_PCT)` (`MISSION_TARGET_PCT = 0.85`, exported from `missions.js` as `missionThreshold(target)`) — a little slack so a missed word or two doesn't block the day. The displayed target stays the full number; the progress bar snaps to full when the 85% mark is reached. The rule is applied in `buildMissions` (learner home + parent dashboard share it, so the view is identical) and mirrored in `getMissionHistory`'s `coreDone`.
 

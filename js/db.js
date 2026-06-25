@@ -769,9 +769,18 @@ export async function getDailyProgress(userId) {
     // Missions 2-4 track today's NEW words only (they're gated by mission 1).
     const isToday = id => todayWordIds.has(id);
     const reviewsNewDone    = distinctCorrect('review',  isToday);
-    const reviewsCurveDone  = distinctCorrect('review',  id => !todayWordIds.has(id));
     const meaningQuizCount  = distinctCorrect('meaning', isToday);
     const spellingQuizCount = distinctCorrect('spelling', isToday);
+
+    // Mission 5 (the older-word mixed drill) practices each due word in ONE of
+    // three modalities, so its progress is distinct OLDER words answered
+    // correctly today across review/meaning/spelling combined.
+    const isOlder = id => !todayWordIds.has(id);
+    const reviewsCurveDone = new Set(
+        tests.filter(t => isOlder(t.word_id) && t.correct
+            && (t.test_type === 'review' || t.test_type === 'meaning' || t.test_type === 'spelling'))
+            .map(t => t.word_id)
+    ).size;
 
     // Today's accuracy per mission scope (over attempts, not distinct words).
     // null when there are no attempts yet, so the UI can hide it.
@@ -780,9 +789,13 @@ export async function getDailyProgress(userId) {
         return rows.length ? Math.round(rows.filter(t => t.correct).length / rows.length * 100) : null;
     };
     const reviewsNewAcc   = accuracy('review',  isToday);
-    const reviewsCurveAcc = accuracy('review',  id => !todayWordIds.has(id));
     const meaningAcc      = accuracy('meaning', isToday);
     const spellingAcc     = accuracy('spelling', isToday);
+    // Mission 5 accuracy spans all three modalities on older words.
+    const curveRows       = tests.filter(t => isOlder(t.word_id)
+        && (t.test_type === 'review' || t.test_type === 'meaning' || t.test_type === 'spelling'));
+    const reviewsCurveAcc = curveRows.length
+        ? Math.round(curveRows.filter(t => t.correct).length / curveRows.length * 100) : null;
 
     // Still-due queues, split new vs curve.
     const due = (dueRes.data || []).filter(r => r.words?.deleted_at == null);
@@ -849,9 +862,14 @@ export async function getMissionHistory(userId, days = 14) {
         const isNew = id => newSet.has(id);
 
         const reviewsNew   = distinct('review',   isNew);
-        const reviewsCurve = distinct('review',   id => !isNew(id));
         const meaning      = distinct('meaning',  isNew);
         const spelling     = distinct('spelling', isNew);
+        // Mission 5 drill: distinct OLDER words correct across all three modalities.
+        const reviewsCurve = new Set(
+            dayTests.filter(t => t.correct && !isNew(t.word_id)
+                && (t.test_type === 'review' || t.test_type === 'meaning' || t.test_type === 'spelling'))
+                .map(t => t.word_id)
+        ).size;
 
         // Mirror buildMissions: 85% of each target counts as complete.
         const practiceNeed = missionThreshold(wordsAdded);

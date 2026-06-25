@@ -6,11 +6,16 @@
 //   2. Review new words  ┐
 //   3. Meaning quiz      ├─ unlocked once mission 1 is complete; no order
 //   4. Spelling quiz     ┘  dependency among themselves
-//   5. Review older words — always unlocked
+//   5. Practice older words — always unlocked
 //
 // Missions 2–4 practice TODAY's new words, so their target scales with the
 // number of words actually added today (a learner who adds 22 words must
 // review/quiz all 22), but they only unlock after mission 1's goal is met.
+//
+// Mission 5 is the older-word mixed drill (pages/curve-drill.js): the SRS-due
+// backlog of earlier words, practiced ~10/10/10 across review/meaning/spelling.
+// Its progress = distinct older words answered correctly today in ANY of those
+// three modalities (getDailyProgress.reviewsCurveDone), capped at 30.
 
 export const MISSION_NEW_WORDS    = 15;
 export const MISSION_REVIEW_CURVE = 30;
@@ -59,11 +64,11 @@ export function buildMissions(daily) {
             locked: !mission1Done, cta: 'Start quiz',
         },
         {
-            key: 'reviewCurve', icon: '🔁', title: 'Review older words',
+            key: 'reviewCurve', icon: '🔁', title: 'Practice older words', subtitleSuffix: '(review + quiz)',
             current: daily.reviewsCurveDone,
             target: curveTarget, accuracy: daily.reviewsCurveAcc,
             done: daily.curveDue === 0 || daily.reviewsCurveDone >= missionThreshold(curveTarget),
-            locked: false, cta: 'Start review', emptyLabel: 'Nothing due yet',
+            locked: false, cta: 'Start drill', emptyLabel: 'Nothing due yet',
         },
     ];
 }

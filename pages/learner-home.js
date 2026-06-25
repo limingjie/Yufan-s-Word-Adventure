@@ -103,7 +103,7 @@ export async function render(container) {
         reviewNew:  () => { sessionStorage.setItem('reviewScope', 'new');     location.hash = '#/learner/review'; },
         meaning:    () => { sessionStorage.setItem('quizMode', 'meaning');    location.hash = '#/learner/quiz'; },
         spelling:   () => { sessionStorage.setItem('quizMode', 'spelling');   location.hash = '#/learner/quiz'; },
-        reviewCurve:() => { sessionStorage.setItem('reviewScope', 'curve');   location.hash = '#/learner/review'; },
+        reviewCurve:() => { location.hash = '#/learner/curve-drill'; },
     };
     container.querySelectorAll('button.mission-card').forEach(card => {
         card.addEventListener('click', () => MISSION_ACTIONS[card.dataset.key]?.());

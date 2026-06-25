@@ -26,6 +26,18 @@ export async function render(container) {
         return;
     }
 
+    runReviewSession(container, words);
+}
+
+/**
+ * Run a flashcard review over `words` (review_schedule rows: { word_id, words }).
+ * Every rating advances SRS (completeReview) and records a 'review' test result.
+ *
+ * opts.onComplete({ score, total, maxCombo }) — when provided, replaces the
+ * built-in result screen + reward connector (used by the older-word mixed drill,
+ * which celebrates once across all of its phases).
+ */
+export function runReviewSession(container, words, opts = {}) {
     let idx      = 0;
     let correct  = 0;
     let shown    = false;
@@ -114,6 +126,9 @@ export async function render(container) {
 
     async function showSummary() {
         const total   = words.length;
+        // The mixed drill owns the result screen + reward connector for all phases.
+        if (opts.onComplete) { opts.onComplete({ score: correct, total, maxCombo }); return; }
+
         const pct     = Math.round((correct / total) * 100);
         const perfect = correct === total && total > 0;
 

@@ -4,7 +4,7 @@ let currentRoute = null;
 
 const LEARNER_ROUTES = new Set([
     '/learner/home', '/learner/add-word', '/learner/words',
-    '/learner/review', '/learner/quiz', '/learner/garden',
+    '/learner/review', '/learner/quiz', '/learner/curve-drill', '/learner/garden',
     '/learner/achievements', '/learner/leaderboard', '/learner/settings',
 ]);
 
@@ -18,6 +18,7 @@ const ROUTES = {
     '/learner/words':        () => import('../pages/word-list.js'),
     '/learner/review':       () => import('../pages/review.js'),
     '/learner/quiz':         () => import('../pages/quiz.js'),
+    '/learner/curve-drill':  () => import('../pages/curve-drill.js'),
     '/learner/garden':       () => import('../pages/garden.js'),
     '/learner/achievements': () => import('../pages/achievements.js'),
     '/learner/leaderboard':  () => import('../pages/leaderboard.js'),
