@@ -34,6 +34,7 @@ whether something not listed here is also a key decision, **ask the user**.
 12. **Word lookup uses Free Dictionary API v1** (IPA/defs/built-in Chinese, `translations=true`) with a **MyMemory fallback** for Chinese, both called directly from the browser (CORS-safe, no backend).
 13. **Earn formulas are fixed.** Sunlight: +1 add / +2 review / +3 correct. Coins: +1 add / +1 answer / +1 correct / +5 badge. Gardener rank thresholds are the ESL-milestone ladder in `growth.js`.
 14. **One consolidated SQL schema; no committed migration files.** `sql/SUPABASE_SETUP.sql` is the single source of truth (all tables, indexes, RLS). To change the schema, write a throwaway `sql/tmp_*.sql` (gitignored), run it in the Supabase SQL Editor, then merge the same DDL into `SUPABASE_SETUP.sql` (idempotent forms) and delete the tmp file. `sql/LEARNERS_INSERT.sql` (seed) and `sql/IMPORT_YUFAN_WORDS.sql` (one-time data) stay separate. See [docs/database.md](docs/database.md).
+15. **Commit message format.** A commit message is a one-line summary, followed by detailed items each starting with `-`. Do **not** append a `Co-Authored-By` trailer (or any other trailer).
 
 ---
 

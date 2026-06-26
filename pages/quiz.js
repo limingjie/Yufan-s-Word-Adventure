@@ -308,6 +308,10 @@ export async function startSpelling(container, allWords, opts = {}) {
         const word  = deck[idx];
         const total = deck.length;
         const pct   = Math.round((idx / total) * 100);
+        // First & last letter hint is meaningless on 1–3 letter words (it would
+        // give away the whole answer), so those words get no hint button.
+        const letterCount = [...word.word].filter(ch => /[a-zA-Z]/.test(ch)).length;
+        const showHint = letterCount >= 4;
 
         container.innerHTML = `
             <div style="max-width:560px;margin:0 auto">
@@ -322,9 +326,9 @@ export async function startSpelling(container, allWords, opts = {}) {
                     ${spellingClueHtml(word)}
                     <div id="letterBoxes" class="letter-boxes">${letterBoxesHtml(word.word)}</div>
                     <div id="feedback" style="min-height:1.5rem;margin-top:0.75rem;text-align:center;font-weight:600"></div>
-                    <div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.5rem;flex-wrap:wrap">
+                    ${showHint ? `<div style="display:flex;gap:0.5rem;justify-content:center;margin-top:0.5rem;flex-wrap:wrap">
                         <button id="hintSpelling" class="coin-btn" type="button">💡 First &amp; last letter <span class="coin-cost">🪙1</span></button>
-                    </div>
+                    </div>` : ''}
                     <button id="submitSpelling" class="btn btn-primary btn-block" style="margin-top:1rem">Check</button>
                 </div>
             </div>`;
@@ -339,18 +343,22 @@ export async function startSpelling(container, allWords, opts = {}) {
         const inputs = [...boxesWrap.querySelectorAll('input.letter-box')];
 
         function focusInput(i) { if (inputs[i]) inputs[i].focus(); }
+        // Locked hint letters (readOnly) are skipped when moving between boxes.
+        function nextEditable(i) { let j = i + 1; while (j < inputs.length && inputs[j].readOnly) { j++; } return j; }
+        function prevEditable(i) { let j = i - 1; while (j >= 0 && inputs[j].readOnly) { j--; } return j; }
 
         inputs.forEach((inp, i) => {
             inp.addEventListener('input', () => {
                 inp.value = inp.value.replace(/[^a-zA-Z]/g, '').slice(-1);
-                if (inp.value) focusInput(i + 1);
+                if (inp.value) focusInput(nextEditable(i));
             });
             inp.addEventListener('keydown', e => {
                 if (e.key === 'Enter') { e.preventDefault(); check(); }
-                else if (e.key === 'Backspace' && !inp.value && i > 0) {
+                else if (e.key === 'Backspace' && !inp.value) {
+                    // Step back to the previous editable box, never clearing a hint letter.
                     e.preventDefault();
-                    inputs[i - 1].value = '';
-                    focusInput(i - 1);
+                    const p = prevEditable(i);
+                    if (p >= 0) { inputs[p].value = ''; focusInput(p); }
                 }
             });
         });
@@ -358,17 +366,16 @@ export async function startSpelling(container, allWords, opts = {}) {
 
         function refreshHint() {
             walletNum.textContent = wallet.balance;
-            hintBtn.disabled = answered || !wallet.canAfford() || hintBtn.dataset.used === '1';
+            if (hintBtn) hintBtn.disabled = answered || !wallet.canAfford() || hintBtn.dataset.used === '1';
         }
 
         // First & last editable letters revealed and locked, for one coin.
-        hintBtn.addEventListener('click', async () => {
+        hintBtn?.addEventListener('click', async () => {
             if (answered || !wallet.canAfford() || hintBtn.dataset.used === '1') return;
             hintBtn.disabled = true;
             const ok = await wallet.spend('hintSpelling');
             if (!ok) { refreshHint(); return; }
-            const targets = inputs.length === 1 ? [inputs[0]] : [inputs[0], inputs[inputs.length - 1]];
-            targets.forEach(inp => {
+            [inputs[0], inputs.at(-1)].forEach(inp => {
                 inp.value = word.word[Number(inp.dataset.pos)];
                 inp.readOnly = true;
                 inp.classList.add('revealed');
