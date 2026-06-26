@@ -1,9 +1,37 @@
-import { getPrioritizedWords, recordTestResult, getUserCoins, buyGardenItem, completeReview } from '../js/db.js';
+import { getPrioritizedWords, recordTestResult, getUserCoins, buyGardenItem, completeReview, getTodayAttemptCounts } from '../js/db.js';
 import { runAfterActivity } from '../js/lib/awards.js';
 import { celebrateEvents, comboPopup } from '../js/lib/celebrate.js';
 
 const FALLBACK_WORDS = ['curious', 'adventure', 'brilliant', 'mysterious', 'eloquent'];
 const QUIZ_SIZE = 15;
+
+// Daily practice cap: a word can be quizzed at most this many times per day in a
+// given modality. Past the cap it drops out of the deck — this throttles the
+// "re-quiz the same words to farm coins" grind without touching the coin math
+// (coins are still earned per attempt; there are simply fewer attempts to make).
+// Older words come through the SRS-due drill (curve-drill.js), which self-limits.
+const DAILY_QUIZ_CAP = 5;
+
+// Words still under the daily cap for `testType` (used only for the launch-from-
+// mission / selector decks; the older-word drill passes its own opts.deck).
+async function uncappedDeck(words, testType) {
+    const counts = await getTodayAttemptCounts(testType);
+    return words.filter(w => (counts.get(w.id) || 0) < DAILY_QUIZ_CAP);
+}
+
+function renderCapReached(container, label) {
+    container.innerHTML = `
+        <div class="empty-state" style="max-width:480px;margin:2rem auto">
+            <span class="empty-icon">🎉</span>
+            <h3>Great practising!</h3>
+            <p>You've done today's ${label} quiz plenty of times. Practise older
+               words for more coins, or come back tomorrow for fresh ones.</p>
+            <div style="display:flex;gap:0.75rem;justify-content:center;margin-top:1.5rem;flex-wrap:wrap">
+                <a href="#/learner/curve-drill" class="btn btn-primary">Practise older words</a>
+                <a href="#/learner/garden"      class="btn btn-secondary">Garden</a>
+            </div>
+        </div>`;
+}
 
 // Quiz deck size: normally 15, but if more than 15 new words were added today the
 // deck grows to cover ALL of today's new words (so the practice missions, whose
@@ -107,7 +135,13 @@ export function makeWallet(startBalance) {
 //   onComplete   called with { score, total, maxCombo } instead of the result screen
 export async function startMeaning(container, allWords, opts = {}) {
     // allWords is pre-ordered today-first then by memory curve — keep that order.
-    const deck = opts.deck || allWords.slice(0, deckSizeFor(allWords));
+    // For mission/selector decks, drop words that already hit today's cap.
+    let deck = opts.deck;
+    if (!deck) {
+        const pool = await uncappedDeck(allWords, 'meaning');
+        if (pool.length === 0) { renderCapReached(container, 'meaning'); return; }
+        deck = pool.slice(0, deckSizeFor(pool));
+    }
     let idx = 0, score = 0, combo = 0, maxCombo = 0;
     const wallet = opts.wallet || makeWallet((await getUserCoins()).balance);
 
@@ -262,7 +296,10 @@ function buildOptions(word, allWords) {
 
 // opts: same shape as startMeaning (deck / wallet / advanceSrs / onComplete).
 export async function startSpelling(container, allWords, opts = {}) {
-    const eligible = (opts.deck || allWords).filter(w => w.chinese_definition || w.english_definition);
+    // For mission/selector decks, drop words that already hit today's cap.
+    const source   = opts.deck ? allWords : await uncappedDeck(allWords, 'spelling');
+    const eligible = (opts.deck || source).filter(w => w.chinese_definition || w.english_definition);
+    if (!opts.deck && eligible.length === 0) { renderCapReached(container, 'spelling'); return; }
     const deck     = opts.deck ? eligible : eligible.slice(0, deckSizeFor(eligible));
     let idx = 0, score = 0, combo = 0, maxCombo = 0;
     const wallet = opts.wallet || makeWallet((await getUserCoins()).balance);

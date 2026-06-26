@@ -47,25 +47,25 @@ export function buildMissions(daily) {
         },
         {
             key: 'reviewNew', icon: '💧', title: "Review today's new words",
-            current: daily.reviewsNewDone, target: practiceTarget, accuracy: daily.reviewsNewAcc,
+            current: daily.reviewsNewDone, target: practiceTarget, accuracy: daily.reviewsNewAcc, attempts: daily.reviewsNewTries,
             done: mission1Done && daily.reviewsNewDone >= missionThreshold(practiceTarget),
             locked: !mission1Done, cta: 'Start review',
         },
         {
             key: 'meaning', icon: '📖', title: 'Meaning quiz', subtitleSuffix: "(today's words)",
-            current: daily.meaningQuizCount, target: practiceTarget, accuracy: daily.meaningAcc,
+            current: daily.meaningQuizCount, target: practiceTarget, accuracy: daily.meaningAcc, attempts: daily.meaningTries,
             done: mission1Done && daily.meaningQuizCount >= missionThreshold(practiceTarget),
             locked: !mission1Done, cta: 'Start quiz',
         },
         {
             key: 'spelling', icon: '✍️', title: 'Spelling quiz', subtitleSuffix: "(today's words)",
-            current: daily.spellingQuizCount, target: practiceTarget, accuracy: daily.spellingAcc,
+            current: daily.spellingQuizCount, target: practiceTarget, accuracy: daily.spellingAcc, attempts: daily.spellingTries,
             done: mission1Done && daily.spellingQuizCount >= missionThreshold(practiceTarget),
             locked: !mission1Done, cta: 'Start quiz',
         },
         {
             key: 'reviewCurve', icon: '🔁', title: 'Practice older words', subtitleSuffix: '(review + quiz)',
-            current: daily.reviewsCurveDone,
+            current: daily.reviewsCurveDone, attempts: daily.reviewsCurveTries,
             target: curveTarget, accuracy: daily.reviewsCurveAcc,
             done: daily.curveDue === 0 || daily.reviewsCurveDone >= missionThreshold(curveTarget),
             locked: false, cta: 'Start drill', emptyLabel: 'Nothing due yet',
@@ -109,9 +109,11 @@ function missionCard(m, i, activeIndex, readOnly) {
     else if (m.target === 0) subtitle = m.emptyLabel || '—';
     else                     subtitle = `${m.current} / ${m.target}`;
 
-    // Today's accuracy for tested missions (null when nothing attempted yet).
+    // Today's accuracy for tested missions (null when nothing attempted yet),
+    // with the attempt volume so effort is visible: "🎯 88% · 25 tries".
     if (!m.locked && m.accuracy != null) {
-        subtitle += ` <span class="mission-acc">🎯 ${m.accuracy}%</span>`;
+        const tries = m.attempts ? ` · ${m.attempts} ${m.attempts === 1 ? 'try' : 'tries'}` : '';
+        subtitle += ` <span class="mission-acc">🎯 ${m.accuracy}%${tries}</span>`;
     }
 
     const reward = m.done ? '✅' : m.locked ? '🔒' : (state === 'active' ? '▶' : '○');

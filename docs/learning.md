@@ -55,7 +55,7 @@ Missions 2–4 only count `test_results` rows for **today's** new words (mission
 
 **Per-mission color (themed).** Each card is tinted by its `data-key` via a `--mc` CSS variable (left accent stripe + icon chip + progress bar): add = blue, reviewNew = teal, meaning = rose, spelling = orange, reviewCurve = green. The `.mission-card[data-key]` attribute selector outranks the state classes so the stripe keeps its color in every state.
 
-**Today's accuracy in the description.** `getDailyProgress` also returns today's accuracy per tested mission (`reviewsNewAcc`, `reviewsCurveAcc`, `meaningAcc`, `spellingAcc` — % correct over *attempts*, scoped the same way as each mission's count, `null` when nothing attempted yet). `buildMissions` carries it as `accuracy` and the mission subtitle appends `🎯 N%` (the `add` mission has none). Shown on both learner home and parent dashboard.
+**Today's accuracy + effort in the description.** `getDailyProgress` also returns today's accuracy per tested mission (`reviewsNewAcc`, `reviewsCurveAcc`, `meaningAcc`, `spellingAcc` — % correct over *attempts*, scoped the same way as each mission's count, `null` when nothing attempted yet) plus the matching attempt totals (`reviewsNewTries`, `meaningTries`, `spellingTries`, `reviewsCurveTries`). `buildMissions` carries these as `accuracy`/`attempts` and the mission subtitle appends `🎯 N% · M tries` (the `add` mission has none). Shown on both learner home and parent dashboard.
 
 ### Mission history (parent dashboard)
 
@@ -70,6 +70,8 @@ Missions 2–4 only count `test_results` rows for **today's** new words (mission
 Every review and quiz session shows a **live accuracy rate** in the in-session header (e.g. `7 correct · 88%`, computed from answers so far), and the completion screen shows the final `X / Y correct (pct%)`.
 
 **Deck size:** a quiz is normally 15 words, but if more than 15 new words were added today the deck grows to cover **all** of today's new words (`deckSizeFor()` = `max(15, newWordsToday)`), so the day's practice missions stay completable. Review scope `'new'` is already uncapped (`getWordsForReviewToday('new')`); the `'curve'`/`'all'` review queues stay capped at 30.
+
+**Daily practice cap (anti-grind):** in the meaning/spelling selector & mission decks, a word that's already been quizzed `DAILY_QUIZ_CAP = 5` times **today in that modality** drops out of the deck (`db.getTodayAttemptCounts(testType)` → filter in `startMeaning`/`startSpelling` when no `opts.deck`). When everything is capped, the quiz shows a "Great practising!" screen pointing to the older-word drill. This throttles the "re-quiz the same words to farm coins" loop **without touching the coin formula** — coins are still earned per attempt (Decision 13 intact); there are simply fewer attempts to make. Flashcard *review* needs no cap: a rating advances SRS and pushes `next_review_date` out, so each word self-limits to ~once/day. The older-word drill passes its own `opts.deck` (SRS-due words, also ~once/day) and is exempt.
 
 ### Meaning Quiz
 - Show the word

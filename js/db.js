@@ -804,7 +804,7 @@ export async function getDailyProgress(userId) {
         const user = await getCurrentUser();
         userId = user?.id;
     }
-    if (!userId) return { wordsAdded: 0, reviewsNewDone: 0, reviewsCurveDone: 0, meaningQuizCount: 0, spellingQuizCount: 0, newDue: 0, curveDue: 0, reviewsNewAcc: null, reviewsCurveAcc: null, meaningAcc: null, spellingAcc: null };
+    if (!userId) return { wordsAdded: 0, reviewsNewDone: 0, reviewsCurveDone: 0, meaningQuizCount: 0, spellingQuizCount: 0, newDue: 0, curveDue: 0, reviewsNewAcc: null, reviewsCurveAcc: null, meaningAcc: null, spellingAcc: null, reviewsNewTries: 0, meaningTries: 0, spellingTries: 0, reviewsCurveTries: 0 };
 
     const now   = new Date();
     const today = localYMD(now);
@@ -869,6 +869,14 @@ export async function getDailyProgress(userId) {
     const reviewsCurveAcc = curveRows.length
         ? Math.round(curveRows.filter(t => t.correct).length / curveRows.length * 100) : null;
 
+    // Total attempts per mission scope (the denominator behind each accuracy %),
+    // surfaced so the mission card can show effort volume ("🎯 88% · 25 tries").
+    const tries = (type, pred = () => true) => tests.filter(t => t.test_type === type && pred(t.word_id)).length;
+    const reviewsNewTries  = tries('review',  isToday);
+    const meaningTries     = tries('meaning', isToday);
+    const spellingTries    = tries('spelling', isToday);
+    const reviewsCurveTries = curveRows.length;
+
     // Still-due queues, split new vs curve.
     const due = (dueRes.data || []).filter(r => r.words?.deleted_at == null);
     const newDue   = due.filter(r => localYMD(new Date(r.words.created_at)) === today).length;
@@ -877,7 +885,32 @@ export async function getDailyProgress(userId) {
     return {
         wordsAdded, reviewsNewDone, reviewsCurveDone, meaningQuizCount, spellingQuizCount, newDue, curveDue,
         reviewsNewAcc, reviewsCurveAcc, meaningAcc, spellingAcc,
+        reviewsNewTries, meaningTries, spellingTries, reviewsCurveTries,
     };
+}
+
+/**
+ * Per-word attempt counts for TODAY in one modality (test_type), as a
+ * Map<word_id, count>. Used to enforce the daily practice cap: a word already
+ * quizzed DAILY_QUIZ_CAP times today in a modality drops out of that quiz's
+ * deck. Coins are unchanged — there are simply fewer attempts to earn from.
+ * See pages/quiz.js.
+ */
+export async function getTodayAttemptCounts(testType) {
+    const user = await getCurrentUser();
+    if (!user) return new Map();
+    const now   = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+    const { data } = await supabase.from('test_results')
+        .select('word_id')
+        .eq('user_id', user.id)
+        .eq('test_type', testType)
+        .gte('tested_at', start)
+        .lt('tested_at', end);
+    const counts = new Map();
+    for (const r of (data || [])) counts.set(r.word_id, (counts.get(r.word_id) || 0) + 1);
+    return counts;
 }
 
 /**
