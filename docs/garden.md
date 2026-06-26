@@ -49,21 +49,44 @@ The **Road / Rail / Car / Train** shop items are dragged onto chosen blocks:
   plants and the sprite-less **pond** are easy to move.
 - **Roads/rails auto-connect**: adjacent track slabs sit flush and grow centre
   markings / rails toward connected neighbours (straight → corner → cross).
-- **Vehicles drive** (Phase 2): a car follows the connected **road** network, a
-  train the **rail** network — `trackNeighbours` gives the graph edges; at a
-  junction the vehicle picks a random direction and never immediately reverses
-  unless it's a dead end. Motion state (`vehicleState`, keyed by item id) **persists
-  across rebuilds** and is **re-routed** by `reconcileVehicle` when track is moved
-  or removed under it; dragging a vehicle restarts it at the new spot. The car
-  engine / train whistle (`vehicleSound` in `audio.js`) plays on a per-vehicle
-  cooldown while moving (respects the 🔊 toggle). Vehicles **freeze in Arrange
-  mode** so they're easy to grab. The stored cell is the vehicle's *home* (driving
-  position is runtime-only — not persisted).
-- **Structures (pond/fountain/cottage)** now have **persisted positions** too:
-  each remembers `col/grid_row` on its `garden_items` row, and a structure with no
-  position gets one auto-assigned (`assignStructureHomes`) and persisted on build.
-  Buying one places it live (`controller.addStructure`) without reloading the page,
-  and it's draggable like anything else. The gnome still roams freely, ignoring blocks.
+- **Vehicles are voxel 3D models** (`buildCar`/`buildTrain`, flat-colour boxes —
+  no external assets) that **drive the connected network**: a car follows **road**
+  cells, a train **rail** cells (`trackNeighbours` = graph edges). They **turn to
+  face travel** and **arc through corners** — each cell is traversed edge→edge
+  (straight = line, corner = quarter-circle arc, dead end = in-and-out); at a
+  junction the exit is random, never an immediate reverse unless there's nowhere
+  else. Motion state (`vehicleState`, by item id) **persists across rebuilds** and
+  is **re-routed** by `reconcileVehicle` when track moves/disappears; dragging a
+  vehicle restarts it. Car engine / train whistle (`vehicleSound`) on a per-vehicle
+  cooldown while moving (🔊 toggle). Vehicles **freeze in Arrange mode**. Stored
+  cell is the *home*; the live driving position is runtime-only.
+- **Traffic rules:** cars **keep right** (a `LANE` lateral offset, so opposing
+  cars pass on separate sides; trains stay centred on their single rail).
+  **Traffic lights** are auto-placed on road junctions with ≥3 arms (`lightCells`,
+  voxel `buildTrafficLight`) and flip on a `PHASE_DUR` timer (N–S green ↔ E–W
+  green); a car holds at the stop line when its approach axis is red. Cars also
+  **queue** behind a same-direction car (per-frame cell occupancy snapshot — no
+  head-on deadlock, since opposing traffic is lane-separated) and **slow through
+  curves**. NOTE: **level crossings aren't possible** in this grid — one surface
+  per block means road and rail cells never share a cell, so they never cross
+  (would need a dedicated combined crossing tile). **Train stations** (stop +
+  dwell) are not built yet.
+- **Structures (pond/fountain/cottage)** have **persisted positions**: each
+  remembers `col/grid_row` on its `garden_items` row, auto-assigned
+  (`assignStructureHomes`) and persisted on build. Buying one places it live
+  (`controller.addStructure`) without reloading, and it's draggable. The cottage
+  is now a **voxel house** (`buildHouse`) and the fountain a **voxel fountain**;
+  the house's windows **glow at night** (`updateNightGlow` swaps `userData.glow`
+  meshes to an emissive material on theme change). Pond stays a flat water tile.
+  The gnome still roams freely, ignoring blocks.
+- **`rotation` is retired for the UI** — auto-connecting tiles and auto-facing
+  vehicles made it do nothing, so the Arrange panel only offers 🗑 Remove (the
+  column stays in the DB, harmless).
+- **Phasing:** voxel models + driving/turning/arcs + the house + traffic rules
+  (lanes, lights, queueing, curve slow-down) are done. **Still to come:** level
+  crossings (needs a combined road+rail crossing tile), train stations, and
+  voxelising the remaining emoji items (plants with mastery growth stages 0–5,
+  gnome, sky critters).
 
 - **Plants** are billboard sprites on blocks — emoji = SRS stage (`masteryEmoji`),
   bigger as mastered. Due plants droop, desaturate, float a 💧. Tapping a due

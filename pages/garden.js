@@ -307,11 +307,8 @@ export async function render(container) {
 
     function showItemPanel(id) {
         if (!id) { panel.style.display = 'none'; return; }
-        panel.innerHTML = `
-            <button id="rotItem" class="btn btn-secondary btn-sm">↻ Rotate</button>
-            <button id="delItem" class="btn btn-danger btn-sm">🗑 Remove</button>`;
+        panel.innerHTML = `<button id="delItem" class="btn btn-danger btn-sm">🗑 Remove</button>`;
         panel.style.display = 'flex';
-        panel.querySelector('#rotItem').addEventListener('click', () => controller?.rotateSelected());
         panel.querySelector('#delItem').addEventListener('click', () => controller?.removeSelected());
     }
 

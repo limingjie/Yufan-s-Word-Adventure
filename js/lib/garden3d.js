@@ -81,6 +81,7 @@ export function createGarden(canvas, opts = {}) {
         sunLight.color.set(isWarm && !isNight ? 0xfff0c0 : 0xffffff);
         sunLight.intensity = isNight ? 0.5 : 0.9;
         updateGnomeSleep();
+        updateNightGlow();
     }
 
     // ── Materials & shared geometry ────────────────────────────────────────────
@@ -100,6 +101,86 @@ export function createGarden(canvas, opts = {}) {
     const solidMats = (mat) => [mat, mat, mat, mat, mat, mat];
     const blockGeo  = new THREE.BoxGeometry(SP, 1, SP);
     const slabGeo   = new THREE.BoxGeometry(SP * 0.96, 0.1, SP * 0.96);
+
+    // ── Voxel models (flat-colour boxes, no external assets) ────────────────────
+    // Shared materials so rebuilds never dispose them (disposeGroup frees only the
+    // per-box geometries). Models face +x and sit with their base on y = 0; the
+    // caller positions the group on the block top. Windows tagged userData.glow
+    // are swapped to a bright material at night (updateNightGlow).
+    const flat = (c, extra) => new THREE.MeshStandardMaterial({ color: c, roughness: 1, flatShading: true, ...extra });
+    const PAL = {
+        carBody: flat(0xe23b3b), carRoof: flat(0xb52d2d), tyre: flat(0x23282f), glass: flat(0x9fd8ff),
+        headlight: flat(0xfff2a8), taillight: flat(0x8a1414),
+        trainBody: flat(0x2f8f4e), trainRoof: flat(0x256b3c), trainTrim: flat(0xf2c84b), stack: flat(0x333a40),
+        wall: flat(0xf3e6c4), roof: flat(0xc0432f), door: flat(0x6b4423), chimney: flat(0x8a5a2b),
+        win: flat(0x9fd8ff), winGlow: flat(0xffd24a, { emissive: 0xffb300, emissiveIntensity: 0.9 }),
+        stone: flat(0xc2c8d0), fwater: flat(0x3aa0f0, { transparent: true, opacity: 0.92 }),
+        pole: flat(0x3a3f45),
+        lampRed:   flat(0xff3b30, { emissive: 0xd42018, emissiveIntensity: 0.95 }),
+        lampGreen: flat(0x35c759, { emissive: 0x1ea64a, emissiveIntensity: 0.95 }),
+    };
+    function vbox(group, w, h, d, x, y, z, mat, glow) {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+        m.position.set(x, y, z);
+        if (glow) m.userData.glow = true;
+        group.add(m);
+        return m;
+    }
+    function buildCar() {
+        const g = new THREE.Group();
+        vbox(g, 0.74, 0.18, 0.42, 0, 0.17, 0, PAL.carBody);          // chassis
+        vbox(g, 0.40, 0.16, 0.40, -0.04, 0.34, 0, PAL.glass);        // cabin glass
+        vbox(g, 0.34, 0.07, 0.36, -0.04, 0.45, 0, PAL.carRoof);      // roof
+        vbox(g, 0.10, 0.05, 0.44, 0.36, 0.18, 0, PAL.headlight);     // front lights (+x)
+        vbox(g, 0.06, 0.05, 0.44, -0.37, 0.18, 0, PAL.taillight);    // rear lights
+        for (const sx of [0.22, -0.22]) for (const sz of [0.23, -0.23]) vbox(g, 0.16, 0.16, 0.10, sx, 0.08, sz, PAL.tyre);
+        return g;
+    }
+    function buildTrain() {
+        const g = new THREE.Group();
+        vbox(g, 0.80, 0.28, 0.44, -0.02, 0.24, 0, PAL.trainBody);    // boiler
+        vbox(g, 0.28, 0.24, 0.42, -0.26, 0.48, 0, PAL.trainBody);    // cab
+        vbox(g, 0.30, 0.06, 0.44, -0.26, 0.62, 0, PAL.trainRoof);    // cab roof
+        vbox(g, 0.06, 0.10, 0.30, -0.12, 0.50, 0, PAL.glass);        // cab window
+        vbox(g, 0.07, 0.22, 0.44, 0.40, 0.22, 0, PAL.trainTrim);     // front buffer (+x)
+        vbox(g, 0.12, 0.18, 0.12, 0.22, 0.50, 0, PAL.stack);         // smokestack
+        for (const sx of [-0.30, -0.08, 0.16, 0.34]) for (const sz of [0.24, -0.24]) vbox(g, 0.13, 0.13, 0.08, sx, 0.07, sz, PAL.tyre);
+        return g;
+    }
+    function buildHouse() {
+        const g = new THREE.Group();
+        vbox(g, 0.72, 0.52, 0.62, 0, 0.26, 0, PAL.wall);             // walls
+        vbox(g, 0.84, 0.12, 0.74, 0, 0.58, 0, PAL.roof);             // stepped roof
+        vbox(g, 0.60, 0.12, 0.52, 0, 0.68, 0, PAL.roof);
+        vbox(g, 0.34, 0.12, 0.30, 0, 0.78, 0, PAL.roof);
+        vbox(g, 0.12, 0.30, 0.12, 0.24, 0.74, -0.10, PAL.chimney);   // chimney
+        vbox(g, 0.18, 0.28, 0.05, 0, 0.16, 0.31, PAL.door);          // door (front +z)
+        vbox(g, 0.16, 0.16, 0.05, 0.22, 0.34, 0.31, PAL.win, true);  // glowing windows
+        vbox(g, 0.16, 0.16, 0.05, -0.22, 0.34, 0.31, PAL.win, true);
+        vbox(g, 0.05, 0.16, 0.16, 0.36, 0.34, 0, PAL.win, true);
+        return g;
+    }
+    function buildFountain() {
+        const g = new THREE.Group();
+        vbox(g, 0.72, 0.14, 0.72, 0, 0.07, 0, PAL.stone);            // base
+        vbox(g, 0.60, 0.07, 0.60, 0, 0.16, 0, PAL.fwater);           // lower pool
+        vbox(g, 0.16, 0.42, 0.16, 0, 0.36, 0, PAL.stone);            // pillar
+        vbox(g, 0.34, 0.08, 0.34, 0, 0.58, 0, PAL.stone);            // upper basin
+        vbox(g, 0.26, 0.05, 0.26, 0, 0.63, 0, PAL.fwater);           // upper water
+        return g;
+    }
+    const buildStructure = (code) => (code === 'cottage' ? buildHouse() : buildFountain());
+    function buildTrafficLight() {
+        const g = new THREE.Group();
+        vbox(g, 0.08, 0.72, 0.08, 0, 0.36, 0, PAL.pole);             // pole
+        vbox(g, 0.16, 0.34, 0.12, 0, 0.78, 0, PAL.pole);             // housing
+        const lampV = vbox(g, 0.13, 0.13, 0.06, 0, 0.86, 0.06, PAL.lampRed);   // controls N–S traffic
+        const lampH = vbox(g, 0.13, 0.13, 0.06, 0, 0.70, 0.06, PAL.lampRed);   // controls E–W traffic
+        return { group: g, lampV, lampH };
+    }
+    function updateNightGlow() {
+        props.traverse(o => { if (o.userData?.glow) o.material = isNight ? PAL.winGlow : PAL.win; });
+    }
 
     // ── The model: authoritative, stored layout ────────────────────────────────
     // placedItems holds every positioned ground item: road/rail (surface),
@@ -254,14 +335,23 @@ export function createGarden(canvas, opts = {}) {
     scene.add(ground); scene.add(props);
     const blockCells = [];             // { mesh, col, row } for raycast → cell
     let plantSprites = [];             // { sprite, baseY, baseScale, phase, wordId, drop? , dropEntry? }
-    let vehicleSprites = [];           // { sprite, id, code, base, phase, face }
+    let vehicleSprites = [];           // { group, id, code, phase } — 3D voxel models
     let plantTops = [];                // creature landing spots
     let cottageSpot = null;
-    // Phase 2: vehicles drive along the connected track network. State persists
-    // across rebuilds (keyed by item id) so editing elsewhere doesn't reset them.
+    let trafficLights = [];            // { lampV, lampH } refreshed each build
+    let lightCells = new Set();        // cellKeys of light-controlled road junctions
+    // Vehicles drive the connected track network. State persists across rebuilds
+    // (keyed by item id) so editing elsewhere doesn't reset them. ein/eout are the
+    // cell-step directions {dc,dr} entering/leaving the current cell; p is 0..1
+    // progress across it; hx/hz is the last heading (for facing while parked).
     let currentCells = new Map();      // latest occupancy map (for neighbour lookups)
-    const vehicleState = new Map();    // id → { c, r, pc, pr, p, sound }
+    const vehicleState = new Map();    // id → { c, r, ein, eout, p, sound, hx, hz }
     const VSPEED = 1.25;               // cells per second
+    const LANE   = 0.16;               // keep-right lateral offset (cars only)
+    const PHASE_DUR = 5;               // seconds each traffic-light phase holds
+    let lightPhase = 0;                // 0 = N–S green, 1 = E–W green
+    const dirKey = (d) => `${d.dc},${d.dr}`;
+    const greenFor = (d) => (d.dr !== 0 ? lightPhase === 0 : lightPhase === 1);
     const vehicleSurface = (code) => SHOP[code]?.vehicle || null;   // 'road' | 'rail'
     function trackNeighbours(c, r, surf) {
         const out = [];
@@ -286,7 +376,11 @@ export function createGarden(canvas, opts = {}) {
                 }
             }
         }
-        vehicleState.set(it.id, { c: anchor.c, r: anchor.r, pc: anchor.c, pr: anchor.r, p: 1, sound: Math.random() * 4 });
+        vehicleState.set(it.id, {
+            c: anchor.c, r: anchor.r,
+            ein: { dc: 0, dr: 0 }, eout: { dc: 0, dr: 0 },   // parked until it finds a neighbour
+            p: 0.5, sound: Math.random() * 4, hx: 1, hz: 0,
+        });
     }
 
     function adjacentTrack(c, r, surface, cells) {
@@ -399,26 +493,39 @@ export function createGarden(canvas, opts = {}) {
             if (!info?.vehicle || it.col == null) continue;
             liveIds.add(it.id);
             reconcileVehicle(it);
-            const s = makeSprite(info.icon, 1.05);
-            s.position.set(worldX(it.col), TOP + 0.55, worldZ(it.row));
-            s.userData = { itemId: it.id };
-            props.add(s);
-            vehicleSprites.push({ sprite: s, id: it.id, code: it.code, base: 1.05, phase: Math.random() * 6, face: 1 });
+            const g = it.code === 'train' ? buildTrain() : buildCar();
+            g.position.set(worldX(it.col), TOP + 0.05, worldZ(it.row));
+            g.userData = { itemId: it.id };
+            props.add(g);
+            vehicleSprites.push({ group: g, id: it.id, code: it.code, phase: Math.random() * 6 });
         }
         for (const id of [...vehicleState.keys()]) if (!liveIds.has(id)) vehicleState.delete(id);
 
-        // Structures (sprites; pond is just the water block). Tappable to move.
+        // Structures as voxel models (pond stays a water block). Tappable to move.
         for (const it of placedItems) {
             if (!isStructure(it.code) || it.col == null || it.code === 'pond') continue;
-            const emoji = it.code === 'cottage' ? '🏡' : '⛲';
-            const scale = it.code === 'cottage' ? 2.4 : 1.35;
-            const sp = makeSprite(emoji, scale);
             const x = worldX(it.col), z = worldZ(it.row);
-            sp.position.set(x, TOP + scale / 2 - 0.05, z);
-            sp.userData = { itemId: it.id };
-            props.add(sp);
-            if (it.code === 'cottage') cottageSpot = new THREE.Vector3(x, TOP + 0.65, z);
+            const g = buildStructure(it.code);
+            g.position.set(x, TOP, z);
+            g.userData = { itemId: it.id };
+            props.add(g);
+            if (it.code === 'cottage') cottageSpot = new THREE.Vector3(x, TOP + 0.6, z);
         }
+
+        // Traffic lights: auto-placed where a road junction has ≥3 road arms.
+        trafficLights = []; lightCells = new Set();
+        for (const [key, cell] of currentCells) {
+            if (cell.surface !== 'road') continue;
+            const [c, r] = key.split(':').map(Number);
+            if (trackNeighbours(c, r, 'road').length < 3) continue;
+            lightCells.add(key);
+            const lt = buildTrafficLight();
+            lt.group.position.set(worldX(c) + 0.4, TOP, worldZ(r) + 0.4);
+            ground.add(lt.group);
+            trafficLights.push(lt);
+        }
+        lightPhase = -1;        // force a lamp refresh next tick
+        updateNightGlow();
     }
 
     // ── Re-grow / water a plant in place (no rebuild → keeps the pop animation) ─
@@ -605,8 +712,11 @@ export function createGarden(canvas, opts = {}) {
         ndc.y = -((clientY - r.top) / r.height) * 2 + 1;
         ray.setFromCamera(ndc, camera);
         const targets = props.children.filter(o => o.userData?.wordId || o.userData?.itemId);
-        const hits = ray.intersectObjects(targets);
-        return hits.length ? hits[0].object.userData : null;
+        const hits = ray.intersectObjects(targets, true);   // recurse into voxel groups
+        if (!hits.length) return null;
+        let o = hits[0].object;                              // walk up to the tagged group
+        while (o && !(o.userData?.wordId || o.userData?.itemId)) o = o.parent;
+        return o?.userData || null;
     }
     // What sits on a block — used as a reliable fallback when the small sprite
     // raycast misses. Skips vehicles (they roam away from their home cell).
@@ -683,13 +793,6 @@ export function createGarden(canvas, opts = {}) {
     function setArrangeMode(on) {
         arrange = !!on;
         if (!arrange) { endDrag(false); selectedId = null; cb.selectItem(null); }
-    }
-    function rotateSelected() {
-        const it = placedItems.find(p => p.id === selectedId);
-        if (!it) return;
-        it.rotation = ((it.rotation || 0) + 90) % 360;
-        cb.itemMoved(it.id, it.col, it.row, it.rotation);
-        buildLayout();
     }
     function removeSelected() {
         const id = selectedId;
@@ -859,39 +962,99 @@ export function createGarden(canvas, opts = {}) {
             if (!isNight && (g.timer <= 0 || arrived)) pickGnomeTarget(g);
         }
 
-        // Vehicles drive along the connected network (frozen while arranging so
-        // the learner can grab them). At a junction they pick a random direction
-        // and never immediately reverse unless it's a dead end.
+        // Traffic-light phase (auto-timed); refresh lamp colours when it flips.
+        const phase = Math.floor(t / PHASE_DUR) % 2;
+        if (phase !== lightPhase) {
+            lightPhase = phase;
+            for (const lt of trafficLights) {
+                lt.lampV.material = lightPhase === 0 ? PAL.lampGreen : PAL.lampRed;   // N–S
+                lt.lampH.material = lightPhase === 1 ? PAL.lampGreen : PAL.lampRed;   // E–W
+            }
+        }
+        // Snapshot the cell each vehicle holds + its direction (for queueing).
+        const occ = new Map();
+        for (const v of vehicleSprites) { const s = vehicleState.get(v.id); if (s) occ.set(cellKey(s.c, s.r), dirKey(s.eout)); }
+
+        // Vehicles drive the connected network: turn to face travel, arc through
+        // corners, slow for curves, keep right (cars), stop at red lights and queue
+        // behind a same-direction vehicle (frozen while arranging). Each cell is
+        // traversed edge→edge (straight=line, corner=arc, dead end=in-and-out); at a
+        // junction the exit is random, never an immediate reverse unless it's a dead end.
         if (!arrange) for (const v of vehicleSprites) {
             const st = vehicleState.get(v.id);
             if (!st) continue;
             const surf = vehicleSurface(v.code);
-            const moving = st.c !== st.pc || st.r !== st.pr;
-            if (moving) {
-                st.p += dt * VSPEED;
-                if (st.p >= 1) {
-                    const fromC = st.pc, fromR = st.pr;
-                    st.pc = st.c; st.pr = st.r;
-                    const nb = trackNeighbours(st.c, st.r, surf);
-                    const fwd = nb.filter(n => n.c !== fromC || n.r !== fromR);
-                    const next = fwd.length ? fwd[Math.floor(Math.random() * fwd.length)]
-                              : (nb[0] || { c: st.c, r: st.r });
-                    st.c = next.c; st.r = next.r;
-                    st.p = 0;
+            const stopped = st.eout.dc === 0 && st.eout.dr === 0;
+            if (stopped) {
+                const nb = trackNeighbours(st.c, st.r, surf);
+                if (nb.length) {
+                    const n = nb[Math.floor(Math.random() * nb.length)];
+                    st.ein = { dc: n.c - st.c, dr: n.r - st.r };
+                    st.eout = { ...st.ein };
+                    st.p = 0.5;                       // start at the cell centre, drive out
                 }
             } else {
-                const nb = trackNeighbours(st.c, st.r, surf);
-                if (nb.length) { const n = nb[Math.floor(Math.random() * nb.length)]; st.pc = st.c; st.pr = st.r; st.c = n.c; st.r = n.r; st.p = 0; }
+                const arcing = !(st.ein.dc === st.eout.dc && st.ein.dr === st.eout.dr)
+                            && !(st.ein.dc === -st.eout.dc && st.ein.dr === -st.eout.dr);
+                st.p += dt * VSPEED * (arcing ? 0.6 : 1);                       // ease off for curves
+                if (st.p >= 1) {
+                    const nc = st.c + st.eout.dc, nr = st.r + st.eout.dr;
+                    const nk = cellKey(nc, nr);
+                    const redLight = surf === 'road' && lightCells.has(nk) && !greenFor(st.eout);
+                    const queued   = occ.get(nk) === dirKey(st.eout);          // a car ahead, same way
+                    if (redLight || queued) {
+                        st.p = 1;                                               // hold at the stop line
+                    } else {
+                        const ein = { ...st.eout };
+                        const nb = trackNeighbours(nc, nr, surf);
+                        const fwd = nb.filter(n => !(n.c === nc - ein.dc && n.r === nr - ein.dr));
+                        let eout;
+                        if (fwd.length) { const n = fwd[Math.floor(Math.random() * fwd.length)]; eout = { dc: n.c - nc, dr: n.r - nr }; }
+                        else if (nb.length) eout = { dc: -ein.dc, dr: -ein.dr };   // dead end → turn back
+                        else eout = { dc: 0, dr: 0 };                              // track vanished → stop
+                        st.c = nc; st.r = nr; st.ein = ein; st.eout = eout; st.p = Math.max(0, st.p - 1);
+                        occ.set(nk, dirKey(eout));                              // claim the cell this frame
+                    }
+                }
             }
-            const x = worldX(st.pc) + (worldX(st.c) - worldX(st.pc)) * st.p;
-            const z = worldZ(st.pr) + (worldZ(st.r) - worldZ(st.pr)) * st.p;
-            v.sprite.position.set(x, TOP + 0.55 + Math.sin(t * 6 + v.phase) * 0.03, z);
-            if (st.c !== st.pc) v.face = st.c > st.pc ? -1 : 1;     // emoji faces left; flip when driving right
-            v.sprite.scale.set(v.base * v.face, v.base, 1);
+
+            // Position + heading for the current cell traversal.
+            const cx = worldX(st.c), cz = worldZ(st.r);
+            const inb = st.ein, out = st.eout;
+            let px = cx, pz = cz, hx = st.hx ?? 1, hz = st.hz ?? 0;
+            if (out.dc === 0 && out.dr === 0) {
+                // parked — hold position and last heading
+            } else if (inb.dc === out.dc && inb.dr === out.dr) {       // straight
+                const ex = cx - inb.dc * 0.5, ez = cz - inb.dr * 0.5;
+                px = ex + out.dc * st.p; pz = ez + out.dr * st.p;
+                hx = out.dc; hz = out.dr;
+            } else if (inb.dc === -out.dc && inb.dr === -out.dr) {     // dead-end U-turn
+                const ex = cx - inb.dc * 0.5, ez = cz - inb.dr * 0.5;
+                const k = 1 - Math.abs(2 * st.p - 1);
+                px = ex + (cx - ex) * k; pz = ez + (cz - ez) * k;
+                hx = st.p < 0.5 ? inb.dc : out.dc; hz = st.p < 0.5 ? inb.dr : out.dr;
+            } else {                                                   // quarter-circle arc
+                const ex = cx - inb.dc * 0.5, ez = cz - inb.dr * 0.5;
+                const fx = cx + out.dc * 0.5, fz = cz + out.dr * 0.5;
+                const pvx = cx - inb.dc * 0.5 + out.dc * 0.5, pvz = cz - inb.dr * 0.5 + out.dr * 0.5;
+                const a0 = Math.atan2(ez - pvz, ex - pvx);
+                const a1 = Math.atan2(fz - pvz, fx - pvx);
+                let da = a1 - a0;
+                if (da > Math.PI) da -= 2 * Math.PI;
+                if (da < -Math.PI) da += 2 * Math.PI;
+                const a = a0 + da * st.p, sgn = Math.sign(da) || 1;
+                px = pvx + 0.5 * Math.cos(a); pz = pvz + 0.5 * Math.sin(a);
+                hx = -Math.sin(a) * sgn; hz = Math.cos(a) * sgn;
+            }
+            st.hx = hx; st.hz = hz;
+            if (surf === 'road') { px += -hz * LANE; pz += hx * LANE; }   // cars keep right
+            v.group.position.set(px, TOP + 0.05, pz);
+            v.group.rotation.y = Math.atan2(-hz, hx);
+
             st.sound -= dt;
             if (st.sound <= 0) {
                 st.sound = 5 + Math.random() * 6;
-                if ((st.c !== st.pc || st.r !== st.pr) && Math.random() < 0.5) vehicleSound(v.code === 'train' ? 'train' : 'car');
+                if (!stopped && Math.random() < 0.5) vehicleSound(v.code === 'train' ? 'train' : 'car');
             }
         }
 
@@ -939,6 +1102,6 @@ export function createGarden(canvas, opts = {}) {
 
     return {
         dispose, addDecoration, waterPlant, growPlant, setTheme,
-        setArrangeMode, beginPlaceFromTray, rotateSelected, removeSelected, addStructure,
+        setArrangeMode, beginPlaceFromTray, removeSelected, addStructure,
     };
 }
