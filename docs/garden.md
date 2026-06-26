@@ -27,17 +27,18 @@ groups on every edit (gardens are small; full rebuild is cheap).
 ## Two layers per block (surface + occupant)
 
 Each block has a **surface** (`grass` default · `road` · `rail` · `crossing` ·
-`water`(pond) · `stone`(fountain)) and at most one **occupant** (`plant` ·
-vehicle(`car`/`train`) · `structure`). A **car needs a road** under it, a **train
+`fence` · `water`(pond) · `stone`(fountain)) and at most one **occupant** (`plant` ·
+vehicle(`car`/`train`) · `structure` · `animal`). A **car needs a road** under it, a **train
 needs a rail**; a plant only grows on grass — so a plant must be **moved before**
-its block can become track. `computeCells(skipRef)` derives the occupancy map for
-validation/render. **One surface per block still holds** — a road and a rail never
-share a cell; the **`crossing` tile** is its own surface that *both* networks treat
-as drivable (cars: road+crossing; trains: rail+crossing — see `carries()`).
+its block can become track/fence. `computeCells(skipRef)` derives the occupancy
+map for validation/render. **One surface per block still holds** — road, rail and
+fence never share a cell; the **`crossing` tile** is its own surface that *both*
+networks treat as drivable (cars: road+crossing; trains: rail+crossing — see
+`carries()`).
 
 ## Placeable playset — Arrange mode
 
-The **Road / Rail / Level-Crossing / Station / Car / Train** shop items are dragged
+The **Road / Rail / Level-Crossing / Fence / Station / Car / Train** shop items are dragged
 onto chosen blocks:
 - **🛒 Shop → buy** a placeable → it lands in the **tray** (now a **top sheet**,
   sized to its content so it can't be clipped by iOS/iPadOS browser chrome) instead
@@ -53,8 +54,10 @@ onto chosen blocks:
   sprite directly was unreliable (a near-miss orbited the camera instead of
   grabbing); the whole 1×1 block under the finger is a big, dependable target, so
   plants and the sprite-less **pond** are easy to move.
-- **Roads/rails auto-connect**: adjacent track slabs sit flush and grow centre
-  markings / rails toward connected neighbours (straight → corner → cross).
+- **Roads/rails/fences auto-connect**: adjacent track/fence slabs sit flush and grow
+  centre markings, rails or fence rails/posts toward connected neighbours
+  (straight → corner → cross). A fence costs **1 coin**, is a normal surface tile,
+  and blocks ground-animal movement.
 - **Vehicles are voxel 3D models** (`buildCar`/`buildTrain`, flat-colour boxes —
   no external assets) that **drive the connected network**: a car follows
   **road+crossing** cells, a train **rail+crossing** cells (`carries()` predicate;
@@ -118,10 +121,15 @@ onto chosen blocks:
   themes/boosters/gnome are one-off). Each purchase adds one instance live and
   persists (`getGardenItems`): structures via `addStructure`, placeables to the
   tray, animals/critters/gnome via `addDecoration`. Boosters are cosmetic only.
-- **Ground animals** (cat/dog/rabbit/chicken/pig/cow — `buildAnimal`) are voxel
-  models that roam the land freely like the gnome, generalised into a `walkers`
-  list (`addWalker`/`pickWalkerTarget`); only the gnome sleeps at the cottage at
-  night.
+- **Ground animals** (cat/dog/rabbit/chicken/pig/cow/deer/bear — `buildAnimal`) are
+  voxel models with **persisted home cells** in `garden_items`. Existing animal
+  purchases with no position are auto-assigned a free grass home and saved; new
+  animals are auto-placed live when bought. In Arrange mode, animals can be
+  selected/moved/removed like other positioned items. Their live walking position
+  is runtime-only: `pickWalkerTarget` flood-fills the connected non-fence region
+  containing the home cell, and the per-frame walker guard rejects entering fence
+  cells or leaving that region. The gnome still roams freely and sleeps at the
+  cottage at night.
 - **Critters** (butterflies/bees/bird — voxel `buildCritter`, wings flap via
   `userData.wing`) wander slowly with random behaviour —
   free flight, landing on a plant, or grouping up — show speech bubbles, and make

@@ -91,14 +91,15 @@ UNIQUE (user_id, achievement_code)   -- prevent duplicate awards
 id         uuid PRIMARY KEY DEFAULT gen_random_uuid()
 user_id    uuid REFERENCES profiles(id) ON DELETE CASCADE
 item_code  text NOT NULL            -- maps to coins.js SHOP
-col        int                      -- placeable items only: chosen block…
-grid_row   int                      -- …NULL = still in the tray (unplaced)
-rotation   int  DEFAULT 0           -- 0/90/180/270 (vehicle facing; Phase-2 travel)
+col        int                      -- chosen block for placeables/structures/animals…
+grid_row   int                      -- …NULL = tray/unplaced, or needs auto-home
+rotation   int  DEFAULT 0           -- retained for compatibility; UI auto-faces most items
 created_at timestamptz DEFAULT now()
 ```
 Items **stack** (one row per purchase). Coin balance is derived as
 `earned − Σ(item costs)` (`getUserCoins`), so deleting a row refunds it; never add
-a stored balance. Placeable items (road/rail/car/train) carry their position here.
+a stored balance. Placeable playset items (road/rail/crossing/fence/station/car/train),
+structures and ground-animal homes carry their position here.
 
 ### `garden_plants` (stored plant positions)
 ```sql

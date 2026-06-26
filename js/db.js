@@ -675,7 +675,7 @@ export async function setPlantPositions(rows) {
     const user = await getCurrentUser();
     if (!user || !rows?.length) return;
     const payload = rows.map((r) => ({
-        user_id: user.id, word_id: r.wordId, col: r.col, grid_row: r.gridRow,
+        user_id: user.id, word_id: r.wordId, col: r.col, grid_row: r.gridRow ?? r.row,
     }));
     const { error } = await supabase
         .from("garden_plants")

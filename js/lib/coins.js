@@ -20,10 +20,11 @@ export function computeCoins({ wordsAdded = 0, testsTaken = 0, testsCorrect = 0,
 // layer: where a decoration renders in the 3D scene ('sky' | 'ground' | 'theme').
 // type:  'decoration' (a 3D prop) or 'booster' (cosmetic-only — NO SRS/level effect).
 // cat:   shop-grid grouping ('decor' | 'animals' | 'playset' | 'structures' | 'themes').
-// walk:  true → a ground animal that roams freely on the land (voxel model, stacks).
+// walk:  true → a ground animal walker (voxel model, stacks).
+// animal:true → a ground animal with a persisted home cell; fences constrain roam.
 // placeable: true → the learner drags it from the tray onto a specific block and
 //   it remembers its position (col/grid_row/rotation in garden_items). Surface
-//   tiles (road/rail/crossing) sit on a grass block; vehicles (car/train) ride a track.
+//   tiles (road/rail/crossing/fence) sit on a grass block; vehicles (car/train) ride a track.
 export const SHOP = {
     // --- Decorations (sky critters) ---
     butterflies: { name: 'Butterflies', icon: '🦋', cost: 15,  layer: 'sky',    type: 'decoration', cat: 'decor' },
@@ -32,18 +33,22 @@ export const SHOP = {
     gnome:       { name: 'Garden Gnome', icon: '🧙', cost: 70, layer: 'ground', type: 'decoration', cat: 'decor', oneOff: true },
 
     // --- Ground animals (voxel models that walk freely on the land; stack) ---
-    cat:         { name: 'Cat',     icon: '🐱', cost: 25, layer: 'ground', type: 'decoration', cat: 'animals', walk: true,
+    cat:         { name: 'Cat',     icon: '🐱', cost: 25, layer: 'ground', type: 'decoration', cat: 'animals', walk: true, animal: true,
                    desc: 'Wanders the grass' },
-    dog:         { name: 'Dog',     icon: '🐶', cost: 30, layer: 'ground', type: 'decoration', cat: 'animals', walk: true,
+    dog:         { name: 'Dog',     icon: '🐶', cost: 30, layer: 'ground', type: 'decoration', cat: 'animals', walk: true, animal: true,
                    desc: 'Roams and barks now and then' },
-    rabbit:      { name: 'Rabbit',  icon: '🐰', cost: 20, layer: 'ground', type: 'decoration', cat: 'animals', walk: true,
+    rabbit:      { name: 'Rabbit',  icon: '🐰', cost: 20, layer: 'ground', type: 'decoration', cat: 'animals', walk: true, animal: true,
                    desc: 'Hops around the field' },
-    chicken:     { name: 'Chicken', icon: '🐔', cost: 20, layer: 'ground', type: 'decoration', cat: 'animals', walk: true,
+    chicken:     { name: 'Chicken', icon: '🐔', cost: 20, layer: 'ground', type: 'decoration', cat: 'animals', walk: true, animal: true,
                    desc: 'Pecks around the grass' },
-    pig:         { name: 'Pig',     icon: '🐷', cost: 35, layer: 'ground', type: 'decoration', cat: 'animals', walk: true,
+    pig:         { name: 'Pig',     icon: '🐷', cost: 35, layer: 'ground', type: 'decoration', cat: 'animals', walk: true, animal: true,
                    desc: 'Snuffles across the land' },
-    cow:         { name: 'Cow',     icon: '🐄', cost: 45, layer: 'ground', type: 'decoration', cat: 'animals', walk: true,
+    cow:         { name: 'Cow',     icon: '🐄', cost: 45, layer: 'ground', type: 'decoration', cat: 'animals', walk: true, animal: true,
                    desc: 'Grazes slowly on the grass' },
+    deer:        { name: 'Deer',    icon: '🦌', cost: 50, layer: 'ground', type: 'decoration', cat: 'animals', walk: true, animal: true,
+                   desc: 'Steps lightly in fenced meadows' },
+    bear:        { name: 'Bear',    icon: '🐻', cost: 65, layer: 'ground', type: 'decoration', cat: 'animals', walk: true, animal: true,
+                   desc: 'Lumbers through its enclosure' },
 
     // --- Structures (voxel models with persisted positions; buy as many as you like) ---
     pond:        { name: 'Pond',        icon: '🟦', cost: 50,  layer: 'ground', type: 'decoration', cat: 'structures' },
@@ -58,6 +63,8 @@ export const SHOP = {
                    desc: 'A track tile — rails auto-connect' },
     crossing:    { name: 'Level Crossing', icon: '🚸', cost: 8, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, surface: 'crossing',
                    desc: 'Road + rail cross here — cars and trains share it' },
+    fence:       { name: 'Fence', icon: '🪵', cost: 1, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, surface: 'fence',
+                   desc: 'Fence tile — fences auto-connect' },
     station:     { name: 'Train Station', icon: '🚉', cost: 90, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, station: true,
                    desc: 'Place beside a rail — trains stop here' },
     car:         { name: 'Car',   icon: '🚗', cost: 40, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, vehicle: 'road',

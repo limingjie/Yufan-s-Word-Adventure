@@ -12,8 +12,8 @@
 // things around); dropping near an edge auto-grows the field next rebuild.
 //
 // Two layers per block:
-//   • surface  — grass (default) | road | rail | water(pond) | stone(fountain)
-//   • occupant — one of: plant | vehicle(car/train) | structure | (none)
+//   • surface  — grass (default) | road | rail | crossing | fence | water(pond) | stone(fountain)
+//   • occupant — one of: plant | vehicle(car/train) | structure | animal | (none)
 // A car needs a road surface under it; a train needs a rail. One occupant per
 // block, so a plant must be moved before its block can become a road/rail.
 //
@@ -22,8 +22,8 @@
 //   opts.dueIds    Set of word ids needing water
 //   opts.plantPos  Map<wordId,{col,row}>  stored plant positions (may be partial)
 //   opts.placed    [{ id, code, col, row, rotation }]  placed items (positions set)
-//   opts.items     [item_code, …]  legacy decorations (sky critters / gnome /
-//                  pond / fountain / cottage) — duplicates allowed, they stack
+//   opts.items     [item_code, …]  free decorations (sky critters / gnome) —
+//                  duplicates allowed, they stack
 //   opts.night / opts.warm  bool theme flags
 //   opts.onPlantClick(wordId)               tap a plant (normal mode → review)
 //   opts.onAssignHomes([{wordId,col,row}])  words that had no stored position
@@ -126,9 +126,11 @@ export function createGarden(canvas, opts = {}) {
         bloom: flat(0xff5fa2), bloomY: flat(0xffd24a), bloomR: flat(0xff4d4d), bloomP: flat(0xb06cff),
         bloomW: flat(0xfff0f5), bloomO: flat(0xff9a3d), berry: flat(0xff5252),
         trunk: flat(0x8a5a2b), gold: flat(0xffcf3f, { emissive: 0xc99a00, emissiveIntensity: 0.5 }),
+        fencePost: flat(0x8a5a2b), fenceRail: flat(0xc89552), fenceCap: flat(0xe5b86b),
         // Animals.
         cat: flat(0xf0a23b), dog: flat(0xb07a45), rabbit: flat(0xeeeeee), chicken: flat(0xfafafa),
         pig: flat(0xf3a6c0), cow: flat(0xf2efe9), cowSpot: flat(0x2a2a2a), beak: flat(0xf2a23b),
+        deer: flat(0xb47a3c), deerChest: flat(0xe8c596), antler: flat(0xdfc48a), bear: flat(0x6b4423),
         comb: flat(0xe23b3b), snout: flat(0xe07a98), hoof: flat(0x3a2f28), dark: flat(0x2a2a2a), pink: flat(0xf6c0cc),
         // Critters.
         bee: flat(0xf2c020), beeDk: flat(0x2a2a2a), wing: flat(0xeaf6ff, { transparent: true, opacity: 0.8 }),
@@ -153,6 +155,9 @@ export function createGarden(canvas, opts = {}) {
         vbox(g, 0.34, 0.07, 0.36, -0.04, 0.45, 0, PAL.carRoof);      // roof
         vbox(g, 0.10, 0.05, 0.44, 0.36, 0.18, 0, PAL.headlight);     // front lights (+x)
         vbox(g, 0.06, 0.05, 0.44, -0.37, 0.18, 0, PAL.taillight);    // rear lights
+        vbox(g, 0.04, 0.12, 0.06, 0.15, 0.31, 0.25, PAL.dark);       // side mirrors
+        vbox(g, 0.04, 0.12, 0.06, 0.15, 0.31, -0.25, PAL.dark);
+        vbox(g, 0.08, 0.04, 0.34, -0.43, 0.12, 0, PAL.tyre);         // rear bumper
         for (const sx of [0.22, -0.22]) for (const sz of [0.23, -0.23]) vbox(g, 0.16, 0.16, 0.10, sx, 0.08, sz, PAL.tyre);
         return g;
     }
@@ -164,6 +169,9 @@ export function createGarden(canvas, opts = {}) {
         vbox(g, 0.06, 0.10, 0.30, -0.12, 0.50, 0, PAL.glass);        // cab window
         vbox(g, 0.07, 0.22, 0.44, 0.40, 0.22, 0, PAL.trainTrim);     // front buffer (+x)
         vbox(g, 0.12, 0.18, 0.12, 0.22, 0.50, 0, PAL.stack);         // smokestack
+        vbox(g, 0.58, 0.06, 0.04, 0.03, 0.37, 0.24, PAL.trainTrim);  // side stripe
+        vbox(g, 0.58, 0.06, 0.04, 0.03, 0.37, -0.24, PAL.trainTrim);
+        vbox(g, 0.18, 0.12, 0.10, 0.45, 0.36, 0, PAL.headlight);     // front lamp
         for (const sx of [-0.30, -0.08, 0.16, 0.34]) for (const sz of [0.24, -0.24]) vbox(g, 0.13, 0.13, 0.08, sx, 0.07, sz, PAL.tyre);
         return g;
     }
@@ -175,6 +183,10 @@ export function createGarden(canvas, opts = {}) {
         vbox(g, 0.34, 0.12, 0.30, 0, 0.78, 0, PAL.roof);
         vbox(g, 0.12, 0.30, 0.12, 0.24, 0.74, -0.10, PAL.chimney);   // chimney
         vbox(g, 0.18, 0.28, 0.05, 0, 0.16, 0.31, PAL.door);          // door (front +z)
+        vbox(g, 0.08, 0.05, 0.06, 0.06, 0.28, 0.35, PAL.signRed);    // doorknob/flowerbox colour
+        vbox(g, 0.36, 0.07, 0.07, 0, 0.20, 0.36, PAL.leaf);          // flowerbox
+        vbox(g, 0.08, 0.08, 0.08, -0.12, 0.26, 0.39, PAL.bloom);
+        vbox(g, 0.08, 0.08, 0.08, 0.13, 0.26, 0.39, PAL.bloomY);
         vbox(g, 0.16, 0.16, 0.05, 0.22, 0.34, 0.31, PAL.win, true);  // glowing windows
         vbox(g, 0.16, 0.16, 0.05, -0.22, 0.34, 0.31, PAL.win, true);
         vbox(g, 0.05, 0.16, 0.16, 0.36, 0.34, 0, PAL.win, true);
@@ -187,6 +199,8 @@ export function createGarden(canvas, opts = {}) {
         vbox(g, 0.16, 0.42, 0.16, 0, 0.36, 0, PAL.stone);            // pillar
         vbox(g, 0.34, 0.08, 0.34, 0, 0.58, 0, PAL.stone);            // upper basin
         vbox(g, 0.26, 0.05, 0.26, 0, 0.63, 0, PAL.fwater);           // upper water
+        vbox(g, 0.04, 0.30, 0.04, 0, 0.84, 0, PAL.fwater);           // voxel water jet
+        for (const [x, z] of [[0.26, 0.26], [-0.26, 0.26], [0.26, -0.26], [-0.26, -0.26]]) vbox(g, 0.10, 0.08, 0.10, x, 0.24, z, PAL.stone);
         return g;
     }
     function buildPond() {
@@ -194,6 +208,7 @@ export function createGarden(canvas, opts = {}) {
         vbox(g, 0.30, 0.04, 0.30, 0.10, 0.02, -0.10, PAL.leaf);      // lily pad
         vbox(g, 0.08, 0.07, 0.08, 0.10, 0.07, -0.10, PAL.bloom);     // bloom
         vbox(g, 0.22, 0.04, 0.22, -0.16, 0.02, 0.14, PAL.leafDk);    // second pad
+        for (const [x, z] of [[0.28, 0.10], [-0.28, -0.08], [0.02, 0.28]]) vbox(g, 0.10, 0.05, 0.08, x, 0.03, z, PAL.stone);
         return g;
     }
     const buildStructure = (code) =>
@@ -208,6 +223,7 @@ export function createGarden(canvas, opts = {}) {
         const lv = Math.max(0, Math.min(5, level | 0));
         if (lv === 0) {                                              // seed mound + first leaf
             vbox(g, 0.5, 0.14, 0.5, 0, 0.07, 0, PAL.soil);
+            for (const [dx, dz] of [[0.16, 0.12], [-0.14, -0.10], [0.02, -0.18]]) vbox(g, 0.08, 0.04, 0.08, dx, 0.16, dz, PAL.trunk);
             vbox(g, 0.08, 0.18, 0.08, 0, 0.21, 0, PAL.sprout);
             dot(g, 0, 0.32, 0, 0.10, PAL.bloomY);                    // bright bud tip
         } else if (lv === 1) {                                       // sprout + two coloured buds
@@ -249,28 +265,50 @@ export function createGarden(canvas, opts = {}) {
     // Ground animals — small voxel models, all facing +x (like vehicles).
     function buildAnimal(kind) {
         const g = new THREE.Group();
-        const C = { cat: PAL.cat, dog: PAL.dog, rabbit: PAL.rabbit, chicken: PAL.chicken, pig: PAL.pig, cow: PAL.cow }[kind] || PAL.cat;
+        const C = { cat: PAL.cat, dog: PAL.dog, rabbit: PAL.rabbit, chicken: PAL.chicken, pig: PAL.pig, cow: PAL.cow, deer: PAL.deer, bear: PAL.bear }[kind] || PAL.cat;
         if (kind === 'chicken') {
             vbox(g, 0.26, 0.26, 0.22, 0, 0.20, 0, C);                // body
             vbox(g, 0.16, 0.18, 0.14, 0.14, 0.36, 0, C);            // head
             vbox(g, 0.08, 0.06, 0.06, 0.25, 0.36, 0, PAL.beak);     // beak
+            vbox(g, 0.04, 0.04, 0.04, 0.22, 0.40, 0.06, PAL.dark);  // eyes
+            vbox(g, 0.04, 0.04, 0.04, 0.22, 0.40, -0.06, PAL.dark);
             vbox(g, 0.06, 0.07, 0.05, 0.12, 0.48, 0, PAL.comb);     // comb
             vbox(g, 0.10, 0.16, 0.03, -0.15, 0.26, 0, PAL.signWhite); // tail
+            vbox(g, 0.20, 0.04, 0.06, -0.02, 0.30, 0, PAL.beak);     // wing stripe
             for (const sz of [0.06, -0.06]) vbox(g, 0.03, 0.10, 0.03, 0.02, 0.04, sz, PAL.beak);
             return g;
         }
-        const bw = kind === 'cow' ? 0.50 : (kind === 'pig' ? 0.46 : 0.40);
-        vbox(g, bw, 0.22, 0.26, 0, 0.24, 0, C);                      // body
-        vbox(g, 0.22, 0.20, 0.22, bw / 2 - 0.01, 0.34, 0, C);        // head
+        const bw = kind === 'bear' ? 0.62 : (kind === 'deer' ? 0.54 : (kind === 'cow' ? 0.50 : (kind === 'pig' ? 0.46 : 0.40)));
+        const bh = kind === 'bear' ? 0.28 : 0.22;
+        vbox(g, bw, bh, 0.26, 0, 0.24, 0, C);                        // body
+        vbox(g, bw * 0.78, 0.04, 0.30, -0.02, 0.37, 0, kind === 'deer' ? PAL.deerChest : C); // back/detail stripe
+        vbox(g, kind === 'bear' ? 0.26 : 0.22, kind === 'bear' ? 0.22 : 0.20, 0.22, bw / 2 - 0.01, 0.34 + (bh - 0.22), 0, C);        // head
         if (kind === 'rabbit') for (const sz of [0.06, -0.06]) vbox(g, 0.05, 0.20, 0.04, bw / 2 - 0.03, 0.54, sz, C);
         else if (kind === 'cat') for (const sz of [0.07, -0.07]) vbox(g, 0.06, 0.08, 0.04, bw / 2 - 0.01, 0.47, sz, C);
         else if (kind === 'dog') for (const sz of [0.10, -0.10]) vbox(g, 0.05, 0.11, 0.04, bw / 2 - 0.03, 0.42, sz, PAL.dark);
         else if (kind === 'cow') { for (const sz of [0.09, -0.09]) vbox(g, 0.05, 0.06, 0.04, bw / 2 - 0.01, 0.47, sz, PAL.cowSpot); vbox(g, 0.09, 0.09, 0.16, bw / 2 + 0.07, 0.31, 0, PAL.pink); }
         else if (kind === 'pig') { vbox(g, 0.06, 0.07, 0.10, bw / 2 + 0.08, 0.31, 0, PAL.snout); for (const sz of [0.07, -0.07]) vbox(g, 0.05, 0.06, 0.04, bw / 2 - 0.03, 0.45, sz, C); }
+        else if (kind === 'deer') {
+            for (const sz of [0.08, -0.08]) {
+                vbox(g, 0.05, 0.10, 0.04, bw / 2 - 0.03, 0.48, sz, C);          // ears
+                vbox(g, 0.04, 0.20, 0.04, bw / 2 + 0.02, 0.60, sz, PAL.antler); // antlers
+                vbox(g, 0.12, 0.04, 0.04, bw / 2 + 0.05, 0.70, sz, PAL.antler);
+            }
+            vbox(g, 0.08, 0.07, 0.12, bw / 2 + 0.08, 0.32, 0, PAL.dark);
+            for (const sx of [-0.15, 0.05]) for (const sz of [0.11, -0.11]) vbox(g, 0.07, 0.04, 0.05, sx, 0.42, sz, PAL.deerChest); // spots
+        } else if (kind === 'bear') {
+            for (const sz of [0.08, -0.08]) vbox(g, 0.08, 0.08, 0.05, bw / 2 - 0.03, 0.48, sz, C);
+            vbox(g, 0.10, 0.08, 0.12, bw / 2 + 0.10, 0.31, 0, PAL.snout);
+            vbox(g, 0.30, 0.04, 0.16, -0.02, 0.41, 0, PAL.dark);     // shoulder stripe
+        }
+        vbox(g, 0.04, 0.04, 0.04, bw / 2 + 0.09, 0.39, 0.07, PAL.dark);
+        vbox(g, 0.04, 0.04, 0.04, bw / 2 + 0.09, 0.39, -0.07, PAL.dark);
         if (kind === 'cat' || kind === 'dog') vbox(g, 0.07, 0.06, 0.08, bw / 2 + 0.09, 0.30, 0, PAL.dark);   // snout
         for (const sx of [bw / 2 - 0.06, -(bw / 2 - 0.06)]) for (const sz of [0.08, -0.08])
             vbox(g, 0.07, 0.14, 0.07, sx, 0.07, sz, kind === 'cow' ? PAL.hoof : C);                          // legs
         if (kind === 'pig') vbox(g, 0.05, 0.05, 0.05, -bw / 2 - 0.02, 0.31, 0, PAL.pink);                    // curly tail
+        else if (kind === 'deer') vbox(g, 0.05, 0.05, 0.18, -bw / 2 - 0.04, 0.34, 0, PAL.deerChest);
+        else if (kind === 'bear') vbox(g, 0.08, 0.07, 0.12, -bw / 2 - 0.03, 0.30, 0, C);
         else vbox(g, 0.05, 0.05, 0.16, -bw / 2 - 0.04, 0.31, 0, kind === 'cow' ? PAL.cowSpot : C);           // tail
         if (kind === 'cow') { vbox(g, 0.13, 0.02, 0.13, -0.06, 0.35, 0.05, PAL.cowSpot); vbox(g, 0.10, 0.02, 0.10, 0.10, 0.35, -0.07, PAL.cowSpot); }
         return g;
@@ -318,6 +356,11 @@ export function createGarden(canvas, opts = {}) {
         for (const sx of [-0.36, 0, 0.36]) vbox(g, 0.06, 0.34, 0.06, sx, 0.27, -0.14, PAL.stnPost);  // posts
         vbox(g, 0.98, 0.08, 0.36, 0, 0.46, -0.05, PAL.stnRoof);      // roof
         vbox(g, 0.52, 0.16, 0.04, 0, 0.34, -0.20, PAL.stnBoard);     // name board
+        vbox(g, 0.18, 0.05, 0.05, -0.16, 0.34, -0.23, PAL.signWhite);
+        vbox(g, 0.18, 0.05, 0.05, 0.16, 0.34, -0.23, PAL.signWhite);
+        vbox(g, 0.16, 0.10, 0.06, -0.34, 0.14, 0.18, PAL.stnPost);   // bench
+        vbox(g, 0.16, 0.10, 0.06, 0.34, 0.14, 0.18, PAL.stnPost);
+        vbox(g, 0.78, 0.06, 0.08, 0, 0.24, 0.18, PAL.stnPost);
         vbox(g, 0.18, 0.20, 0.04, 0.30, 0.22, 0.23, PAL.win, true);  // glowing window
         return g;
     }
@@ -400,6 +443,7 @@ export function createGarden(canvas, opts = {}) {
     const plantsModel = new Map();    // wordId → { col, row, level, due }
     let   placedItems = (opts.placed || []).map(p => ({ ...p }));   // { id, code, col, row, rotation }
     const isStructure = (code) => STRUCTURE_CODES.includes(code);
+    const isAnimal    = (code) => !!SHOP[code]?.animal;
     const isStation   = (code) => !!SHOP[code]?.station;
     const structureSurface = (code) => (code === 'pond' ? 'water' : (code === 'fountain' ? 'stone' : 'grass'));
 
@@ -426,6 +470,7 @@ export function createGarden(canvas, opts = {}) {
             if (info?.surface) set(it.col, it.row, { surface: info.surface, code: it.code });
             else if (isStructure(it.code)) set(it.col, it.row, { surface: structureSurface(it.code), occupant: 'structure', code: it.code });
             else if (isStation(it.code)) set(it.col, it.row, { occupant: 'structure', code: it.code });
+            else if (isAnimal(it.code)) set(it.col, it.row, { occupant: 'animal', code: it.code, ref: it.id });
         }
         for (const it of placedItems) {
             if (it === skipRef || it.id === skipRef) continue;
@@ -442,7 +487,7 @@ export function createGarden(canvas, opts = {}) {
     }
 
     // Find the free cell nearest a preferred origin (expanding-ring scan).
-    const HARD = ['road', 'rail', 'crossing', 'water', 'stone'];
+    const HARD = ['road', 'rail', 'crossing', 'fence', 'water', 'stone'];
     function nearestFreeCell(prefC, prefR, cells) {
         if (!cells.get(cellKey(prefC, prefR))?.occupant &&
             !HARD.includes(cells.get(cellKey(prefC, prefR))?.surface)) {
@@ -478,6 +523,20 @@ export function createGarden(canvas, opts = {}) {
         }
     }
 
+    // Give bought ground animals a fixed home cell. Their live walking position
+    // is runtime-only; the home cell controls their fenced roaming region.
+    function assignAnimalHomes() {
+        const need = placedItems.filter(it => isAnimal(it.code) && it.col == null);
+        if (!need.length) return;
+        const cells = computeCells();
+        for (const it of need) {
+            const spot = nearestFreeCell(0, 0, cells);
+            it.col = spot.col; it.row = spot.row; it.rotation = it.rotation || 0;
+            cells.set(cellKey(spot.col, spot.row), { occupant: 'animal', code: it.code, ref: it.id });
+            cb.itemMoved(it.id, it.col, it.row, 0);
+        }
+    }
+
     // Assign homes to words with no stored position; persist the new ones.
     function assignPlantHomes() {
         const need = [...plantsModel.entries()].filter(([, p]) => p.col == null);
@@ -494,6 +553,7 @@ export function createGarden(canvas, opts = {}) {
     }
 
     assignStructureHomes();
+    assignAnimalHomes();
     assignPlantHomes();
 
     // ── Field bounds (content bounding box + PAD rings) ─────────────────────────
@@ -623,6 +683,15 @@ export function createGarden(canvas, opts = {}) {
             w: m(cells.get(cellKey(c - 1, r))?.surface),
         };
     }
+    function adjacentFence(c, r, cells) {
+        const m = (s) => s === 'fence';
+        return {
+            n: m(cells.get(cellKey(c, r - 1))?.surface),
+            s: m(cells.get(cellKey(c, r + 1))?.surface),
+            e: m(cells.get(cellKey(c + 1, r))?.surface),
+            w: m(cells.get(cellKey(c - 1, r))?.surface),
+        };
+    }
 
     function addRoadTile(x, z, adj) {
         const slab = new THREE.Mesh(slabGeo, solidMats(roadMat));
@@ -638,6 +707,11 @@ export function createGarden(canvas, opts = {}) {
         if (ew) {
             const m = new THREE.Mesh(new THREE.BoxGeometry(SP * 0.9, 0.04, 0.08), solidMats(lineMat));
             m.position.set(x, markY, z); ground.add(m);
+        }
+        for (const [ox, oz, w, d] of [[0, -0.46, SP * 0.86, 0.04], [0, 0.46, SP * 0.86, 0.04], [-0.46, 0, 0.04, SP * 0.86], [0.46, 0, 0.04, SP * 0.86]]) {
+            const curb = new THREE.Mesh(new THREE.BoxGeometry(w, 0.035, d), solidMats(stoneMat));
+            curb.position.set(x + ox, TOP + 0.13, z + oz);
+            ground.add(curb);
         }
     }
 
@@ -661,9 +735,38 @@ export function createGarden(canvas, opts = {}) {
         };
         if (ns || iso) addPair('z');
         if (ew) addPair('x');
+        for (const [ox, oz] of [[-0.22, -0.22], [0.22, -0.22], [-0.22, 0.22], [0.22, 0.22]]) {
+            const spike = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.035, 0.08), solidMats(railMat));
+            spike.position.set(x + ox, TOP + 0.18, z + oz);
+            ground.add(spike);
+        }
+    }
+
+    function addFenceTile(x, z, adj) {
+        const dirs = [
+            ['n', 0, -0.26, 0.10, 0.10, 0.54],
+            ['s', 0, 0.26, 0.10, 0.10, 0.54],
+            ['e', 0.26, 0, 0.54, 0.10, 0.10],
+            ['w', -0.26, 0, 0.54, 0.10, 0.10],
+        ];
+        const iso = !adj.n && !adj.s && !adj.e && !adj.w;
+        const add = (w, h, d, ox, oy, oz, mat) => {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+            mesh.position.set(x + ox, TOP + oy, z + oz);
+            ground.add(mesh);
+        };
+        add(0.15, 0.62, 0.15, 0, 0.34, 0, PAL.fencePost);
+        add(0.18, 0.07, 0.18, 0, 0.67, 0, PAL.fenceCap);
+        for (const [dir, ox, oz, w, h, d] of dirs) {
+            if (!iso && !adj[dir]) continue;
+            add(w, h, d, ox, 0.34, oz, PAL.fenceRail);
+            add(w, h, d, ox, 0.54, oz, PAL.fenceRail);
+            add(0.12, 0.50, 0.12, ox * 1.8, 0.30, oz * 1.8, PAL.fencePost);
+        }
     }
 
     function buildLayout() {
+        resetAnimalWalkers();
         // dispose old dynamic meshes
         disposeGroup(ground); disposeGroup(props);
         ground = new THREE.Group(); props = new THREE.Group();
@@ -691,6 +794,7 @@ export function createGarden(canvas, opts = {}) {
 
                 if (cell?.surface === 'road') addRoadTile(x, z, adjacentTrack(c, r, 'road', cells));
                 if (cell?.surface === 'rail') addRailTile(x, z, adjacentTrack(c, r, 'rail', cells));
+                if (cell?.surface === 'fence') addFenceTile(x, z, adjacentFence(c, r, cells));
                 if (cell?.surface === 'crossing') {        // level crossing — both networks
                     addRoadTile(x, z, adjacentTrack(c, r, 'road', cells));
                     addRailTile(x, z, adjacentTrack(c, r, 'rail', cells), true);
@@ -749,6 +853,13 @@ export function createGarden(canvas, opts = {}) {
             g.userData = { itemId: it.id };
             props.add(g);
             if (it.code === 'cottage') cottageSpot = new THREE.Vector3(x, TOP + 0.6, z);
+        }
+
+        // Persisted ground animals. They are walkers, but their saved home cell
+        // is selectable/movable and defines the fenced region they may roam.
+        for (const it of placedItems) {
+            if (it.col == null || !isAnimal(it.code)) continue;
+            addWalker(it.code, it);
         }
 
         // Traffic control. At each road cell count road-network arms (road + crossing):
@@ -835,10 +946,12 @@ export function createGarden(canvas, opts = {}) {
     function validPlacement(kind, c, r, skipRef) {
         const cells = computeCells(skipRef);
         const cell = cells.get(cellKey(c, r));
-        if (kind === 'plant' || kind === 'track') {
+        if (kind === 'plant' || kind === 'track' || kind === 'animal') {
             if (cell && (cell.occupant || isHardSurface(cell.surface))) {
                 return { ok: false, reason: cell.occupant === 'plant'
                     ? 'Move the plant on that block first.'
+                    : cell.occupant === 'animal'
+                        ? 'Move the animal on that block first.'
                     : 'That block is taken.' };
             }
             return { ok: true };
@@ -863,6 +976,7 @@ export function createGarden(canvas, opts = {}) {
     }
     function kindOf(code) {
         const info = SHOP[code];
+        if (info?.animal) return 'animal';
         if (info?.station) return 'station';
         if (info?.surface) return 'track';
         if (info?.vehicle === 'road') return 'car';
@@ -872,13 +986,13 @@ export function createGarden(canvas, opts = {}) {
 
     // ── Decorations & creatures (sky critters + the free-roaming gnome) ─────────
     const creatures = [];      // wandering sky critters (voxel models)
-    const walkers = [];        // ground wanderers — gnome + animals (roam, ignore blocks)
+    const walkers = [];        // ground wanderers — gnome free-roams; animals obey fences
     let groupTarget = null;
 
     function addDecoration(code) {
         const info = SHOP[code];
         if (!info || info.layer === 'theme' || info.type === 'hint') return;
-        if (info.placeable || STRUCTURE_CODES.includes(code) || info.station) return;   // placed/structure handled in layout
+        if (info.placeable || STRUCTURE_CODES.includes(code) || info.station || info.animal) return;   // placed/structure/animals handled in layout
         if (code === 'gnome' || info.walk) return addWalker(code);
         if (info.layer === 'sky') {
             const kind = code === 'bees' ? 'bee' : (code === 'bird' ? 'bird' : 'butterfly');
@@ -903,14 +1017,62 @@ export function createGarden(canvas, opts = {}) {
             (Math.random() - 0.5) * Math.max(1, rows - 1) * SP,
         );
     }
+    const colFromWorld = (x) => Math.round(x / SP + centerC);
+    const rowFromWorld = (z) => Math.round(z / SP + centerR);
+    function randomPointInCell(c, r) {
+        return new THREE.Vector3(worldX(c) + (Math.random() - 0.5) * 0.56, TOP, worldZ(r) + (Math.random() - 0.5) * 0.56);
+    }
+
+    function reachableAnimalCells(home) {
+        if (!home) return null;
+        const minC = B.minC - PAD, maxC = B.maxC + PAD, minR = B.minR - PAD, maxR = B.maxR + PAD;
+        const start = cellKey(home.c, home.r);
+        if (currentCells.get(start)?.surface === 'fence') return new Set();
+        const seen = new Set([start]);
+        const q = [{ c: home.c, r: home.r }];
+        for (let i = 0; i < q.length; i++) {
+            const cur = q[i];
+            for (const [dc, dr] of [[0, -1], [0, 1], [1, 0], [-1, 0]]) {
+                const c = cur.c + dc, r = cur.r + dr;
+                if (c < minC || c > maxC || r < minR || r > maxR) continue;
+                const k = cellKey(c, r);
+                if (seen.has(k) || currentCells.get(k)?.surface === 'fence') continue;
+                seen.add(k);
+                q.push({ c, r });
+            }
+        }
+        return seen;
+    }
+
+    function randomAnimalPoint(w) {
+        if (!w.home) return randomFieldPoint();
+        w.region = reachableAnimalCells(w.home);
+        const keys = [...w.region];
+        if (!keys.length) return randomPointInCell(w.home.c, w.home.r);
+        const [c, r] = keys[Math.floor(Math.random() * keys.length)].split(':').map(Number);
+        return randomPointInCell(c, r);
+    }
+
+    function resetAnimalWalkers() {
+        for (let i = walkers.length - 1; i >= 0; i--) {
+            const w = walkers[i];
+            if (!w.isAnimal) continue;
+            if (w.sleepBubble) scene.remove(w.sleepBubble);
+            disposeOne(w.obj);
+            walkers.splice(i, 1);
+        }
+    }
 
     // Ground walkers: the gnome (sleeps at night by the cottage) + roaming animals.
-    function addWalker(code) {
+    function addWalker(code, item = null) {
         const isGnome = code === 'gnome';
+        const home = item ? { c: item.col, r: item.row } : null;
         const obj = isGnome ? buildGnome() : buildAnimal(code);
-        const pos = randomFieldPoint();
+        if (item) obj.userData = { itemId: item.id };
+        const pos = home ? randomPointInCell(home.c, home.r) : randomFieldPoint();
         const w = {
-            obj, kind: code, isGnome, pos, target: pos.clone(), timer: 0, phase: Math.random() * 6,
+            obj, kind: code, isGnome, isAnimal: !!item, id: item?.id || null, home, region: null,
+            pos, target: pos.clone(), timer: 0, phase: Math.random() * 6,
             speed: isGnome ? 0.5 : 0.32 + Math.random() * 0.3, soundCd: 4 + Math.random() * 6,
             sleepBubble: null, hx: 1, hz: 0,
         };
@@ -923,6 +1085,7 @@ export function createGarden(canvas, opts = {}) {
     function pickWalkerTarget(w) {
         if (w.isGnome && isNight) return;
         if (w.isGnome && cottageSpot && Math.random() < 0.28) w.target.copy(cottageSpot);
+        else if (w.isAnimal) w.target.copy(randomAnimalPoint(w));
         else w.target.copy(randomFieldPoint());
         w.timer = 4 + Math.random() * 5;
     }
@@ -1000,7 +1163,10 @@ export function createGarden(canvas, opts = {}) {
         ndc.x = ((clientX - r.left) / r.width) * 2 - 1;
         ndc.y = -((clientY - r.top) / r.height) * 2 + 1;
         ray.setFromCamera(ndc, camera);
-        const targets = props.children.filter(o => o.userData?.wordId || o.userData?.itemId);
+        const targets = [
+            ...props.children.filter(o => o.userData?.wordId || o.userData?.itemId),
+            ...walkers.filter(w => w.isAnimal).map(w => w.obj),
+        ];
         const hits = ray.intersectObjects(targets, true);   // recurse into voxel groups
         if (!hits.length) return null;
         let o = hits[0].object;                              // walk up to the tagged group
@@ -1096,6 +1262,11 @@ export function createGarden(canvas, opts = {}) {
     function addStructure(id, code) {
         placedItems.push({ id, code, col: null, row: null, rotation: 0 });
         assignStructureHomes();
+        buildLayout();
+    }
+    function addAnimal(id, code) {
+        placedItems.push({ id, code, col: null, row: null, rotation: 0 });
+        assignAnimalHomes();
         buildLayout();
     }
 
@@ -1251,8 +1422,21 @@ export function createGarden(canvas, opts = {}) {
         for (const w of walkers) {
             const night = w.isGnome && isNight;
             const step = (night ? 0.3 : w.speed) * dt;
-            w.pos.x += (w.target.x - w.pos.x) * Math.min(1, step);
-            w.pos.z += (w.target.z - w.pos.z) * Math.min(1, step);
+            const k = Math.min(1, step);
+            const nx = w.pos.x + (w.target.x - w.pos.x) * k;
+            const nz = w.pos.z + (w.target.z - w.pos.z) * k;
+            if (w.isAnimal) {
+                if (!w.region) w.region = reachableAnimalCells(w.home);
+                const nk = cellKey(colFromWorld(nx), rowFromWorld(nz));
+                if (currentCells.get(nk)?.surface === 'fence' || !w.region?.has(nk)) {
+                    w.target.copy(randomAnimalPoint(w));
+                    w.timer = 2 + Math.random() * 3;
+                } else {
+                    w.pos.x = nx; w.pos.z = nz;
+                }
+            } else {
+                w.pos.x = nx; w.pos.z = nz;
+            }
             w.pos.y = TOP;
             const dx = w.target.x - w.pos.x, dz = w.target.z - w.pos.z;
             const arrived = Math.hypot(dx, dz) < 0.12;
@@ -1435,6 +1619,6 @@ export function createGarden(canvas, opts = {}) {
 
     return {
         dispose, addDecoration, waterPlant, growPlant, setTheme,
-        setArrangeMode, beginPlaceFromTray, removeSelected, addStructure,
+        setArrangeMode, beginPlaceFromTray, removeSelected, addStructure, addAnimal,
     };
 }

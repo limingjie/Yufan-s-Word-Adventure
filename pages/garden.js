@@ -33,13 +33,14 @@ export async function render(container) {
     let   balance  = coins.balance;
     let   activeTheme = initialTheme(owned);
 
-    // Stored layout: plant positions + positioned ground items. Structures
-    // (pond/fountain/cottage) are positioned too — passed even when col is null
-    // so the garden auto-assigns + persists a home for them.
+    // Stored layout: plant positions + positioned ground items. Structures and
+    // animals are passed even when col is null so the garden auto-assigns +
+    // persists homes for them.
     const STRUCTURES = ['pond', 'fountain', 'cottage'];
-    const isGround   = (code) => isPlaceable(code) || STRUCTURES.includes(code);
+    const isAnimal   = (code) => !!SHOP[code]?.animal;
+    const isGround   = (code) => isPlaceable(code) || STRUCTURES.includes(code) || isAnimal(code);
     const plantPos = new Map(plantRows.map(p => [p.word_id, { col: p.col, row: p.grid_row }]));
-    const placed   = items.filter(i => STRUCTURES.includes(i.item_code) || (isPlaceable(i.item_code) && i.col != null))
+    const placed   = items.filter(i => STRUCTURES.includes(i.item_code) || isAnimal(i.item_code) || (isPlaceable(i.item_code) && i.col != null))
                           .map(i => ({ id: i.id, code: i.item_code, col: i.col ?? null, row: i.grid_row ?? null, rotation: i.rotation || 0 }));
     let   unplaced = items.filter(i => isPlaceable(i.item_code) && i.col == null)
                           .map(i => ({ id: i.id, code: i.item_code }));
@@ -118,7 +119,7 @@ export async function render(container) {
         const canvas = document.getElementById('gardenCanvas');
         controller = createGarden(canvas, {
             words, dueIds, plantPos, placed,
-            items: decorCodes,                        // sky critters / gnome / structures (stack)
+            items: decorCodes,                        // sky critters / gnome (stack)
             night: activeTheme === 'night',
             warm:  activeTheme === 'sunnyday' && owned.has('sunnyday'),
             onPlantClick: (id) => showPlantPopup(wordById.get(id)),
@@ -294,7 +295,7 @@ export async function render(container) {
         tray.innerHTML = `
             <div class="tray-hint">${unplaced.length
                 ? 'Drag onto a block. Tap a placed item to rotate or remove it.'
-                : 'Buy road, rail, car or train in the 🛒 Shop, then drag them here.'}</div>
+                : 'Buy roads, rails, fences, cars or trains in the 🛒 Shop, then drag them here.'}</div>
             <div class="tray-row">${chips}</div>`;
         tray.querySelectorAll('.tray-chip').forEach(chip =>
             chip.addEventListener('pointerdown', (e) => {
@@ -416,6 +417,12 @@ export async function render(container) {
             }
             if (STRUCTURES.includes(code)) {
                 controller?.addStructure(res.id, code);   // auto-placed + persisted live
+                toast(`${SHOP[code].icon} ${SHOP[code].name} added to your garden!`);
+                renderShop();
+                return;
+            }
+            if (isAnimal(code)) {
+                controller?.addAnimal(res.id, code);      // auto-placed + persisted live
                 toast(`${SHOP[code].icon} ${SHOP[code].name} added to your garden!`);
                 renderShop();
                 return;

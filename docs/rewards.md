@@ -52,10 +52,12 @@ earned is derived (`computeCoins`), purchases live in `garden_items`.
 `type: 'decoration'` (a 3D prop) or `'booster'` (**cosmetic-only — never touches
 SRS/mastery**). Spent in the Garden Shop (see [garden.md](garden.md)).
 
-`placeable: true` items (road/rail/car/train) are dragged onto chosen blocks and
-remember their position (`col/grid_row/rotation` on `garden_items`) — see
-[garden.md](garden.md). Removing a placed item deletes its row, which **refunds**
-the coins automatically because the balance is derived (`earned − Σ costs`).
+`placeable: true` items (road/rail/crossing/fence/station/car/train) are dragged
+onto chosen blocks and remember their position (`col/grid_row/rotation` on
+`garden_items`). Ground animals also keep a persisted home cell there so fences
+can constrain their roaming — see [garden.md](garden.md). Removing a placed item
+deletes its row, which **refunds** the coins automatically because the balance is
+derived (`earned − Σ costs`).
 
 ---
 
