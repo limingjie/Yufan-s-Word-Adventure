@@ -11,18 +11,27 @@ function localYMD(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+async function fetchTestCounts(userId) {
+    const [takenRes, correctRes] = await Promise.all([
+        supabase.from('test_results').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+        supabase.from('test_results').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('correct', true),
+    ]);
+    return {
+        testsTaken: takenRes.count || 0,
+        correct: correctRes.count || 0,
+    };
+}
+
 /** Aggregate stats for one learner: xp, words, mastered, accuracy. */
 export async function fetchLearnerStats(userId) {
-    const [wordsRes, testsRes, masteredRes] = await Promise.all([
+    const [wordsRes, testCounts, masteredRes] = await Promise.all([
         supabase.from('words').select('id', { count: 'exact', head: true }).eq('user_id', userId).is('deleted_at', null),
-        supabase.from('test_results').select('correct').eq('user_id', userId),
+        fetchTestCounts(userId),
         supabase.from('review_schedule').select('id', { count: 'exact', head: true }).eq('user_id', userId).gte('review_level', 4),
     ]);
 
     const words      = wordsRes.count || 0;
-    const tests      = testsRes.data || [];
-    const testsTaken = tests.length;
-    const correct    = tests.filter(t => t.correct).length;
+    const { testsTaken, correct } = testCounts;
     const accuracy   = testsTaken > 0 ? Math.round((correct / testsTaken) * 100) : 0;
     const sun        = computeSunlight({ wordsAdded: words, testsTaken, testsCorrect: correct });
     const mastered   = masteredRes.count || 0;

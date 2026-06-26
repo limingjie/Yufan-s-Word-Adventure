@@ -68,15 +68,30 @@ export async function render(container) {
 export function makeWallet(startBalance) {
     let balance = startBalance;
     let spent   = 0;
+    let spending = false;
     return {
         get balance() { return balance; },
         get spent()   { return spent; },
-        canAfford()   { return balance >= 1; },
-        // Optimistically deduct (we pre-check affordability) then persist.
-        spend(code) {
+        get spending() { return spending; },
+        canAfford()   { return !spending && balance >= 1; },
+        // Optimistically deduct, then persist. A failed purchase restores the
+        // local wallet so quiz hints cannot drift away from real coin rows.
+        async spend(code) {
+            if (spending || balance < 1) return false;
+            spending = true;
             balance -= 1;
             spent   += 1;
-            buyGardenItem(code).then(r => { balance = r.balance; }).catch(() => {});
+            try {
+                const r = await buyGardenItem(code);
+                balance = r.balance;
+                return true;
+            } catch {
+                balance += 1;
+                spent   -= 1;
+                return false;
+            } finally {
+                spending = false;
+            }
         },
     };
 }
@@ -146,7 +161,7 @@ export async function startMeaning(container, allWords, opts = {}) {
             btn.innerHTML = `<span>${esc(opt.text)}</span>`
                 + (opt.chinese ? `<span class="opt-chi" style="display:none;font-size:0.85rem;font-weight:600">🇨🇳 ${esc(opt.chinese)}</span>` : '');
             btn.dataset.correct = opt.id === word.id ? '1' : '0';
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 if (answered) return;
                 answered = true;
                 const isCorrect = opt.id === word.id;
@@ -169,8 +184,10 @@ export async function startMeaning(container, allWords, opts = {}) {
                 }
                 refreshHintButtons();
 
-                recordTestResult(word.id, 'meaning', isCorrect);
-                if (opts.advanceSrs) completeReview(word.id, isCorrect);
+                await Promise.all([
+                    recordTestResult(word.id, 'meaning', isCorrect),
+                    opts.advanceSrs ? completeReview(word.id, isCorrect) : Promise.resolve(),
+                ]);
                 setTimeout(() => {
                     idx++;
                     if (idx < deck.length) renderQ();
@@ -183,21 +200,25 @@ export async function startMeaning(container, allWords, opts = {}) {
         });
 
         // 50/50 — fade out 2 wrong options for one coin.
-        hint5050.addEventListener('click', () => {
+        hint5050.addEventListener('click', async () => {
             if (answered || excludeUsed || !wallet.canAfford()) return;
+            hint5050.disabled = true;
+            const ok = await wallet.spend('hint5050');
+            if (!ok) { refreshHintButtons(); return; }
             const wrong = shuffle(optionBtns.filter(b => b.dataset.correct === '0')).slice(0, 2);
             wrong.forEach(b => { b.disabled = true; b.style.opacity = '0.3'; b.style.textDecoration = 'line-through'; });
             excludeUsed = true;
-            wallet.spend('hint5050');
             refreshHintButtons();
         });
 
         // Reveal each option's own Chinese meaning — costs one coin.
-        hintChi?.addEventListener('click', () => {
+        hintChi?.addEventListener('click', async () => {
             if (answered || chiUsed || !wallet.canAfford()) return;
+            hintChi.disabled = true;
+            const ok = await wallet.spend('hintMeaningChi');
+            if (!ok) { refreshHintButtons(); return; }
             grid.querySelectorAll('.opt-chi').forEach(el => { el.style.display = 'block'; });
             chiUsed = true;
-            wallet.spend('hintMeaningChi');
             refreshHintButtons();
         });
 
@@ -304,8 +325,11 @@ export async function startSpelling(container, allWords, opts = {}) {
         }
 
         // First & last editable letters revealed and locked, for one coin.
-        hintBtn.addEventListener('click', () => {
+        hintBtn.addEventListener('click', async () => {
             if (answered || !wallet.canAfford() || hintBtn.dataset.used === '1') return;
+            hintBtn.disabled = true;
+            const ok = await wallet.spend('hintSpelling');
+            if (!ok) { refreshHint(); return; }
             const targets = inputs.length === 1 ? [inputs[0]] : [inputs[0], inputs[inputs.length - 1]];
             targets.forEach(inp => {
                 inp.value = word.word[Number(inp.dataset.pos)];
@@ -313,7 +337,6 @@ export async function startSpelling(container, allWords, opts = {}) {
                 inp.classList.add('revealed');
             });
             hintBtn.dataset.used = '1';
-            wallet.spend('hintSpelling');
             refreshHint();
             focusInput(inputs.findIndex(inp => !inp.readOnly));
         });
@@ -326,7 +349,7 @@ export async function startSpelling(container, allWords, opts = {}) {
             }).join('');
         }
 
-        function check() {
+        async function check() {
             if (answered) return;
             answered = true;
             const isCorrect = buildGuess().trim().toLowerCase() === word.word.toLowerCase();
@@ -347,8 +370,10 @@ export async function startSpelling(container, allWords, opts = {}) {
             inputs.forEach(inp => inp.disabled = true);
             refreshHint();
 
-            recordTestResult(word.id, 'spelling', isCorrect);
-            if (opts.advanceSrs) completeReview(word.id, isCorrect);
+            await Promise.all([
+                recordTestResult(word.id, 'spelling', isCorrect),
+                opts.advanceSrs ? completeReview(word.id, isCorrect) : Promise.resolve(),
+            ]);
             setTimeout(() => {
                 idx++;
                 if (idx < deck.length) renderQ();

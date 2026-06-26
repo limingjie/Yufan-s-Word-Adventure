@@ -95,17 +95,17 @@ export async function render(container) {
 }
 
 async function fetchStats(userId) {
-    const [wordsRes, testsRes, masteredRes, streakRes] = await Promise.all([
+    const [wordsRes, testsTakenRes, testsCorrectRes, masteredRes, streakRes] = await Promise.all([
         supabase.from('words').select('id', { count: 'exact', head: true }).eq('user_id', userId).is('deleted_at', null),
-        supabase.from('test_results').select('correct').eq('user_id', userId),
+        supabase.from('test_results').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+        supabase.from('test_results').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('correct', true),
         supabase.from('review_schedule').select('id', { count: 'exact', head: true }).eq('user_id', userId).gte('review_level', 4),
         fetchStreak(userId),
     ]);
 
     const wordsAdded  = wordsRes.count || 0;
-    const tests       = testsRes.data || [];
-    const testsTaken  = tests.length;
-    const testsCorrect = tests.filter(t => t.correct).length;
+    const testsTaken  = testsTakenRes.count || 0;
+    const testsCorrect = testsCorrectRes.count || 0;
     const sun         = computeSunlight({ wordsAdded, testsTaken, testsCorrect });
     const mastered    = masteredRes.count || 0;
 

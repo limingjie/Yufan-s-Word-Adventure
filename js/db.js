@@ -14,6 +14,19 @@ function localYMD(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+async function getTestCountsForUser(userId) {
+    const [takenRes, correctRes] = await Promise.all([
+        supabase.from("test_results").select("id", { count: "exact", head: true }).eq("user_id", userId),
+        supabase.from("test_results").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("correct", true),
+    ]);
+    if (takenRes.error) throw takenRes.error;
+    if (correctRes.error) throw correctRes.error;
+    return {
+        testsTaken: takenRes.count || 0,
+        testsCorrect: correctRes.count || 0,
+    };
+}
+
 // ============================================================================
 // WORDS
 // ============================================================================
@@ -308,13 +321,9 @@ export async function getUserAccuracy() {
     const user = await getCurrentUser();
     if (!user) throw new Error("Not authenticated");
 
-    const { data, error } = await supabase.from("test_results").select("correct").eq("user_id", user.id);
-
-    if (error) throw error;
-
-    if (!data || data.length === 0) return 0;
-    const correct = data.filter((r) => r.correct).length;
-    return Math.round((correct / data.length) * 100);
+    const { testsTaken, testsCorrect } = await getTestCountsForUser(user.id);
+    if (testsTaken === 0) return 0;
+    return Math.round((testsCorrect / testsTaken) * 100);
 }
 
 // ============================================================================
@@ -542,11 +551,7 @@ export async function calculateUserStats(userId) {
             .select("id", { count: "exact" })
             .eq("user_id", userId);
 
-        // Tests taken
-        const { data: tests } = await supabase.from("test_results").select("correct").eq("user_id", userId);
-
-        const testsCount = tests?.length || 0;
-        const testsCorrect = tests?.filter((t) => t.correct).length || 0;
+        const { testsTaken: testsCount, testsCorrect } = await getTestCountsForUser(userId);
         const accuracy = testsCount > 0 ? Math.round((testsCorrect / testsCount) * 100) : 0;
 
         const totalSun = computeSunlight({ wordsAdded: wordsCount || 0, testsTaken: testsCount, testsCorrect });
@@ -574,15 +579,13 @@ export async function getUserSunlight() {
     const user = await getCurrentUser();
     if (!user) return { sun: 0, wordsAdded: 0, testsTaken: 0, testsCorrect: 0 };
 
-    const [wordsResult, testsResult] = await Promise.all([
+    const [wordsResult, testCounts] = await Promise.all([
         supabase.from("words").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-        supabase.from("test_results").select("correct").eq("user_id", user.id),
+        getTestCountsForUser(user.id),
     ]);
 
     const wordsAdded = wordsResult.count || 0;
-    const tests = testsResult.data || [];
-    const testsTaken = tests.length;
-    const testsCorrect = tests.filter((t) => t.correct).length;
+    const { testsTaken, testsCorrect } = testCounts;
     const sun = computeSunlight({ wordsAdded, testsTaken, testsCorrect });
 
     return { sun, wordsAdded, testsTaken, testsCorrect };
@@ -609,17 +612,15 @@ export async function getUserCoins() {
     const user = await getCurrentUser();
     if (!user) return { earned: 0, spent: 0, balance: 0 };
 
-    const [wordsRes, testsRes, badgeRes, itemsRes] = await Promise.all([
+    const [wordsRes, testCounts, badgeRes, itemsRes] = await Promise.all([
         supabase.from("words").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-        supabase.from("test_results").select("correct").eq("user_id", user.id),
+        getTestCountsForUser(user.id),
         supabase.from("achievements").select("id", { count: "exact", head: true }).eq("user_id", user.id),
         supabase.from("garden_items").select("item_code").eq("user_id", user.id),
     ]);
 
     const wordsAdded   = wordsRes.count || 0;
-    const tests        = testsRes.data || [];
-    const testsTaken   = tests.length;
-    const testsCorrect = tests.filter((t) => t.correct).length;
+    const { testsTaken, testsCorrect } = testCounts;
     const badgeCount   = badgeRes.count || 0;
 
     const earned = computeCoins({ wordsAdded, testsTaken, testsCorrect, badgeCount });
@@ -706,8 +707,16 @@ export async function removeGardenItem(id) {
     if (error) throw error;
 }
 
+let gardenPurchaseQueue = Promise.resolve();
+
 /** Buy a shop item. Re-checks balance before inserting. Returns new balance. */
 export async function buyGardenItem(itemCode) {
+    const purchase = gardenPurchaseQueue.catch(() => {}).then(() => buyGardenItemNow(itemCode));
+    gardenPurchaseQueue = purchase.catch(() => {});
+    return purchase;
+}
+
+async function buyGardenItemNow(itemCode) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Not authenticated");
 
