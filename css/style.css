@@ -1570,6 +1570,7 @@ body.garden-page .app-container {
 
 .garden-canvas {
     flex: 1;
+    order: 1;           /* below the top bar + arrange tray */
     width: 100%;
     display: block;
     touch-action: none;   /* gestures are handled by garden3d controls */
@@ -1579,6 +1580,7 @@ body.garden-page .app-container {
 
 .garden-topbar {
     position: relative;
+    order: -1;          /* stays at the top above the in-flow arrange tray */
     z-index: 5;
     background: rgba(255,255,255,0.82);
     backdrop-filter: blur(6px);
@@ -1735,31 +1737,43 @@ body.garden-page .app-container {
     animation: shopUp 0.25s ease-out;
 }
 @keyframes shopUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-.shop-head { display: flex; align-items: center; gap: 0.6rem; padding-bottom: 0.5rem; position: sticky; top: 0; background: #fff; }
-.shop-grid { display: grid; gap: 0.5rem; }
-.shop-item { display: flex; align-items: center; gap: 0.65rem; padding: 0.5rem; border: 1px solid #eee; border-radius: 12px; }
+.shop-head { display: flex; align-items: center; gap: 0.6rem; padding-bottom: 0.5rem; position: sticky; top: 0; background: #fff; z-index: 1; }
+.shop-section { margin-bottom: 0.4rem; }
+.shop-cat { margin: 0.5rem 0 0.4rem; font-size: 0.82rem; font-weight: 700; color: #4a9e45; }
+/* Card "blocks" — a responsive grid that scales as the catalog grows. */
+.shop-grid { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
+.shop-item {
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    gap: 0.3rem; padding: 0.6rem 0.5rem; border: 1px solid #eee; border-radius: 14px; background: #fff;
+}
 .shop-item.owned { background: #f3faf3; border-color: #cfe8cf; }
-.shop-ic { font-size: 1.6rem; }
-.shop-info { flex: 1; min-width: 0; }
-.shop-name { font-weight: 600; font-size: 0.92rem; }
+.shop-item .btn, .shop-item .shop-owned { margin-top: auto; }
+.shop-ic { font-size: 2rem; line-height: 1; }
+.shop-name { font-weight: 600; font-size: 0.9rem; }
 .shop-tag { font-size: 0.65rem; color: #fff; background: #7aa86b; border-radius: 6px; padding: 1px 5px; vertical-align: middle; }
 .shop-desc { font-size: 0.78rem; color: #777; }
 .shop-owned { color: #2e7d32; font-weight: 600; font-size: 0.82rem; }
 
-/* ── Arrange mode: bottom tray + selected-item panel ─────────────────────── */
+/* ── Arrange mode: top tray (in-flow, can't be clipped by mobile chrome) ──── */
+/* The tray is a normal flex child placed right under the top bar via `order`
+   (topbar order -1, canvas order 1), so on iPhone/iPad it's always visible
+   instead of hidden behind the bottom browser chrome. */
 .garden-tray {
-    position: absolute;
-    left: 0; right: 0; bottom: 0;
+    position: relative;
+    order: 0;
     z-index: 7;
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+    flex: 0 0 auto;          /* size to its content — no inner scrolling */
+    max-height: 60vh;        /* only scrolls in the extreme case */
+    overflow-y: auto;
     background: rgba(255,255,255,0.96);
-    border-radius: 16px 16px 0 0;
-    box-shadow: 0 -8px 30px rgba(0,0,0,0.18);
-    padding: 0.6rem 0.9rem 1rem;
-    animation: shopUp 0.2s ease-out;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+    padding: 0.6rem 0.9rem 0.75rem;
+    animation: trayDown 0.2s ease-out;
 }
+@keyframes trayDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .tray-hint { font-size: 0.8rem; color: #666; }
 .tray-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .tray-chip {
@@ -1775,7 +1789,7 @@ body.garden-page .app-container {
 
 .garden-itempanel {
     position: absolute;
-    left: 50%; bottom: 5.5rem; transform: translateX(-50%);
+    left: 50%; bottom: 1.5rem; transform: translateX(-50%);
     z-index: 8;
     display: flex; gap: 0.5rem;
     background: rgba(255,255,255,0.97);

@@ -19,36 +19,58 @@ export function computeCoins({ wordsAdded = 0, testsTaken = 0, testsCorrect = 0,
 // ============================================================================
 // layer: where a decoration renders in the 3D scene ('sky' | 'ground' | 'theme').
 // type:  'decoration' (a 3D prop) or 'booster' (cosmetic-only — NO SRS/level effect).
+// cat:   shop-grid grouping ('decor' | 'animals' | 'playset' | 'structures' | 'themes').
+// walk:  true → a ground animal that roams freely on the land (voxel model, stacks).
 // placeable: true → the learner drags it from the tray onto a specific block and
 //   it remembers its position (col/grid_row/rotation in garden_items). Surface
-//   tiles (road/rail) sit on a grass block; vehicles (car/train) ride a track.
+//   tiles (road/rail/crossing) sit on a grass block; vehicles (car/train) ride a track.
 export const SHOP = {
-    // --- Decorations ---
-    butterflies: { name: 'Butterflies', icon: '🦋', cost: 15,  layer: 'sky',    type: 'decoration' },
-    bees:        { name: 'Bees',        icon: '🐝', cost: 25,  layer: 'sky',    type: 'decoration' },
-    bird:        { name: 'Bird',        icon: '🕊️', cost: 30,  layer: 'sky',    type: 'decoration' },
-    pond:        { name: 'Pond',        icon: '🟦', cost: 50,  layer: 'ground', type: 'decoration', oneOff: true },
-    gnome:       { name: 'Garden Gnome', icon: '🧙', cost: 70, layer: 'ground', type: 'decoration', oneOff: true },
-    fountain:    { name: 'Fountain',    icon: '⛲', cost: 80,  layer: 'ground', type: 'decoration', oneOff: true },
-    cottage:     { name: 'Cottage',     icon: '🏡', cost: 150, layer: 'ground', type: 'decoration', oneOff: true },
+    // --- Decorations (sky critters) ---
+    butterflies: { name: 'Butterflies', icon: '🦋', cost: 15,  layer: 'sky',    type: 'decoration', cat: 'decor' },
+    bees:        { name: 'Bees',        icon: '🐝', cost: 25,  layer: 'sky',    type: 'decoration', cat: 'decor' },
+    bird:        { name: 'Bird',        icon: '🕊️', cost: 30,  layer: 'sky',    type: 'decoration', cat: 'decor' },
+    gnome:       { name: 'Garden Gnome', icon: '🧙', cost: 70, layer: 'ground', type: 'decoration', cat: 'decor', oneOff: true },
+
+    // --- Ground animals (voxel models that walk freely on the land; stack) ---
+    cat:         { name: 'Cat',     icon: '🐱', cost: 25, layer: 'ground', type: 'decoration', cat: 'animals', walk: true,
+                   desc: 'Wanders the grass' },
+    dog:         { name: 'Dog',     icon: '🐶', cost: 30, layer: 'ground', type: 'decoration', cat: 'animals', walk: true,
+                   desc: 'Roams and barks now and then' },
+    rabbit:      { name: 'Rabbit',  icon: '🐰', cost: 20, layer: 'ground', type: 'decoration', cat: 'animals', walk: true,
+                   desc: 'Hops around the field' },
+    chicken:     { name: 'Chicken', icon: '🐔', cost: 20, layer: 'ground', type: 'decoration', cat: 'animals', walk: true,
+                   desc: 'Pecks around the grass' },
+    pig:         { name: 'Pig',     icon: '🐷', cost: 35, layer: 'ground', type: 'decoration', cat: 'animals', walk: true,
+                   desc: 'Snuffles across the land' },
+    cow:         { name: 'Cow',     icon: '🐄', cost: 45, layer: 'ground', type: 'decoration', cat: 'animals', walk: true,
+                   desc: 'Grazes slowly on the grass' },
+
+    // --- Structures (voxel models with persisted positions; buy as many as you like) ---
+    pond:        { name: 'Pond',        icon: '🟦', cost: 50,  layer: 'ground', type: 'decoration', cat: 'structures' },
+    fountain:    { name: 'Fountain',    icon: '⛲', cost: 80,  layer: 'ground', type: 'decoration', cat: 'structures' },
+    cottage:     { name: 'Cottage',     icon: '🏡', cost: 150, layer: 'ground', type: 'decoration', cat: 'structures' },
 
     // --- Placeable playset: buy many, drag onto blocks, rearrange any time ---
     // Cheap tracks, pricier vehicles. A car needs a road under it, a train a rail.
-    road:        { name: 'Road',  icon: '🛣️', cost: 5,  layer: 'ground', type: 'decoration', placeable: true, surface: 'road',
+    road:        { name: 'Road',  icon: '🛣️', cost: 5,  layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, surface: 'road',
                    desc: 'A path tile — roads auto-connect' },
-    rail:        { name: 'Rail',  icon: '🛤️', cost: 5,  layer: 'ground', type: 'decoration', placeable: true, surface: 'rail',
+    rail:        { name: 'Rail',  icon: '🛤️', cost: 5,  layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, surface: 'rail',
                    desc: 'A track tile — rails auto-connect' },
-    car:         { name: 'Car',   icon: '🚗', cost: 40, layer: 'ground', type: 'decoration', placeable: true, vehicle: 'road',
+    crossing:    { name: 'Level Crossing', icon: '🚸', cost: 8, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, surface: 'crossing',
+                   desc: 'Road + rail cross here — cars and trains share it' },
+    station:     { name: 'Train Station', icon: '🚉', cost: 90, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, station: true,
+                   desc: 'Place beside a rail — trains stop here' },
+    car:         { name: 'Car',   icon: '🚗', cost: 40, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, vehicle: 'road',
                    desc: 'Drives along your roads' },
-    train:       { name: 'Train', icon: '🚂', cost: 60, layer: 'ground', type: 'decoration', placeable: true, vehicle: 'rail',
+    train:       { name: 'Train', icon: '🚂', cost: 60, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, vehicle: 'rail',
                    desc: 'Runs along your rails' },
 
     // --- Themes and boosters (cosmetic only — deliberately do NOT touch SRS/mastery) ---
-    sunnyday:    { name: 'Sunny Day',    icon: '☀️', cost: 20,  layer: 'theme', type: 'theme', oneOff: true,
+    sunnyday:    { name: 'Sunny Day',    icon: '☀️', cost: 20,  layer: 'theme', type: 'theme', cat: 'themes', oneOff: true,
                    desc: 'Warmer daytime light' },
-    night:       { name: 'Night Theme',  icon: '🌙', cost: 120, layer: 'theme', type: 'theme', oneOff: true,
+    night:       { name: 'Night Theme',  icon: '🌙', cost: 120, layer: 'theme', type: 'theme', cat: 'themes', oneOff: true,
                    desc: 'Moonlight and sleeping gnomes' },
-    goldencan:   { name: 'Golden Can',   icon: '🪣', cost: 90,  layer: 'theme', type: 'booster', oneOff: true,
+    goldencan:   { name: 'Golden Can',   icon: '🪣', cost: 90,  layer: 'theme', type: 'booster', cat: 'themes', oneOff: true,
                    desc: 'Fancier watering animation' },
 
     // --- Quiz hints (spent during quizzes, not sold in the shop) ---

@@ -80,7 +80,7 @@ export function createGarden(canvas, opts = {}) {
         ambientLight.intensity = isNight ? 0.55 : (isWarm ? 0.95 : 0.82);
         sunLight.color.set(isWarm && !isNight ? 0xfff0c0 : 0xffffff);
         sunLight.intensity = isNight ? 0.5 : 0.9;
-        updateGnomeSleep();
+        updateWalkerSleep();
         updateNightGlow();
     }
 
@@ -117,7 +117,27 @@ export function createGarden(canvas, opts = {}) {
         stone: flat(0xc2c8d0), fwater: flat(0x3aa0f0, { transparent: true, opacity: 0.92 }),
         pole: flat(0x3a3f45),
         lampRed:   flat(0xff3b30, { emissive: 0xd42018, emissiveIntensity: 0.95 }),
+        lampYellow:flat(0xffcc00, { emissive: 0xe0a800, emissiveIntensity: 0.95 }),
         lampGreen: flat(0x35c759, { emissive: 0x1ea64a, emissiveIntensity: 0.95 }),
+        lampOff:   flat(0x202428),
+        // Plants — leaves, stems, blooms, trunks (6 growth stages map to mastery).
+        // Foliage is teal-leaning + bloom dots are vivid so plants pop off the grass.
+        soil: flat(0x6b4a2b), sprout: flat(0x9be15d), leaf: flat(0x2f9e6b), leafDk: flat(0x1f7f54),
+        bloom: flat(0xff5fa2), bloomY: flat(0xffd24a), bloomR: flat(0xff4d4d), bloomP: flat(0xb06cff),
+        bloomW: flat(0xfff0f5), bloomO: flat(0xff9a3d), berry: flat(0xff5252),
+        trunk: flat(0x8a5a2b), gold: flat(0xffcf3f, { emissive: 0xc99a00, emissiveIntensity: 0.5 }),
+        // Animals.
+        cat: flat(0xf0a23b), dog: flat(0xb07a45), rabbit: flat(0xeeeeee), chicken: flat(0xfafafa),
+        pig: flat(0xf3a6c0), cow: flat(0xf2efe9), cowSpot: flat(0x2a2a2a), beak: flat(0xf2a23b),
+        comb: flat(0xe23b3b), snout: flat(0xe07a98), hoof: flat(0x3a2f28), dark: flat(0x2a2a2a), pink: flat(0xf6c0cc),
+        // Critters.
+        bee: flat(0xf2c020), beeDk: flat(0x2a2a2a), wing: flat(0xeaf6ff, { transparent: true, opacity: 0.8 }),
+        bfA: flat(0xff7fb0), bfB: flat(0x7fb6ff), birdBody: flat(0x6fb0e8), birdWing: flat(0x4a86c8),
+        // Gnome.
+        gHat: flat(0xd33b3b), gBody: flat(0x3a6fd0), gFace: flat(0xf2c8a0), gBeard: flat(0xf2f2f2),
+        // Station + signs.
+        stnPlat: flat(0xb8bec8), stnPost: flat(0x6b4423), stnRoof: flat(0xc0432f), stnBoard: flat(0x2f8f4e),
+        signRed: flat(0xd11f1f), signWhite: flat(0xf5f5f5), gateW: flat(0xf5f5f5), gateR: flat(0xd11f1f),
     };
     function vbox(group, w, h, d, x, y, z, mat, glow) {
         const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -169,14 +189,205 @@ export function createGarden(canvas, opts = {}) {
         vbox(g, 0.26, 0.05, 0.26, 0, 0.63, 0, PAL.fwater);           // upper water
         return g;
     }
-    const buildStructure = (code) => (code === 'cottage' ? buildHouse() : buildFountain());
+    function buildPond() {
+        const g = new THREE.Group();
+        vbox(g, 0.30, 0.04, 0.30, 0.10, 0.02, -0.10, PAL.leaf);      // lily pad
+        vbox(g, 0.08, 0.07, 0.08, 0.10, 0.07, -0.10, PAL.bloom);     // bloom
+        vbox(g, 0.22, 0.04, 0.22, -0.16, 0.02, 0.14, PAL.leafDk);    // second pad
+        return g;
+    }
+    const buildStructure = (code) =>
+        (code === 'cottage' ? buildHouse() : code === 'pond' ? buildPond() : buildFountain());
+
+    // Plants — 6 voxel growth stages mapped to mastery (review_level 0–5). Each
+    // stage carries vivid bloom dots / colourful leaves so it stands out on grass.
+    const BLOOMS = [PAL.bloom, PAL.bloomY, PAL.bloomR, PAL.bloomP, PAL.bloomO, PAL.bloomW];
+    function dot(g, x, y, z, s, col) { vbox(g, s, s, s, x, y, z, col); }
+    function buildPlant(level) {
+        const g = new THREE.Group();
+        const lv = Math.max(0, Math.min(5, level | 0));
+        if (lv === 0) {                                              // seed mound + first leaf
+            vbox(g, 0.5, 0.14, 0.5, 0, 0.07, 0, PAL.soil);
+            vbox(g, 0.08, 0.18, 0.08, 0, 0.21, 0, PAL.sprout);
+            dot(g, 0, 0.32, 0, 0.10, PAL.bloomY);                    // bright bud tip
+        } else if (lv === 1) {                                       // sprout + two coloured buds
+            vbox(g, 0.07, 0.32, 0.07, 0, 0.16, 0, PAL.sprout);
+            vbox(g, 0.18, 0.05, 0.10, 0.09, 0.28, 0, PAL.leaf);
+            vbox(g, 0.18, 0.05, 0.10, -0.09, 0.24, 0, PAL.leaf);
+            dot(g, 0.16, 0.30, 0, 0.10, PAL.bloomR);
+            dot(g, -0.16, 0.26, 0, 0.10, PAL.bloom);
+            dot(g, 0, 0.36, 0, 0.10, PAL.bloomY);
+        } else if (lv === 2) {                                       // flowering bush
+            vbox(g, 0.08, 0.24, 0.08, 0, 0.12, 0, PAL.trunk);
+            vbox(g, 0.42, 0.30, 0.42, 0, 0.38, 0, PAL.leaf);
+            vbox(g, 0.30, 0.18, 0.30, 0.04, 0.55, 0.03, PAL.leafDk);
+            const spots = [[0.16, 0.46, 0.12], [-0.15, 0.42, -0.1], [0.05, 0.6, 0.05], [-0.1, 0.5, 0.16], [0.14, 0.52, -0.13]];
+            spots.forEach((p, k) => dot(g, p[0], p[1], p[2], 0.12, BLOOMS[k % BLOOMS.length]));
+        } else if (lv === 3) {                                       // big flower
+            vbox(g, 0.06, 0.40, 0.06, 0, 0.20, 0, PAL.sprout);
+            vbox(g, 0.16, 0.05, 0.10, 0.11, 0.32, 0, PAL.leaf);
+            vbox(g, 0.16, 0.05, 0.10, -0.11, 0.26, 0, PAL.leaf);
+            vbox(g, 0.20, 0.12, 0.20, 0, 0.50, 0, PAL.bloomY);       // centre
+            for (const [dx, dz, col] of [[0.18, 0, PAL.bloomR], [-0.18, 0, PAL.bloomP], [0, 0.18, PAL.bloom], [0, -0.18, PAL.bloomO]])
+                vbox(g, 0.15, 0.09, 0.15, dx, 0.50, dz, col);        // petals (multi-colour)
+        } else if (lv === 4) {                                       // blossoming tree
+            vbox(g, 0.15, 0.46, 0.15, 0, 0.23, 0, PAL.trunk);
+            vbox(g, 0.56, 0.34, 0.56, 0, 0.58, 0, PAL.leaf);
+            vbox(g, 0.40, 0.26, 0.40, 0, 0.82, 0, PAL.leafDk);
+            const spots = [[0.22, 0.6, 0.1], [-0.2, 0.56, -0.14], [0.1, 0.86, 0.12], [-0.12, 0.8, 0.1], [0.18, 0.7, -0.18], [0, 0.96, 0]];
+            spots.forEach((p, k) => dot(g, p[0], p[1], p[2], 0.13, BLOOMS[k % BLOOMS.length]));
+        } else {                                                     // golden tree
+            vbox(g, 0.16, 0.50, 0.16, 0, 0.25, 0, PAL.trunk);
+            vbox(g, 0.62, 0.38, 0.62, 0, 0.64, 0, PAL.gold);
+            vbox(g, 0.42, 0.28, 0.42, 0, 0.92, 0, PAL.gold);
+            dot(g, 0, 1.14, 0, 0.14, PAL.bloomR);                    // crown jewel
+            for (const [dx, dz] of [[0.24, 0.1], [-0.22, -0.12], [0.12, -0.22]]) dot(g, dx, 0.72, dz, 0.12, PAL.bloomW);
+        }
+        return g;
+    }
+
+    // Ground animals — small voxel models, all facing +x (like vehicles).
+    function buildAnimal(kind) {
+        const g = new THREE.Group();
+        const C = { cat: PAL.cat, dog: PAL.dog, rabbit: PAL.rabbit, chicken: PAL.chicken, pig: PAL.pig, cow: PAL.cow }[kind] || PAL.cat;
+        if (kind === 'chicken') {
+            vbox(g, 0.26, 0.26, 0.22, 0, 0.20, 0, C);                // body
+            vbox(g, 0.16, 0.18, 0.14, 0.14, 0.36, 0, C);            // head
+            vbox(g, 0.08, 0.06, 0.06, 0.25, 0.36, 0, PAL.beak);     // beak
+            vbox(g, 0.06, 0.07, 0.05, 0.12, 0.48, 0, PAL.comb);     // comb
+            vbox(g, 0.10, 0.16, 0.03, -0.15, 0.26, 0, PAL.signWhite); // tail
+            for (const sz of [0.06, -0.06]) vbox(g, 0.03, 0.10, 0.03, 0.02, 0.04, sz, PAL.beak);
+            return g;
+        }
+        const bw = kind === 'cow' ? 0.50 : (kind === 'pig' ? 0.46 : 0.40);
+        vbox(g, bw, 0.22, 0.26, 0, 0.24, 0, C);                      // body
+        vbox(g, 0.22, 0.20, 0.22, bw / 2 - 0.01, 0.34, 0, C);        // head
+        if (kind === 'rabbit') for (const sz of [0.06, -0.06]) vbox(g, 0.05, 0.20, 0.04, bw / 2 - 0.03, 0.54, sz, C);
+        else if (kind === 'cat') for (const sz of [0.07, -0.07]) vbox(g, 0.06, 0.08, 0.04, bw / 2 - 0.01, 0.47, sz, C);
+        else if (kind === 'dog') for (const sz of [0.10, -0.10]) vbox(g, 0.05, 0.11, 0.04, bw / 2 - 0.03, 0.42, sz, PAL.dark);
+        else if (kind === 'cow') { for (const sz of [0.09, -0.09]) vbox(g, 0.05, 0.06, 0.04, bw / 2 - 0.01, 0.47, sz, PAL.cowSpot); vbox(g, 0.09, 0.09, 0.16, bw / 2 + 0.07, 0.31, 0, PAL.pink); }
+        else if (kind === 'pig') { vbox(g, 0.06, 0.07, 0.10, bw / 2 + 0.08, 0.31, 0, PAL.snout); for (const sz of [0.07, -0.07]) vbox(g, 0.05, 0.06, 0.04, bw / 2 - 0.03, 0.45, sz, C); }
+        if (kind === 'cat' || kind === 'dog') vbox(g, 0.07, 0.06, 0.08, bw / 2 + 0.09, 0.30, 0, PAL.dark);   // snout
+        for (const sx of [bw / 2 - 0.06, -(bw / 2 - 0.06)]) for (const sz of [0.08, -0.08])
+            vbox(g, 0.07, 0.14, 0.07, sx, 0.07, sz, kind === 'cow' ? PAL.hoof : C);                          // legs
+        if (kind === 'pig') vbox(g, 0.05, 0.05, 0.05, -bw / 2 - 0.02, 0.31, 0, PAL.pink);                    // curly tail
+        else vbox(g, 0.05, 0.05, 0.16, -bw / 2 - 0.04, 0.31, 0, kind === 'cow' ? PAL.cowSpot : C);           // tail
+        if (kind === 'cow') { vbox(g, 0.13, 0.02, 0.13, -0.06, 0.35, 0.05, PAL.cowSpot); vbox(g, 0.10, 0.02, 0.10, 0.10, 0.35, -0.07, PAL.cowSpot); }
+        return g;
+    }
+
+    // Sky critters — wings tagged userData.wing (±1) so tick() can flap them.
+    function buildCritter(kind) {
+        const g = new THREE.Group();
+        if (kind === 'bee') {
+            vbox(g, 0.18, 0.12, 0.12, 0, 0, 0, PAL.bee);
+            vbox(g, 0.05, 0.13, 0.13, 0.04, 0, 0, PAL.beeDk);
+            vbox(g, 0.05, 0.13, 0.13, -0.05, 0, 0, PAL.beeDk);
+            vbox(g, 0.02, 0.10, 0.14, 0, 0.08, 0.08, PAL.wing).userData.wing = 1;
+            vbox(g, 0.02, 0.10, 0.14, 0, 0.08, -0.08, PAL.wing).userData.wing = -1;
+            return g;
+        }
+        if (kind === 'bird') {
+            vbox(g, 0.22, 0.14, 0.14, 0, 0, 0, PAL.birdBody);
+            vbox(g, 0.13, 0.13, 0.13, 0.14, 0.05, 0, PAL.birdBody);
+            vbox(g, 0.06, 0.04, 0.04, 0.23, 0.05, 0, PAL.beak);
+            vbox(g, 0.16, 0.03, 0.10, -0.02, 0.06, 0.10, PAL.birdWing).userData.wing = 1;
+            vbox(g, 0.16, 0.03, 0.10, -0.02, 0.06, -0.10, PAL.birdWing).userData.wing = -1;
+            return g;
+        }
+        vbox(g, 0.06, 0.10, 0.05, 0, 0, 0, PAL.beeDk);               // butterfly body
+        vbox(g, 0.04, 0.16, 0.20, 0, 0.04, 0.12, PAL.bfA).userData.wing = 1;
+        vbox(g, 0.04, 0.16, 0.20, 0, 0.04, -0.12, PAL.bfB).userData.wing = -1;
+        return g;
+    }
+
+    function buildGnome() {
+        const g = new THREE.Group();
+        vbox(g, 0.26, 0.30, 0.22, 0, 0.15, 0, PAL.gBody);            // robe
+        vbox(g, 0.24, 0.08, 0.20, 0, 0.31, 0, PAL.gBeard);           // beard
+        vbox(g, 0.20, 0.14, 0.18, 0, 0.39, 0, PAL.gFace);            // face
+        vbox(g, 0.24, 0.08, 0.22, 0, 0.48, 0, PAL.gHat);             // hat brim
+        vbox(g, 0.14, 0.12, 0.14, 0, 0.58, 0, PAL.gHat);             // hat mid
+        vbox(g, 0.06, 0.12, 0.06, 0, 0.68, 0, PAL.gHat);             // hat tip
+        return g;
+    }
+
+    function buildStation() {
+        const g = new THREE.Group();
+        vbox(g, 0.92, 0.10, 0.5, 0, 0.05, 0, PAL.stnPlat);           // platform
+        for (const sx of [-0.36, 0, 0.36]) vbox(g, 0.06, 0.34, 0.06, sx, 0.27, -0.14, PAL.stnPost);  // posts
+        vbox(g, 0.98, 0.08, 0.36, 0, 0.46, -0.05, PAL.stnRoof);      // roof
+        vbox(g, 0.52, 0.16, 0.04, 0, 0.34, -0.20, PAL.stnBoard);     // name board
+        vbox(g, 0.18, 0.20, 0.04, 0.30, 0.22, 0.23, PAL.win, true);  // glowing window
+        return g;
+    }
+
+    // Canada-style signal: pole + mast arm + two 3-lamp heads (red/amber/green),
+    // one per controlled axis. Lamps default off; setHead() lights one per frame.
     function buildTrafficLight() {
         const g = new THREE.Group();
-        vbox(g, 0.08, 0.72, 0.08, 0, 0.36, 0, PAL.pole);             // pole
-        vbox(g, 0.16, 0.34, 0.12, 0, 0.78, 0, PAL.pole);             // housing
-        const lampV = vbox(g, 0.13, 0.13, 0.06, 0, 0.86, 0.06, PAL.lampRed);   // controls N–S traffic
-        const lampH = vbox(g, 0.13, 0.13, 0.06, 0, 0.70, 0.06, PAL.lampRed);   // controls E–W traffic
-        return { group: g, lampV, lampH };
+        vbox(g, 0.10, 1.05, 0.10, 0, 0.52, 0, PAL.pole);             // pole
+        vbox(g, 0.55, 0.08, 0.08, 0.26, 1.0, 0, PAL.pole);           // mast arm (+x)
+        const mkHead = (x, y, z, faceZ) => {
+            vbox(g, faceZ ? 0.16 : 0.10, 0.46, faceZ ? 0.10 : 0.16, x, y, z, PAL.dark);
+            const dx = faceZ ? 0 : 0.06, dz = faceZ ? 0.06 : 0;
+            return {
+                r: vbox(g, 0.10, 0.10, 0.10, x + dx, y + 0.14, z + dz, PAL.lampOff),
+                y: vbox(g, 0.10, 0.10, 0.10, x + dx, y,        z + dz, PAL.lampOff),
+                g: vbox(g, 0.10, 0.10, 0.10, x + dx, y - 0.14, z + dz, PAL.lampOff),
+            };
+        };
+        const headV = mkHead(0.30, 0.86, 0.20, true);    // faces +z → controls N–S
+        const headH = mkHead(0.30, 0.86, -0.20, false);  // faces +x → controls E–W
+        return { group: g, headV, headH };
+    }
+    function setHead(head, state) {
+        head.r.material = state === 'red' ? PAL.lampRed : PAL.lampOff;
+        head.y.material = state === 'yellow' ? PAL.lampYellow : PAL.lampOff;
+        head.g.material = state === 'green' ? PAL.lampGreen : PAL.lampOff;
+    }
+
+    // Red octagon on a post (8-sided cylinder — disposed per-instance on rebuild).
+    function buildStopSign() {
+        const g = new THREE.Group();
+        vbox(g, 0.06, 0.6, 0.06, 0, 0.30, 0, PAL.pole);
+        const oct = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.05, 8), PAL.signRed);
+        oct.rotation.x = Math.PI / 2;                                // octagon face toward ±z
+        oct.position.set(0, 0.62, 0.03);
+        g.add(oct);
+        const inner = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.02, 8), PAL.signWhite);
+        inner.rotation.x = Math.PI / 2;
+        inner.position.set(0, 0.62, 0.06);
+        g.add(inner);
+        return g;
+    }
+
+    // Level-crossing signal — built for a road that runs E–W (rotated for N–S in
+    // buildLayout). A pole on each road approach (±x) with a crossbuck + flashing
+    // lamps, and a boom gate that lowers ACROSS the road (along z) to block cars.
+    function buildCrossingSignal() {
+        const g = new THREE.Group();
+        const gates = [], lamps = [];
+        for (const sx of [0.42, -0.42]) {           // east & west approaches
+            const pole = new THREE.Group();
+            vbox(pole, 0.07, 0.62, 0.07, 0, 0.31, 0, PAL.pole);              // post
+            vbox(pole, 0.30, 0.07, 0.04, 0, 0.56, -0.05, PAL.signWhite);     // crossbuck (faces road)
+            vbox(pole, 0.07, 0.30, 0.04, 0, 0.56, -0.05, PAL.signWhite);
+            lamps.push(vbox(pole, 0.08, 0.08, 0.04, -0.10, 0.44, -0.06, PAL.lampOff));
+            lamps.push(vbox(pole, 0.08, 0.08, 0.04, 0.10, 0.44, -0.06, PAL.lampOff));
+            const gate = new THREE.Group();                                  // boom (pivots about x)
+            vbox(gate, 0.05, 0.05, 0.9, 0, 0, -0.45, PAL.gateW);            // arm reaches across road (-z)
+            vbox(gate, 0.06, 0.06, 0.16, 0, 0, -0.16, PAL.gateR);          // red stripes
+            vbox(gate, 0.06, 0.06, 0.16, 0, 0, -0.50, PAL.gateR);
+            vbox(gate, 0.06, 0.06, 0.16, 0, 0, -0.84, PAL.gateR);
+            gate.position.set(0, 0.36, 0.45);          // hinge at the roadside (+z)
+            gate.rotation.x = Math.PI / 2;             // up (open) by default; 0 = down (blocking)
+            pole.add(gate);
+            pole.position.set(sx, 0, 0);
+            g.add(pole);
+            gates.push(gate);
+        }
+        return { group: g, lamps, gates };
     }
     function updateNightGlow() {
         props.traverse(o => { if (o.userData?.glow) o.material = isNight ? PAL.winGlow : PAL.win; });
@@ -189,6 +400,7 @@ export function createGarden(canvas, opts = {}) {
     const plantsModel = new Map();    // wordId → { col, row, level, due }
     let   placedItems = (opts.placed || []).map(p => ({ ...p }));   // { id, code, col, row, rotation }
     const isStructure = (code) => STRUCTURE_CODES.includes(code);
+    const isStation   = (code) => !!SHOP[code]?.station;
     const structureSurface = (code) => (code === 'pond' ? 'water' : (code === 'fountain' ? 'stone' : 'grass'));
 
     const plantPos = opts.plantPos || new Map();
@@ -213,6 +425,7 @@ export function createGarden(canvas, opts = {}) {
             const info = SHOP[it.code];
             if (info?.surface) set(it.col, it.row, { surface: info.surface, code: it.code });
             else if (isStructure(it.code)) set(it.col, it.row, { surface: structureSurface(it.code), occupant: 'structure', code: it.code });
+            else if (isStation(it.code)) set(it.col, it.row, { occupant: 'structure', code: it.code });
         }
         for (const it of placedItems) {
             if (it === skipRef || it.id === skipRef) continue;
@@ -229,9 +442,10 @@ export function createGarden(canvas, opts = {}) {
     }
 
     // Find the free cell nearest a preferred origin (expanding-ring scan).
+    const HARD = ['road', 'rail', 'crossing', 'water', 'stone'];
     function nearestFreeCell(prefC, prefR, cells) {
         if (!cells.get(cellKey(prefC, prefR))?.occupant &&
-            !['road', 'rail', 'water', 'stone'].includes(cells.get(cellKey(prefC, prefR))?.surface)) {
+            !HARD.includes(cells.get(cellKey(prefC, prefR))?.surface)) {
             return { col: prefC, row: prefR };
         }
         for (let rad = 1; rad < 200; rad++) {
@@ -241,7 +455,7 @@ export function createGarden(canvas, opts = {}) {
                     const c = prefC + dc, r = prefR + dr;
                     const cell = cells.get(cellKey(c, r));
                     if (!cell) return { col: c, row: r };
-                    if (!cell.occupant && !['road', 'rail', 'water', 'stone'].includes(cell.surface)) {
+                    if (!cell.occupant && !HARD.includes(cell.surface)) {
                         return { col: c, row: r };
                     }
                 }
@@ -334,36 +548,53 @@ export function createGarden(canvas, opts = {}) {
     let props  = new THREE.Group();    // plant + vehicle sprites
     scene.add(ground); scene.add(props);
     const blockCells = [];             // { mesh, col, row } for raycast → cell
-    let plantSprites = [];             // { sprite, baseY, baseScale, phase, wordId, drop? , dropEntry? }
+    let plantSprites = [];             // plant: { group, baseY, phase, wordId, due, pop?, dropEntry? } | drop: { sprite, baseY, phase, drop:true }
     let vehicleSprites = [];           // { group, id, code, phase } — 3D voxel models
     let plantTops = [];                // creature landing spots
     let cottageSpot = null;
-    let trafficLights = [];            // { lampV, lampH } refreshed each build
-    let lightCells = new Set();        // cellKeys of light-controlled road junctions
+    let trafficLights = [];            // { headV, headH } — 3-lamp heads, refreshed each build
+    let lightCells = new Set();        // cellKeys of 4-way light-controlled road junctions
+    let stopCells  = new Set();        // cellKeys of 3-arm stop-sign junctions
+    let crossingSignals = [];          // { l1, l2, gate, key } at level-crossing cells
+    let stationRailCells = new Set();  // rail cells next to a station (trains dwell here)
     // Vehicles drive the connected track network. State persists across rebuilds
     // (keyed by item id) so editing elsewhere doesn't reset them. ein/eout are the
     // cell-step directions {dc,dr} entering/leaving the current cell; p is 0..1
     // progress across it; hx/hz is the last heading (for facing while parked).
     let currentCells = new Map();      // latest occupancy map (for neighbour lookups)
-    const vehicleState = new Map();    // id → { c, r, ein, eout, p, sound, hx, hz }
+    const vehicleState = new Map();    // id → { c, r, ein, eout, p, sound, hx, hz, dwell, stopAt }
     const VSPEED = 1.25;               // cells per second
     const LANE   = 0.16;               // keep-right lateral offset (cars only)
-    const PHASE_DUR = 5;               // seconds each traffic-light phase holds
-    let lightPhase = 0;                // 0 = N–S green, 1 = E–W green
+    // Canada-style signal cycle per axis: green → yellow → all-red, then the other.
+    const SIG_G = 6, SIG_Y = 2, SIG_R = 1, SIG_CYCLE = 2 * (SIG_G + SIG_Y + SIG_R);
+    let lastSig = '';                  // last applied {ns,ew} state (skip redundant swaps)
+    function axisStates(t) {
+        const p = ((t % SIG_CYCLE) + SIG_CYCLE) % SIG_CYCLE;
+        if (p < SIG_G) return { ns: 'green', ew: 'red' };
+        if (p < SIG_G + SIG_Y) return { ns: 'yellow', ew: 'red' };
+        if (p < SIG_G + SIG_Y + SIG_R) return { ns: 'red', ew: 'red' };
+        const q = p - (SIG_G + SIG_Y + SIG_R);
+        if (q < SIG_G) return { ns: 'red', ew: 'green' };
+        if (q < SIG_G + SIG_Y) return { ns: 'red', ew: 'yellow' };
+        return { ns: 'red', ew: 'red' };
+    }
+    const canGo = (states, d) => (d.dr !== 0 ? states.ns : states.ew) === 'green';
     const dirKey = (d) => `${d.dc},${d.dr}`;
-    const greenFor = (d) => (d.dr !== 0 ? lightPhase === 0 : lightPhase === 1);
     const vehicleSurface = (code) => SHOP[code]?.vehicle || null;   // 'road' | 'rail'
-    function trackNeighbours(c, r, surf) {
+    // A car drives road OR crossing; a train drives rail OR crossing (the Level
+    // Crossing tile belongs to both networks — Decision #10 stays one-surface).
+    const carries = (surface, vehSurf) => surface === vehSurf || surface === 'crossing';
+    function trackNeighbours(c, r, vehSurf) {
         const out = [];
         for (const [dc, dr] of [[0, -1], [0, 1], [1, 0], [-1, 0]]) {
-            if (currentCells.get(cellKey(c + dc, r + dr))?.surface === surf) out.push({ c: c + dc, r: r + dr });
+            if (carries(currentCells.get(cellKey(c + dc, r + dr))?.surface, vehSurf)) out.push({ c: c + dc, r: r + dr });
         }
         return out;
     }
     // Anchor/repair a vehicle's motion state onto valid track (re-route on edits).
     function reconcileVehicle(it) {
         const surf = vehicleSurface(it.code);
-        const onTrack = (c, r) => currentCells.get(cellKey(c, r))?.surface === surf;
+        const onTrack = (c, r) => carries(currentCells.get(cellKey(c, r))?.surface, surf);
         const st = vehicleState.get(it.id);
         if (st && onTrack(st.c, st.r)) return;
         let anchor = { c: it.col, r: it.row };
@@ -384,11 +615,12 @@ export function createGarden(canvas, opts = {}) {
     }
 
     function adjacentTrack(c, r, surface, cells) {
+        const m = (s) => s === surface || s === 'crossing';   // crossings join both networks
         return {
-            n: cells.get(cellKey(c, r - 1))?.surface === surface,
-            s: cells.get(cellKey(c, r + 1))?.surface === surface,
-            e: cells.get(cellKey(c + 1, r))?.surface === surface,
-            w: cells.get(cellKey(c - 1, r))?.surface === surface,
+            n: m(cells.get(cellKey(c, r - 1))?.surface),
+            s: m(cells.get(cellKey(c, r + 1))?.surface),
+            e: m(cells.get(cellKey(c + 1, r))?.surface),
+            w: m(cells.get(cellKey(c - 1, r))?.surface),
         };
     }
 
@@ -409,10 +641,12 @@ export function createGarden(canvas, opts = {}) {
         }
     }
 
-    function addRailTile(x, z, adj) {
-        const ties = new THREE.Mesh(slabGeo, solidMats(tieMat));
-        ties.position.set(x, TOP + 0.06, z);
-        ground.add(ties);
+    function addRailTile(x, z, adj, skipTies = false) {
+        if (!skipTies) {        // at a crossing the rails sit in the road — no tie slab
+            const ties = new THREE.Mesh(slabGeo, solidMats(tieMat));
+            ties.position.set(x, TOP + 0.06, z);
+            ground.add(ties);
+        }
         const ns = adj.n || adj.s, ew = adj.e || adj.w, iso = !ns && !ew;
         const railY = TOP + 0.13;
         const addPair = (along) => {
@@ -457,28 +691,33 @@ export function createGarden(canvas, opts = {}) {
 
                 if (cell?.surface === 'road') addRoadTile(x, z, adjacentTrack(c, r, 'road', cells));
                 if (cell?.surface === 'rail') addRailTile(x, z, adjacentTrack(c, r, 'rail', cells));
+                if (cell?.surface === 'crossing') {        // level crossing — both networks
+                    addRoadTile(x, z, adjacentTrack(c, r, 'road', cells));
+                    addRailTile(x, z, adjacentTrack(c, r, 'rail', cells), true);
+                }
             }
         }
 
-        // Plants.
+        // Plants — voxel growth-stage models (group tagged with wordId for taps).
         let i = 0;
         for (const [wid, p] of plantsModel) {
             if (p.col == null) continue;
             const x = worldX(p.col), z = worldZ(p.row);
-            const scale = 1.0 + Math.min(p.level, 5) * 0.16;
-            const baseY = TOP + scale / 2 - (p.due ? 0.18 : 0);
-            const sprite = makeSprite(masteryEmoji(p.level), scale, p.due);
-            sprite.position.set(x, baseY, z);
-            sprite.userData = { wordId: wid };
-            props.add(sprite);
-            const entry = { sprite, baseY, baseScale: scale, phase: i * 0.7, wordId: wid };
+            const lvl = Math.min(p.level, 5);
+            const g = buildPlant(lvl);
+            g.position.set(x, TOP, z);
+            g.userData = { wordId: wid };
+            if (p.due) g.rotation.z = 0.28;                    // droop
+            props.add(g);
+            const topY = TOP + 0.55 + lvl * 0.12;
+            const entry = { group: g, baseY: TOP, phase: i * 0.7, wordId: wid, due: p.due };
             plantSprites.push(entry);
-            plantTops.push({ x, z, top: baseY + scale * 0.6, wordId: wid });
+            plantTops.push({ x, z, top: topY, wordId: wid });
             if (p.due) {
                 const drop = makeSprite('💧', 0.45);
-                drop.position.set(x, baseY + scale * 0.8, z);
+                drop.position.set(x, topY + 0.25, z);
                 props.add(drop);
-                const dropEntry = { sprite: drop, baseY: drop.position.y, baseScale: 0.45, phase: i, drop: true };
+                const dropEntry = { sprite: drop, baseY: drop.position.y, phase: i, drop: true };
                 plantSprites.push(dropEntry);
                 entry.dropEntry = dropEntry;
             }
@@ -501,30 +740,54 @@ export function createGarden(canvas, opts = {}) {
         }
         for (const id of [...vehicleState.keys()]) if (!liveIds.has(id)) vehicleState.delete(id);
 
-        // Structures as voxel models (pond stays a water block). Tappable to move.
+        // Structures + stations as voxel models. Tappable to move/remove.
         for (const it of placedItems) {
-            if (!isStructure(it.code) || it.col == null || it.code === 'pond') continue;
+            if (it.col == null || !(isStructure(it.code) || isStation(it.code))) continue;
             const x = worldX(it.col), z = worldZ(it.row);
-            const g = buildStructure(it.code);
+            const g = isStation(it.code) ? buildStation() : buildStructure(it.code);
             g.position.set(x, TOP, z);
             g.userData = { itemId: it.id };
             props.add(g);
             if (it.code === 'cottage') cottageSpot = new THREE.Vector3(x, TOP + 0.6, z);
         }
 
-        // Traffic lights: auto-placed where a road junction has ≥3 road arms.
-        trafficLights = []; lightCells = new Set();
+        // Traffic control. At each road cell count road-network arms (road + crossing):
+        // 4-way → traffic light; 3-way (T) → stop sign. Crossings get a train-triggered
+        // signal; a station marks neighbouring rail cells as train dwell stops.
+        trafficLights = []; lightCells = new Set(); stopCells = new Set();
+        crossingSignals = []; stationRailCells = new Set();
         for (const [key, cell] of currentCells) {
-            if (cell.surface !== 'road') continue;
             const [c, r] = key.split(':').map(Number);
-            if (trackNeighbours(c, r, 'road').length < 3) continue;
-            lightCells.add(key);
-            const lt = buildTrafficLight();
-            lt.group.position.set(worldX(c) + 0.4, TOP, worldZ(r) + 0.4);
-            ground.add(lt.group);
-            trafficLights.push(lt);
+            if (cell.surface === 'road') {
+                const arms = trackNeighbours(c, r, 'road').length;
+                if (arms >= 4) {
+                    lightCells.add(key);
+                    const lt = buildTrafficLight();
+                    lt.group.position.set(worldX(c) + 0.42, TOP, worldZ(r) + 0.42);
+                    ground.add(lt.group); trafficLights.push(lt);
+                } else if (arms === 3) {
+                    stopCells.add(key);
+                    const sign = buildStopSign();
+                    sign.position.set(worldX(c) + 0.40, TOP, worldZ(r) + 0.40);
+                    ground.add(sign);
+                }
+            } else if (cell.surface === 'crossing') {
+                const adj = adjacentTrack(c, r, 'road', currentCells);
+                const roadAxisZ = (adj.n || adj.s) && !(adj.e || adj.w);   // road runs N–S → rotate signal
+                const cs = buildCrossingSignal();
+                cs.group.position.set(worldX(c), TOP, worldZ(r));
+                if (roadAxisZ) cs.group.rotation.y = Math.PI / 2;
+                ground.add(cs.group);
+                crossingSignals.push({ ...cs, key, c, r });
+            } else if (cell.code === 'station') {
+                for (const [dc, dr] of [[0, -1], [0, 1], [1, 0], [-1, 0]]) {
+                    const nk = cellKey(c + dc, r + dr);
+                    const s = currentCells.get(nk)?.surface;
+                    if (s === 'rail' || s === 'crossing') stationRailCells.add(nk);
+                }
+            }
         }
-        lightPhase = -1;        // force a lamp refresh next tick
+        lastSig = '';        // force a lamp refresh next tick
         updateNightGlow();
     }
 
@@ -534,12 +797,15 @@ export function createGarden(canvas, opts = {}) {
         if (p) { p.level = level; p.due = false; }
         const e = plantSprites.find(o => o.wordId === wordId);
         if (!e) return;
-        const scale = 1.0 + Math.min(level, 5) * 0.16;
-        e.baseScale = scale;
-        e.baseY = TOP + scale / 2;
-        e.sprite.scale.set(scale, scale, 1);
-        e.sprite.material.map = emojiTexture(masteryEmoji(level), false);
-        e.sprite.material.needsUpdate = true;
+        const lvl = Math.min(level, 5);
+        // Swap in a fresh voxel growth-stage model at the same cell, with a pop.
+        const old = e.group;
+        const g = buildPlant(lvl);
+        g.position.copy(old.position);
+        g.userData = { wordId };
+        props.add(g);
+        disposeOne(old);
+        e.group = g; e.due = false;
         e.pop = 1;
         if (e.dropEntry) {
             props.remove(e.dropEntry.sprite);
@@ -548,17 +814,27 @@ export function createGarden(canvas, opts = {}) {
             e.dropEntry = null;
         }
         const top = plantTops.find(t => t.wordId === wordId);
-        if (top) top.top = e.baseY + scale * 0.6;
+        if (top) top.top = TOP + 0.55 + lvl * 0.12;
     }
     function waterPlant(wordId) {
         const p = plantSprites.find(o => o.wordId === wordId);
         if (p) p.pop = 1;
     }
+    // Dispose one group's per-instance geometries (shared mats/geos are kept).
+    function disposeOne(group) {
+        group.traverse(o => {
+            if (o.geometry && o.geometry !== blockGeo && o.geometry !== slabGeo) o.geometry.dispose();
+            if (o.material?.isSpriteMaterial) o.material.dispose();
+        });
+        group.removeFromParent?.();
+    }
 
     // ── Validation ──────────────────────────────────────────────────────────────
-    const isHardSurface = (s) => ['road', 'rail', 'water', 'stone'].includes(s);
+    const isHardSurface = (s) => HARD.includes(s);
+    const railNeighbour = (cell) => ['rail', 'crossing'].includes(cell?.surface);
     function validPlacement(kind, c, r, skipRef) {
-        const cell = computeCells(skipRef).get(cellKey(c, r));
+        const cells = computeCells(skipRef);
+        const cell = cells.get(cellKey(c, r));
         if (kind === 'plant' || kind === 'track') {
             if (cell && (cell.occupant || isHardSurface(cell.surface))) {
                 return { ok: false, reason: cell.occupant === 'plant'
@@ -567,13 +843,19 @@ export function createGarden(canvas, opts = {}) {
             }
             return { ok: true };
         }
+        if (kind === 'station') {
+            if (cell && (cell.occupant || isHardSurface(cell.surface))) return { ok: false, reason: 'That block is taken.' };
+            const nextToRail = [[0, -1], [0, 1], [1, 0], [-1, 0]].some(([dc, dr]) => railNeighbour(cells.get(cellKey(c + dc, r + dr))));
+            if (!nextToRail) return { ok: false, reason: 'A station goes next to a rail. Lay a rail beside it first.' };
+            return { ok: true };
+        }
         if (kind === 'car') {
-            if (cell?.surface !== 'road') return { ok: false, reason: 'A car needs a road. Place a road there first.' };
+            if (!carries(cell?.surface, 'road')) return { ok: false, reason: 'A car needs a road. Place a road there first.' };
             if (cell.occupant) return { ok: false, reason: 'That road already has something on it.' };
             return { ok: true };
         }
         if (kind === 'train') {
-            if (cell?.surface !== 'rail') return { ok: false, reason: 'A train needs a rail. Place a rail there first.' };
+            if (!carries(cell?.surface, 'rail')) return { ok: false, reason: 'A train needs a rail. Place a rail there first.' };
             if (cell.occupant) return { ok: false, reason: 'That rail already has something on it.' };
             return { ok: true };
         }
@@ -581,6 +863,7 @@ export function createGarden(canvas, opts = {}) {
     }
     function kindOf(code) {
         const info = SHOP[code];
+        if (info?.station) return 'station';
         if (info?.surface) return 'track';
         if (info?.vehicle === 'road') return 'car';
         if (info?.vehicle === 'rail') return 'train';
@@ -588,26 +871,26 @@ export function createGarden(canvas, opts = {}) {
     }
 
     // ── Decorations & creatures (sky critters + the free-roaming gnome) ─────────
-    const creatures = [];      // wandering sky critters
-    const gnomes = [];         // ground wanderers (roam anywhere, ignore blocks)
+    const creatures = [];      // wandering sky critters (voxel models)
+    const walkers = [];        // ground wanderers — gnome + animals (roam, ignore blocks)
     let groupTarget = null;
 
     function addDecoration(code) {
         const info = SHOP[code];
         if (!info || info.layer === 'theme' || info.type === 'hint') return;
-        if (info.placeable || STRUCTURE_CODES.includes(code)) return;   // placed/structure handled in layout
-        if (code === 'gnome') return addGnome();
+        if (info.placeable || STRUCTURE_CODES.includes(code) || info.station) return;   // placed/structure handled in layout
+        if (code === 'gnome' || info.walk) return addWalker(code);
         if (info.layer === 'sky') {
-            const s = makeSprite(info.icon, 0.8);
             const kind = code === 'bees' ? 'bee' : (code === 'bird' ? 'bird' : 'butterfly');
+            const obj = buildCritter(kind);
             const c = {
-                sprite: s, emoji: info.icon, kind,
+                obj, kind,
                 pos: new THREE.Vector3((Math.random() - 0.5) * plotR, 3 + Math.random() * 2, (Math.random() - 0.5) * plotR),
                 target: new THREE.Vector3(), state: 'fly', timer: 0, speed: 0.9 + Math.random() * 0.5,
                 flap: Math.random() * 6, soundCd: 2 + Math.random() * 5,
             };
-            s.position.copy(c.pos);
-            scene.add(s);
+            obj.position.copy(c.pos);
+            scene.add(obj);
             creatures.push(c);
             pickBehavior(c);
         }
@@ -616,35 +899,41 @@ export function createGarden(canvas, opts = {}) {
     function randomFieldPoint() {
         return new THREE.Vector3(
             (Math.random() - 0.5) * Math.max(1, cols - 1) * SP,
-            TOP + 0.55,
+            TOP,
             (Math.random() - 0.5) * Math.max(1, rows - 1) * SP,
         );
     }
 
-    function addGnome() {
-        const s = makeSprite('🧙', 1.15);
+    // Ground walkers: the gnome (sleeps at night by the cottage) + roaming animals.
+    function addWalker(code) {
+        const isGnome = code === 'gnome';
+        const obj = isGnome ? buildGnome() : buildAnimal(code);
         const pos = randomFieldPoint();
-        const g = { sprite: s, pos, target: pos.clone(), timer: 0, phase: Math.random() * 6, sleepBubble: null };
-        s.position.copy(pos);
-        scene.add(s);
-        gnomes.push(g);
-        pickGnomeTarget(g);
-        updateGnomeSleep();
+        const w = {
+            obj, kind: code, isGnome, pos, target: pos.clone(), timer: 0, phase: Math.random() * 6,
+            speed: isGnome ? 0.5 : 0.32 + Math.random() * 0.3, soundCd: 4 + Math.random() * 6,
+            sleepBubble: null, hx: 1, hz: 0,
+        };
+        obj.position.copy(pos);
+        scene.add(obj);
+        walkers.push(w);
+        pickWalkerTarget(w);
+        if (isGnome) updateWalkerSleep();
     }
-    function pickGnomeTarget(g) {
-        if (isNight) return;
-        if (cottageSpot && Math.random() < 0.28) g.target.copy(cottageSpot);
-        else g.target.copy(randomFieldPoint());
-        g.timer = 4 + Math.random() * 5;
+    function pickWalkerTarget(w) {
+        if (w.isGnome && isNight) return;
+        if (w.isGnome && cottageSpot && Math.random() < 0.28) w.target.copy(cottageSpot);
+        else w.target.copy(randomFieldPoint());
+        w.timer = 4 + Math.random() * 5;
     }
-    function updateGnomeSleep() {
-        for (const g of gnomes) {
+    function updateWalkerSleep() {
+        for (const w of walkers) {
+            if (!w.isGnome) continue;
             if (isNight) {
-                const bed = cottageSpot || g.pos;
-                g.target.copy(bed);
-                if (!g.sleepBubble) { g.sleepBubble = makeSprite('💤', 0.5, true); scene.add(g.sleepBubble); }
-            } else if (g.sleepBubble) {
-                scene.remove(g.sleepBubble); g.sleepBubble = null; pickGnomeTarget(g);
+                w.target.copy(cottageSpot || w.pos);
+                if (!w.sleepBubble) { w.sleepBubble = makeSprite('💤', 0.5, true); scene.add(w.sleepBubble); }
+            } else if (w.sleepBubble) {
+                scene.remove(w.sleepBubble); w.sleepBubble = null; pickWalkerTarget(w);
             }
         }
     }
@@ -673,7 +962,7 @@ export function createGarden(canvas, opts = {}) {
         el.className = 'garden-bubble';
         el.textContent = PHRASES[Math.floor(Math.random() * PHRASES.length)];
         layer.appendChild(el);
-        bubbles.push({ el, src: c.sprite, until: clock.getElapsedTime() + 2.4 });
+        bubbles.push({ el, src: c.obj, until: clock.getElapsedTime() + 2.4 });
         creatureSound(c.kind);
     }
     function projectBubbles(now) {
@@ -922,13 +1211,21 @@ export function createGarden(canvas, opts = {}) {
         const dt = Math.min(0.05, clock.getDelta());
         const t  = clock.getElapsedTime();
 
+        // Plants — voxel groups sway/tilt; the floating 💧 (sprite) bobs.
         for (const p of plantSprites) {
-            const sway = Math.sin(t * 1.4 + p.phase) * 0.05;
-            p.sprite.position.y = p.baseY + sway + (p.drop ? Math.sin(t * 3 + p.phase) * 0.05 : 0);
-            p.sprite.material.rotation = Math.sin(t * 1.1 + p.phase) * 0.04;
-            if (p.pop > 0) { p.pop = Math.max(0, p.pop - 0.04); const k = p.baseScale * (1 + p.pop * 0.6); p.sprite.scale.set(k, k, 1); }
+            if (p.drop) {
+                p.sprite.position.y = p.baseY + Math.sin(t * 3 + p.phase) * 0.05;
+                p.sprite.material.rotation = Math.sin(t * 1.1 + p.phase) * 0.04;
+                continue;
+            }
+            const g = p.group;
+            g.position.y = p.baseY + Math.sin(t * 1.4 + p.phase) * 0.04;
+            g.rotation.z = (p.due ? 0.28 : 0) + Math.sin(t * 1.1 + p.phase) * 0.03;
+            if (p.pop > 0) { p.pop = Math.max(0, p.pop - 0.04); const k = 1 + p.pop * 0.4; g.scale.set(k, k, k); }
+            else if (g.scale.x !== 1) g.scale.set(1, 1, 1);
         }
 
+        // Sky critters — fly, face travel, flap wings (userData.wing meshes).
         for (const c of creatures) {
             c.timer -= dt;
             c.soundCd -= dt;
@@ -941,39 +1238,62 @@ export function createGarden(canvas, opts = {}) {
             c.pos.y += (c.target.y - c.pos.y) * Math.min(1, step);
             c.pos.z += (c.target.z - c.pos.z) * Math.min(1, step);
             const landed = c.state === 'land' && c.pos.distanceTo(c.target) < 0.3;
-            c.sprite.position.set(c.pos.x, c.pos.y + (landed ? 0 : Math.sin(t * 4 + c.flap) * 0.12), c.pos.z);
-            c.sprite.material.rotation = landed ? 0 : Math.sin(t * 8 + c.flap) * 0.18;
+            c.obj.position.set(c.pos.x, c.pos.y + (landed ? 0 : Math.sin(t * 4 + c.flap) * 0.12), c.pos.z);
+            const dx = c.target.x - c.pos.x, dz = c.target.z - c.pos.z;
+            if (Math.abs(dx) + Math.abs(dz) > 0.02) c.obj.rotation.y = Math.atan2(-dz, dx);
+            const flap = landed ? 0.1 : Math.sin(t * 16 + c.flap) * 0.5;
+            c.obj.traverse(o => { if (o.userData?.wing) o.rotation.x = flap * o.userData.wing; });
             if (landed && Math.random() < 0.004) speak(c);
             if (c.timer <= 0) pickBehavior(c);
         }
 
-        for (const g of gnomes) {
-            const speed = isNight ? 0.35 : 0.55;
-            const step = speed * dt;
-            g.pos.x += (g.target.x - g.pos.x) * Math.min(1, step);
-            g.pos.z += (g.target.z - g.pos.z) * Math.min(1, step);
-            g.pos.y = TOP + 0.55;
-            const arrived = g.pos.distanceTo(g.target) < 0.12;
-            const bob = isNight || arrived ? 0 : Math.sin(t * 5 + g.phase) * 0.04;
-            g.sprite.position.set(g.pos.x, g.pos.y + bob, g.pos.z);
-            g.sprite.material.rotation = isNight ? -0.1 : Math.sin(t * 2 + g.phase) * 0.08;
-            if (g.sleepBubble) g.sleepBubble.position.set(g.pos.x + 0.25, g.pos.y + 0.8, g.pos.z);
-            g.timer -= dt;
-            if (!isNight && (g.timer <= 0 || arrived)) pickGnomeTarget(g);
+        // Ground walkers — gnome + animals roam the land, facing travel direction.
+        for (const w of walkers) {
+            const night = w.isGnome && isNight;
+            const step = (night ? 0.3 : w.speed) * dt;
+            w.pos.x += (w.target.x - w.pos.x) * Math.min(1, step);
+            w.pos.z += (w.target.z - w.pos.z) * Math.min(1, step);
+            w.pos.y = TOP;
+            const dx = w.target.x - w.pos.x, dz = w.target.z - w.pos.z;
+            const arrived = Math.hypot(dx, dz) < 0.12;
+            if (!arrived) { w.hx = dx; w.hz = dz; }
+            const bob = night || arrived ? 0 : Math.abs(Math.sin(t * 6 + w.phase)) * 0.05;
+            w.obj.position.set(w.pos.x, w.pos.y + bob, w.pos.z);
+            w.obj.rotation.y = Math.atan2(-w.hz, w.hx);
+            if (w.sleepBubble) w.sleepBubble.position.set(w.pos.x + 0.25, w.pos.y + 0.9, w.pos.z);
+            w.timer -= dt;
+            if (!night && (w.timer <= 0 || arrived)) pickWalkerTarget(w);
         }
 
-        // Traffic-light phase (auto-timed); refresh lamp colours when it flips.
-        const phase = Math.floor(t / PHASE_DUR) % 2;
-        if (phase !== lightPhase) {
-            lightPhase = phase;
-            for (const lt of trafficLights) {
-                lt.lampV.material = lightPhase === 0 ? PAL.lampGreen : PAL.lampRed;   // N–S
-                lt.lampH.material = lightPhase === 1 ? PAL.lampGreen : PAL.lampRed;   // E–W
+        // Signals: compute the per-axis state, refresh the 3-lamp heads on change.
+        const sig = axisStates(t);
+        const sigKey = sig.ns + sig.ew;
+        if (sigKey !== lastSig) {
+            lastSig = sigKey;
+            for (const lt of trafficLights) { setHead(lt.headV, sig.ns); setHead(lt.headH, sig.ew); }
+        }
+        // Snapshot the cell each vehicle holds + direction (queueing), and which
+        // crossings have a train on/entering them (cars hold for the train).
+        const occ = new Map();
+        const trainAtCrossing = new Set();
+        for (const v of vehicleSprites) {
+            const s = vehicleState.get(v.id);
+            if (!s) continue;
+            occ.set(cellKey(s.c, s.r), dirKey(s.eout));
+            if (v.code === 'train') {
+                if (currentCells.get(cellKey(s.c, s.r))?.surface === 'crossing') trainAtCrossing.add(cellKey(s.c, s.r));
+                const nk = cellKey(s.c + s.eout.dc, s.r + s.eout.dr);
+                if (currentCells.get(nk)?.surface === 'crossing') trainAtCrossing.add(nk);
             }
         }
-        // Snapshot the cell each vehicle holds + its direction (for queueing).
-        const occ = new Map();
-        for (const v of vehicleSprites) { const s = vehicleState.get(v.id); if (s) occ.set(cellKey(s.c, s.r), dirKey(s.eout)); }
+        // Crossing signals: flash the lamps + lower both boom gates when a train is near.
+        for (const cs of crossingSignals) {
+            const active = trainAtCrossing.has(cs.key);
+            const flash = Math.sin(t * 8) > 0;
+            cs.lamps.forEach((l, k) => { l.material = active && (k % 2 === 0 ? flash : !flash) ? PAL.lampRed : PAL.lampOff; });
+            const targetA = active ? 0 : Math.PI / 2;    // 0 = down (blocking), PI/2 = up (open)
+            for (const gate of cs.gates) gate.rotation.x += (targetA - gate.rotation.x) * Math.min(1, dt * 4);
+        }
 
         // Vehicles drive the connected network: turn to face travel, arc through
         // corners, slow for curves, keep right (cars), stop at red lights and queue
@@ -985,7 +1305,9 @@ export function createGarden(canvas, opts = {}) {
             if (!st) continue;
             const surf = vehicleSurface(v.code);
             const stopped = st.eout.dc === 0 && st.eout.dr === 0;
-            if (stopped) {
+            if (st.dwell > 0) {                       // train dwelling at a station
+                st.dwell -= dt;
+            } else if (stopped) {
                 const nb = trackNeighbours(st.c, st.r, surf);
                 if (nb.length) {
                     const n = nb[Math.floor(Math.random() * nb.length)];
@@ -1000,9 +1322,18 @@ export function createGarden(canvas, opts = {}) {
                 if (st.p >= 1) {
                     const nc = st.c + st.eout.dc, nr = st.r + st.eout.dr;
                     const nk = cellKey(nc, nr);
-                    const redLight = surf === 'road' && lightCells.has(nk) && !greenFor(st.eout);
+                    const isRoad = surf === 'road';
+                    const redLight = isRoad && lightCells.has(nk) && !canGo(sig, st.eout);
                     const queued   = occ.get(nk) === dirKey(st.eout);          // a car ahead, same way
-                    if (redLight || queued) {
+                    const trainHold = isRoad && trainAtCrossing.has(nk);       // wait for the train
+                    // Stop sign: one brief mandatory halt before entering the junction cell.
+                    let signHold = false;
+                    if (isRoad && stopCells.has(nk) && st.stopAt !== nk) {
+                        st.signDwell = (st.signDwell ?? 0.8) - dt;
+                        if (st.signDwell > 0) signHold = true;
+                        else { st.signDwell = null; st.stopAt = nk; }
+                    }
+                    if (redLight || queued || trainHold || signHold) {
                         st.p = 1;                                               // hold at the stop line
                     } else {
                         const ein = { ...st.eout };
@@ -1014,6 +1345,8 @@ export function createGarden(canvas, opts = {}) {
                         else eout = { dc: 0, dr: 0 };                              // track vanished → stop
                         st.c = nc; st.r = nr; st.ein = ein; st.eout = eout; st.p = Math.max(0, st.p - 1);
                         occ.set(nk, dirKey(eout));                              // claim the cell this frame
+                        if (st.stopAt && st.stopAt !== nk) st.stopAt = null;   // left the stop sign behind
+                        if (v.code === 'train' && stationRailCells.has(nk)) st.dwell = 2.5;   // pull into the station
                     }
                 }
             }

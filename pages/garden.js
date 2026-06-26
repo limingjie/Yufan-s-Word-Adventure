@@ -336,33 +336,45 @@ export async function render(container) {
         if (drawer.style.display === 'block') renderShop();
     });
 
+    // Shop renders as a grid of card "blocks", grouped by category (scales better
+    // than rows as the catalog grows).
+    const CATS = [
+        ['playset',    '🚦 Roads & Rails'],
+        ['structures', '🏡 Structures'],
+        ['animals',    '🐾 Animals'],
+        ['decor',      '✨ Decorations'],
+        ['themes',     '🌗 Themes & Boosters'],
+    ];
+    function shopCard(it) {
+        const qty    = itemCounts.get(it.code) || 0;
+        const afford = balance >= it.cost;
+        const oneOff = !!it.oneOff || it.type === 'theme' || it.type === 'booster';
+        let btn;
+        if (oneOff && qty > 0) {
+            btn = it.type === 'theme'
+                ? (it.code === activeTheme
+                    ? `<span class="shop-owned">Active ✓</span>`
+                    : `<button class="btn btn-secondary btn-sm shop-theme" data-code="${it.code}">Use</button>`)
+                : `<span class="shop-owned">Owned ✓</span>`;
+        } else {
+            btn = `<button class="btn btn-primary btn-sm shop-buy" data-code="${it.code}" ${afford ? '' : 'disabled'}>${it.cost} 🪙</button>`;
+        }
+        const countBadge = (!oneOff && qty > 0) ? `<span class="shop-count">×${qty}</span>` : '';
+        const tag = it.type === 'theme' ? ' <span class="shop-tag">theme</span>'
+                  : it.type === 'booster' ? ' <span class="shop-tag">booster</span>' : '';
+        return `
+            <div class="shop-item ${qty > 0 ? 'owned' : ''}">
+                <span class="shop-ic">${it.icon}</span>
+                <div class="shop-name">${esc(it.name)}${tag}${countBadge}</div>
+                ${it.desc ? `<div class="shop-desc">${esc(it.desc)}</div>` : ''}
+                ${btn}
+            </div>`;
+    }
     function renderShop() {
-        const rows = shopList().map(it => {
-            const qty    = itemCounts.get(it.code) || 0;
-            const afford = balance >= it.cost;
-            const oneOff = !!it.oneOff || it.type === 'theme' || it.type === 'booster';
-            let btn;
-            if (oneOff && qty > 0) {
-                if (it.type === 'theme') {
-                    btn = it.code === activeTheme
-                        ? `<span class="shop-owned">Active ✓</span>`
-                        : `<button class="btn btn-secondary btn-sm shop-theme" data-code="${it.code}">Use</button>`;
-                } else {
-                    btn = `<span class="shop-owned">Owned ✓</span>`;
-                }
-            } else {
-                btn = `<button class="btn btn-primary btn-sm shop-buy" data-code="${it.code}" ${afford ? '' : 'disabled'}>${it.cost} 🪙</button>`;
-            }
-            const countBadge = (!oneOff && qty > 0) ? `<span class="shop-count">×${qty}</span>` : '';
-            return `
-                <div class="shop-item ${qty > 0 ? 'owned' : ''}">
-                    <span class="shop-ic">${it.icon}</span>
-                    <div class="shop-info">
-                        <div class="shop-name">${esc(it.name)}${it.type === 'theme' ? ' <span class="shop-tag">theme</span>' : ''}${it.type === 'booster' ? ' <span class="shop-tag">booster</span>' : ''}${countBadge}</div>
-                        ${it.desc ? `<div class="shop-desc">${esc(it.desc)}</div>` : ''}
-                    </div>
-                    ${btn}
-                </div>`;
+        const all = shopList();
+        const sections = CATS.map(([cat, label]) => {
+            const cards = all.filter(it => (it.cat || 'decor') === cat).map(shopCard).join('');
+            return cards ? `<div class="shop-section"><h4 class="shop-cat">${label}</h4><div class="shop-grid">${cards}</div></div>` : '';
         }).join('');
 
         drawer.innerHTML = `
@@ -371,7 +383,7 @@ export async function render(container) {
                 <span class="coin-chip">🪙 ${balance}</span>
                 <button id="shopClose" class="modal-close" style="margin-left:auto">✕</button>
             </div>
-            <div class="shop-grid">${rows}</div>`;
+            ${sections}`;
 
         drawer.querySelector('#shopClose').addEventListener('click', () => { drawer.style.display = 'none'; });
         drawer.querySelectorAll('.shop-buy').forEach(b =>
