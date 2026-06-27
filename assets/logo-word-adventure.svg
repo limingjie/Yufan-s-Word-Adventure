@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 64" role="img" aria-label="Word Adventure">
+    <defs>
+        <linearGradient id="badge" x1="8" y1="5" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#4fb3ff"/>
+            <stop offset="0.55" stop-color="#7d6cff"/>
+            <stop offset="1" stop-color="#ff8fb5"/>
+        </linearGradient>
+        <linearGradient id="word" x1="72" y1="10" x2="260" y2="50" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#1a73e8"/>
+            <stop offset="0.48" stop-color="#6c3ec5"/>
+            <stop offset="1" stop-color="#f05c93"/>
+        </linearGradient>
+        <linearGradient id="sprout" x1="18" y1="14" x2="48" y2="46" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#9be15d"/>
+            <stop offset="1" stop-color="#2f9e6b"/>
+        </linearGradient>
+    </defs>
+    <g>
+        <rect x="4" y="4" width="56" height="56" rx="15" fill="url(#badge)"/>
+        <path d="M15 42c10-5 24-5 34 0v7c-10-5-24-5-34 0z" fill="#fff6cf"/>
+        <path d="M15 20c8-4 17-2 24 4v23c-6-5-15-7-24-3z" fill="#fff"/>
+        <path d="M49 20c-8-4-17-2-24 4v23c6-5 15-7 24-3z" fill="#eaf6ff"/>
+        <path d="M31 21c-1-8 4-13 11-14 1 8-4 13-11 14z" fill="url(#sprout)"/>
+        <path d="M32 23c-7-2-11-8-10-16 8 1 12 7 10 16z" fill="#55c779"/>
+        <path d="M29 28h6v18h-6z" fill="#8a5a2b"/>
+        <path d="M47 10l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="#ffd24a"/>
+    </g>
+    <g fill="url(#word)">
+        <text x="72" y="31" font-family="Nunito, Arial, Helvetica, sans-serif" font-size="24" font-weight="900" letter-spacing="0">Word</text>
+        <text x="72" y="53" font-family="Nunito, Arial, Helvetica, sans-serif" font-size="23" font-weight="900" letter-spacing="0">Adventure</text>
+    </g>
+    <path d="M179 49c24-1 43-7 62-19" fill="none" stroke="#ffd24a" stroke-width="4" stroke-linecap="round" stroke-dasharray="1 9"/>
+    <path d="M248 24l10 2-7 8" fill="none" stroke="#ffd24a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

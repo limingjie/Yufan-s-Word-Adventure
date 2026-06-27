@@ -612,12 +612,17 @@ export function createGarden(canvas, opts = {}) {
             vcyl(g, 0.032, 0.2, 0, 0.22, 0, PAL.sprout, "y", 10);
             vleaf(g, 0.18, 0.12, 0.1, 0.29, 0, PAL.leaf, 0, -0.35);
             vleaf(g, 0.14, 0.1, -0.07, 0.25, -0.02, PAL.leafDk, 0.35, 0.45);
+            vleaf(g, 0.12, 0.09, 0.02, 0.22, 0.08, PAL.leaf, Math.PI / 2, -0.18);
+            vleaf(g, 0.11, 0.08, -0.03, 0.27, -0.08, PAL.leafDk, -Math.PI / 2, 0.22);
             dot(g, 0, 0.34, 0, 0.1, PAL.bloomY);
         } else if (lv === 1) {
             vcyl(g, 0.035, 0.34, 0, 0.17, 0, PAL.sprout, "y", 10);
             vleaf(g, 0.22, 0.12, 0.11, 0.29, 0, PAL.leaf, 0, -0.35);
             vleaf(g, 0.2, 0.12, -0.1, 0.25, 0, PAL.leaf, 0.15, 0.45);
             vleaf(g, 0.14, 0.22, 0, 0.33, 0.09, PAL.leafDk, 0.15, 0.12);
+            vleaf(g, 0.16, 0.1, 0.02, 0.21, -0.1, PAL.leafDk, -Math.PI / 2, 0.2);
+            vleaf(g, 0.17, 0.1, -0.03, 0.37, -0.04, PAL.leaf, Math.PI / 2, -0.25);
+            vleaf(g, 0.13, 0.09, 0.12, 0.23, 0.08, PAL.leaf, 0.65, -0.35);
             dot(g, 0.16, 0.3, 0, 0.1, PAL.bloomR);
             dot(g, -0.16, 0.26, 0, 0.1, PAL.bloom);
             dot(g, 0, 0.36, 0, 0.1, PAL.bloomY);
@@ -2496,6 +2501,18 @@ export function createGarden(canvas, opts = {}) {
         const aspect = w / Math.max(1, h);
         return Math.max(7, footprint * (aspect > 1.25 ? 1.45 : 1.85) + 4.5);
     }
+    function syncViewport() {
+        const w = canvas.clientWidth || canvas.parentElement.clientWidth || 1;
+        const h = canvas.clientHeight || canvas.parentElement.clientHeight || 1;
+        renderer.setSize(w, h, false);
+        camera.aspect = w / Math.max(1, h);
+        camera.updateProjectionMatrix();
+        return { w, h };
+    }
+    function canvasCenterClientPoint() {
+        const r = canvas.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }
     function cameraBounds() {
         return {
             minX: worldX(B.minC - PAD),
@@ -2552,6 +2569,19 @@ export function createGarden(canvas, opts = {}) {
             applyCamera();
         }
     }
+    function centerWorldPointOnScreen(point) {
+        syncViewport();
+        target.x = point.x;
+        target.z = point.z;
+        applyCamera();
+        const center = canvasCenterClientPoint();
+        const centered = groundPointAt(center.x, center.y);
+        if (centered) {
+            target.x += point.x - centered.x;
+            target.z += point.z - centered.z;
+        }
+        applyCamera();
+    }
     function setCenterPicking(on) {
         setCenterMode = !!on;
         cb.setCenterMode(setCenterMode);
@@ -2575,11 +2605,11 @@ export function createGarden(canvas, opts = {}) {
         applyCamera();
     }
     function recenterView() {
-        target.x = 0;
-        target.z = 0;
+        syncViewport();
+        dist = Math.max(dist, Math.min(60, defaultViewDistance() * 0.55));
         userChangedView = true;
         idle = 0;
-        applyCamera();
+        centerWorldPointOnScreen({ x: 0, z: 0 });
     }
     function fitGardenView() {
         target.x = 0;
@@ -2597,20 +2627,19 @@ export function createGarden(canvas, opts = {}) {
         if (setCenterMode) setCenterPicking(false);
     }
     function pickViewCenter(clientX, clientY) {
+        let point;
         const cell = cellAt(clientX, clientY);
         if (cell) {
-            target.x = worldX(cell.col);
-            target.z = worldZ(cell.row);
+            point = { x: worldX(cell.col), z: worldZ(cell.row) };
         } else {
             const pt = groundPointAt(clientX, clientY);
             if (!pt) return false;
-            target.x = pt.x;
-            target.z = pt.z;
+            point = pt;
         }
         userChangedView = true;
         idle = 0;
         setCenterPicking(false);
-        applyCamera();
+        centerWorldPointOnScreen(point);
         return true;
     }
 
@@ -2725,11 +2754,7 @@ export function createGarden(canvas, opts = {}) {
 
     // ── Resize ───────────────────────────────────────────────────────────────
     function resize() {
-        const w = canvas.clientWidth || canvas.parentElement.clientWidth;
-        const h = canvas.clientHeight || canvas.parentElement.clientHeight;
-        renderer.setSize(w, h, false);
-        camera.aspect = w / Math.max(1, h);
-        camera.updateProjectionMatrix();
+        syncViewport();
         if (!userChangedView) {
             dist = defaultViewDistance();
         }

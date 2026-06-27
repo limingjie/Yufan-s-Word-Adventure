@@ -145,7 +145,9 @@ function renderNavbar(profile) {
     navbar.innerHTML = `
         <div class="navbar-container">
             <div class="navbar-brand">
-                <a href="#${home}">Word Adventure</a>
+                <a href="#${home}" class="brand-logo" aria-label="Word Adventure home">
+                    <img src="assets/logo-word-adventure.svg" alt="Word Adventure" />
+                </a>
             </div>
             <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">☰</button>
             <nav class="navbar-menu" id="navMenu">${navLinks}</nav>

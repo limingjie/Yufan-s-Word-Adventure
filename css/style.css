@@ -128,13 +128,25 @@ select:focus {
     flex-wrap: wrap;
 }
 
-.navbar-brand h1 {
-    font-size: var(--font-size-xl);
-    margin: 0;
+.navbar-brand {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
 }
 
-.navbar-brand a {
+.brand-logo {
+    display: inline-flex;
+    align-items: center;
+    width: clamp(150px, 20vw, 224px);
+    height: 52px;
     color: var(--dark-color);
+}
+
+.brand-logo img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
 }
 
 .navbar-stats {
@@ -1265,6 +1277,10 @@ input.letter-box:focus { border-color: var(--primary-color); outline: none; box-
     .nav-toggle { display: block; }
 
     .navbar-container { flex-wrap: wrap; }
+    .brand-logo {
+        width: 154px;
+        height: 42px;
+    }
 
     .navbar-menu {
         display: none;
@@ -1305,8 +1321,8 @@ input.letter-box:focus { border-color: var(--primary-color); outline: none; box-
 
     .card { padding: var(--spacing-md); }
 
-    button:not(.btn-sm):not(.gt-icon-btn):not(.coin-btn):not(.help-btn):not(.cell-box),
-    .btn:not(.btn-sm):not(.gt-icon-btn):not(.coin-btn):not(.help-btn):not(.cell-box) {
+    button:not(.btn-sm):not(.gt-icon-btn):not(.coin-btn):not(.help-btn):not(.cell-box):not(.garden-nav-btn),
+    .btn:not(.btn-sm):not(.gt-icon-btn):not(.coin-btn):not(.help-btn):not(.cell-box):not(.garden-nav-btn) {
         min-height: 44px;
     }
 
@@ -1586,9 +1602,10 @@ body.garden-page .app-container {
     pointer-events: auto;
 }
 .garden-nav-pad {
+    --garden-nav-btn-size: 38px;
     display: grid;
-    grid-template-columns: repeat(3, 38px);
-    grid-template-rows: repeat(3, 38px);
+    grid-template-columns: repeat(3, var(--garden-nav-btn-size));
+    grid-template-rows: repeat(3, var(--garden-nav-btn-size));
     gap: 0.25rem;
     padding: 0.35rem;
     border: 1px solid rgba(0,0,0,0.12);
@@ -1598,8 +1615,13 @@ body.garden-page .app-container {
     backdrop-filter: blur(6px);
 }
 .garden-nav-btn {
-    width: 38px;
-    height: 38px;
+    width: var(--garden-nav-btn-size);
+    height: var(--garden-nav-btn-size);
+    min-width: var(--garden-nav-btn-size);
+    min-height: var(--garden-nav-btn-size);
+    aspect-ratio: 1 / 1;
+    flex: 0 0 var(--garden-nav-btn-size);
+    padding: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1775,15 +1797,12 @@ body.garden-page .app-container {
         bottom: 0.55rem;
     }
     .garden-nav-pad {
-        grid-template-columns: repeat(3, 34px);
-        grid-template-rows: repeat(3, 34px);
+        --garden-nav-btn-size: 40px;
         gap: 0.22rem;
         padding: 0.28rem;
     }
     .garden-nav-btn {
-        width: 34px;
-        height: 34px;
-        font-size: 1.05rem;
+        font-size: 1.18rem;
     }
 }
 
