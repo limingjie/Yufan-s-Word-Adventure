@@ -296,7 +296,7 @@ CREATE POLICY "users_select_own_stats_cache"
 -- db.getUserCoins(). Boosters are cosmetic-only (never touch SRS/mastery).
 
 -- Items STACK: one row per purchase (quantity = row count per item_code).
--- Placeable items (road/rail/crossing/fence/station/car/train), structures and
+-- Placeable items (road/rail/crossing/fence/runway/station/controltower/car/bus/train/privatejet), structures and
 -- ground-animal homes also remember WHERE they sit. col/grid_row are NULL while
 -- a placeable is still in the tray, or before a structure/animal auto-home is saved.
 CREATE TABLE IF NOT EXISTS garden_items (

@@ -97,10 +97,28 @@ export async function render(container) {
                      <a href="#/learner/words" class="btn btn-primary">Add your first word</a></div>`
                 : `<canvas id="gardenCanvas" class="garden-canvas"></canvas>`}
 
+            ${words.length ? `
+                <div id="gardenNav" class="garden-nav" aria-label="Garden navigation controls">
+                    <div class="garden-nav-pad" aria-label="Pan and zoom garden view">
+                        <button type="button" class="garden-nav-btn garden-nav-zoom-in" data-nav="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+                        <button type="button" class="garden-nav-btn garden-nav-up" data-nav-pan data-pan-x="0" data-pan-z="1" title="Pan up" aria-label="Pan up">↑</button>
+                        <button type="button" id="gardenNavTarget" class="garden-nav-btn garden-nav-target" data-nav="target" title="Set center" aria-label="Set center" aria-pressed="false">⌖</button>
+                        <button type="button" class="garden-nav-btn garden-nav-left" data-nav-pan data-pan-x="-1" data-pan-z="0" title="Pan left" aria-label="Pan left">←</button>
+                        <button type="button" class="garden-nav-btn garden-nav-home" data-nav="home" title="Recenter" aria-label="Recenter">◎</button>
+                        <button type="button" class="garden-nav-btn garden-nav-right" data-nav-pan data-pan-x="1" data-pan-z="0" title="Pan right" aria-label="Pan right">→</button>
+                        <button type="button" class="garden-nav-btn garden-nav-zoom-out" data-nav="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+                        <button type="button" class="garden-nav-btn garden-nav-down" data-nav-pan data-pan-x="0" data-pan-z="-1" title="Pan down" aria-label="Pan down">↓</button>
+                        <button type="button" class="garden-nav-btn garden-nav-fit" data-nav="fit" title="Fit all" aria-label="Fit all">⛶</button>
+                    </div>
+                </div>` : ''}
+
             <div id="plantPopup" class="garden-popup garden-popup-fs" style="display:none">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem">
                     <span id="popupWord" style="font-size:1.4rem;font-weight:700"></span>
-                    <span id="popupLevel" style="font-size:0.9rem"></span>
+                    <span style="display:flex;align-items:center;gap:0.35rem">
+                        <span id="popupLevel" style="font-size:0.9rem"></span>
+                        <button id="plantPopupClose" class="modal-close" title="Close" style="font-size:1.1rem;line-height:1;padding:0 0.1rem">✕</button>
+                    </span>
                 </div>
                 <p id="popupDef" style="font-size:0.88rem;color:#555;margin:0 0 0.2rem"></p>
                 <p id="popupChi" style="font-size:0.9rem;margin:0 0 0.65rem"></p>
@@ -132,6 +150,76 @@ export async function render(container) {
             onItemRemoved: (id) => onItemRemoved(id),
             onSelectItem:  (id) => showItemPanel(id),
             onInvalidDrop: (reason) => toast(reason),
+            onSetCenterModeChange: (active) => setNavCenterActive(active),
+        });
+        bindGardenNav();
+    }
+
+    function setNavCenterActive(active) {
+        const btn = document.getElementById('gardenNavTarget');
+        btn?.classList.toggle('active', !!active);
+        btn?.setAttribute('aria-pressed', active ? 'true' : 'false');
+    }
+
+    function bindGardenNav() {
+        const nav = document.getElementById('gardenNav');
+        if (!nav || !controller) return;
+        let repeatDelay = null;
+        let repeatTimer = null;
+        let activePan = null;
+
+        const stopPan = () => {
+            if (repeatDelay) clearTimeout(repeatDelay);
+            if (repeatTimer) clearInterval(repeatTimer);
+            repeatDelay = repeatTimer = null;
+            activePan?.classList.remove('active');
+            activePan = null;
+            window.removeEventListener('pointerup', stopPan);
+            window.removeEventListener('pointercancel', stopPan);
+            window.removeEventListener('blur', stopPan);
+        };
+        const runPan = (btn) => {
+            controller.panView(Number(btn.dataset.panX || 0), Number(btn.dataset.panZ || 0));
+        };
+
+        nav.addEventListener('pointerdown', (e) => {
+            const btn = e.target.closest('[data-nav-pan]');
+            if (!btn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            stopPan();
+            activePan = btn;
+            activePan.classList.add('active');
+            runPan(btn);
+            repeatDelay = setTimeout(() => {
+                repeatTimer = setInterval(() => runPan(btn), 90);
+            }, 240);
+            window.addEventListener('pointerup', stopPan);
+            window.addEventListener('pointercancel', stopPan);
+            window.addEventListener('blur', stopPan);
+        });
+
+        nav.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const btn = e.target.closest('[data-nav]');
+            if (!btn) return;
+            const action = btn.dataset.nav;
+            if (action === 'zoom-in') controller.zoomView('in');
+            else if (action === 'zoom-out') controller.zoomView('out');
+            else if (action === 'target') {
+                const active = btn.classList.contains('active');
+                if (active) controller.cancelSetCenterMode();
+                else {
+                    popup.style.display = 'none';
+                    panel.style.display = 'none';
+                    controller.beginSetCenterMode();
+                }
+            } else {
+                controller.cancelSetCenterMode();
+                if (action === 'home') controller.recenterView();
+                if (action === 'fit') controller.fitGardenView();
+            }
         });
     }
 
@@ -160,6 +248,10 @@ export async function render(container) {
 
     // ── Plant popup ───────────────────────────────────────────────────────────
     const popup = document.getElementById('plantPopup');
+    document.getElementById('plantPopupClose')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        popup.style.display = 'none';
+    });
 
     function refreshTopbar() {
         document.querySelector('.gt-counts').innerHTML = countsHtml();
@@ -295,7 +387,7 @@ export async function render(container) {
         tray.innerHTML = `
             <div class="tray-hint">${unplaced.length
                 ? 'Drag onto a block. Tap a placed item to rotate or remove it.'
-                : 'Buy roads, rails, fences, cars or trains in the 🛒 Shop, then drag them here.'}</div>
+                : 'Buy roads, rails, fences, runways, vehicles or towers in the 🛒 Shop, then drag them here.'}</div>
             <div class="tray-row">${chips}</div>`;
         tray.querySelectorAll('.tray-chip').forEach(chip =>
             chip.addEventListener('pointerdown', (e) => {
@@ -334,7 +426,10 @@ export async function render(container) {
     const drawer = document.getElementById('shopDrawer');
     document.getElementById('shopBtn').addEventListener('click', () => {
         drawer.style.display = drawer.style.display === 'none' ? 'block' : 'none';
-        if (drawer.style.display === 'block') renderShop();
+        if (drawer.style.display === 'block') {
+            controller?.cancelSetCenterMode();
+            renderShop();
+        }
     });
 
     // Shop renders as a grid of card "blocks", grouped by category (scales better

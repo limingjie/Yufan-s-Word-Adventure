@@ -1578,6 +1578,77 @@ body.garden-page .app-container {
     z-index: 2;
 }
 
+.garden-nav {
+    position: absolute;
+    right: clamp(0.5rem, 2vw, 1rem);
+    bottom: clamp(0.65rem, 2.5vw, 1.15rem);
+    z-index: 6;
+    pointer-events: auto;
+}
+.garden-nav-pad {
+    display: grid;
+    grid-template-columns: repeat(3, 38px);
+    grid-template-rows: repeat(3, 38px);
+    gap: 0.25rem;
+    padding: 0.35rem;
+    border: 1px solid rgba(0,0,0,0.12);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.56);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    backdrop-filter: blur(6px);
+}
+.garden-nav-btn {
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(0,0,0,0.16);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.94);
+    color: #243047;
+    font-size: 1.2rem;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    cursor: pointer;
+    user-select: none;
+    touch-action: none;
+}
+.garden-nav-btn:hover,
+.garden-nav-btn.active {
+    background: #e9f5ff;
+    border-color: #6db8ff;
+    color: #125da0;
+}
+.garden-nav-btn:active {
+    transform: translateY(1px);
+}
+.garden-nav-zoom-in { grid-column: 1; grid-row: 1; }
+.garden-nav-up { grid-column: 2; grid-row: 1; }
+.garden-nav-target { grid-column: 3; grid-row: 1; }
+.garden-nav-left { grid-column: 1; grid-row: 2; }
+.garden-nav-home { grid-column: 2; grid-row: 2; }
+.garden-nav-right { grid-column: 3; grid-row: 2; }
+.garden-nav-zoom-out { grid-column: 1; grid-row: 3; }
+.garden-nav-down { grid-column: 2; grid-row: 3; }
+.garden-nav-fit { grid-column: 3; grid-row: 3; }
+.garden-fs[data-night="1"] .garden-nav-pad {
+    background: rgba(20,33,61,0.5);
+    border-color: rgba(255,255,255,0.18);
+}
+.garden-fs[data-night="1"] .garden-nav-btn {
+    background: rgba(255,255,255,0.1);
+    border-color: rgba(255,255,255,0.22);
+    color: #eaf2ff;
+}
+.garden-fs[data-night="1"] .garden-nav-btn:hover,
+.garden-fs[data-night="1"] .garden-nav-btn.active {
+    background: rgba(128,216,255,0.22);
+    border-color: rgba(128,216,255,0.62);
+    color: #ffffff;
+}
+
 .garden-topbar {
     position: relative;
     order: -1;          /* stays at the top above the in-flow arrange tray */
@@ -1699,6 +1770,21 @@ body.garden-page .app-container {
     .gt-actions .btn { flex: 1 1 0; text-align: center; padding: 0 0.4rem; font-size: 0.82rem; }
     .gt-icon-btn { flex: 0 0 auto; min-width: 38px; }
     .gt-rank { font-size: 0.82rem; }
+    .garden-nav {
+        right: 0.4rem;
+        bottom: 0.55rem;
+    }
+    .garden-nav-pad {
+        grid-template-columns: repeat(3, 34px);
+        grid-template-rows: repeat(3, 34px);
+        gap: 0.22rem;
+        padding: 0.28rem;
+    }
+    .garden-nav-btn {
+        width: 34px;
+        height: 34px;
+        font-size: 1.05rem;
+    }
 }
 
 .garden-empty {

@@ -98,7 +98,7 @@ created_at timestamptz DEFAULT now()
 ```
 Items **stack** (one row per purchase). Coin balance is derived as
 `earned − Σ(item costs)` (`getUserCoins`), so deleting a row refunds it; never add
-a stored balance. Placeable playset items (road/rail/crossing/fence/station/car/train),
+a stored balance. Placeable playset items (road/rail/crossing/fence/runway/station/controltower/car/bus/train/privatejet),
 structures and ground-animal homes carry their position here.
 
 ### `garden_plants` (stored plant positions)

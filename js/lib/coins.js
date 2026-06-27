@@ -24,7 +24,7 @@ export function computeCoins({ wordsAdded = 0, testsTaken = 0, testsCorrect = 0,
 // animal:true → a ground animal with a persisted home cell; fences constrain roam.
 // placeable: true → the learner drags it from the tray onto a specific block and
 //   it remembers its position (col/grid_row/rotation in garden_items). Surface
-//   tiles (road/rail/crossing/fence) sit on a grass block; vehicles (car/train) ride a track.
+//   tiles (road/rail/crossing/fence/runway) sit on a grass block; vehicles (car/bus/train/privatejet) ride a track/runway.
 export const SHOP = {
     // --- Decorations (sky critters) ---
     butterflies: { name: 'Butterflies', icon: '🦋', cost: 15,  layer: 'sky',    type: 'decoration', cat: 'decor' },
@@ -56,7 +56,7 @@ export const SHOP = {
     cottage:     { name: 'Cottage',     icon: '🏡', cost: 150, layer: 'ground', type: 'decoration', cat: 'structures' },
 
     // --- Placeable playset: buy many, drag onto blocks, rearrange any time ---
-    // Cheap tracks, pricier vehicles. A car needs a road under it, a train a rail.
+    // Cheap tracks, pricier vehicles. Cars/buses need roads; trains need rails; jets need long runways.
     road:        { name: 'Road',  icon: '🛣️', cost: 5,  layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, surface: 'road',
                    desc: 'A path tile — roads auto-connect' },
     rail:        { name: 'Rail',  icon: '🛤️', cost: 5,  layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, surface: 'rail',
@@ -65,12 +65,20 @@ export const SHOP = {
                    desc: 'Road + rail cross here — cars and trains share it' },
     fence:       { name: 'Fence', icon: '🪵', cost: 1, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, surface: 'fence',
                    desc: 'Fence tile — fences auto-connect' },
-    station:     { name: 'Train Station', icon: '🚉', cost: 90, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, station: true,
-                   desc: 'Place beside a rail — trains stop here' },
+    runway:      { name: 'Runway Block', icon: '🛫', cost: 6, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, surface: 'runway',
+                   desc: 'Airport runway tile — connect 10 straight blocks for takeoff' },
+    station:     { name: 'Transit Station', icon: '🚉', cost: 90, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, station: true,
+                   desc: 'Place beside a rail or road — trains and buses stop here' },
+    controltower:{ name: 'Control Tower', icon: '🗼', cost: 240, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, tower: true,
+                   desc: 'Tall airport tower with night lights' },
     car:         { name: 'Car',   icon: '🚗', cost: 40, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, vehicle: 'road',
                    desc: 'Drives along your roads' },
+    bus:         { name: 'Bus',   icon: '🚌', cost: 55, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, vehicle: 'road',
+                   desc: 'Blue bus — drives roads and stops at stations' },
     train:       { name: 'Train', icon: '🚂', cost: 60, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, vehicle: 'rail',
                    desc: 'Runs along your rails' },
+    privatejet:  { name: 'Private Jet', icon: '🛩️', cost: 180, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, vehicle: 'runway',
+                   desc: 'Takes off and lands on a straight 10-block runway' },
 
     // --- Themes and boosters (cosmetic only — deliberately do NOT touch SRS/mastery) ---
     sunnyday:    { name: 'Sunny Day',    icon: '☀️', cost: 20,  layer: 'theme', type: 'theme', cat: 'themes', oneOff: true,

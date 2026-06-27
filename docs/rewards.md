@@ -52,7 +52,7 @@ earned is derived (`computeCoins`), purchases live in `garden_items`.
 `type: 'decoration'` (a 3D prop) or `'booster'` (**cosmetic-only — never touches
 SRS/mastery**). Spent in the Garden Shop (see [garden.md](garden.md)).
 
-`placeable: true` items (road/rail/crossing/fence/station/car/train) are dragged
+`placeable: true` items (road/rail/crossing/fence/runway/station/controltower/car/bus/train/privatejet) are dragged
 onto chosen blocks and remember their position (`col/grid_row/rotation` on
 `garden_items`). Ground animals also keep a persisted home cell there so fences
 can constrain their roaming — see [garden.md](garden.md). Removing a placed item
