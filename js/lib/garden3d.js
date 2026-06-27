@@ -479,10 +479,8 @@ export function createGarden(canvas, opts = {}) {
         vcyl(g, 0.1, 0.82, 0, 0.22, 0, PAL.jetBody, "x", 16); // fuselage faces +x
         vellipsoid(g, 0.16, 0.09, 0.09, 0.38, 0.25, 0, PAL.glass); // cockpit
         vellipsoid(g, 0.13, 0.095, 0.095, 0.48, 0.22, 0, PAL.jetBody); // rounded nose
-        const leftWing = vshape(g, [[0.28, 0], [-0.18, 0.42], [-0.3, 0.36], [-0.04, 0]], -0.02, 0.18, 0.05, PAL.jetBody);
-        leftWing.rotation.z = -Math.PI / 2;
-        const rightWing = vshape(g, [[0.28, 0], [-0.18, -0.42], [-0.3, -0.36], [-0.04, 0]], -0.02, 0.18, -0.05, PAL.jetBody);
-        rightWing.rotation.z = -Math.PI / 2;
+        vshape(g, [[0.16, 0.05], [-0.12, 0.54], [-0.28, 0.48], [-0.05, 0.06]], -0.02, 0.18, 0, PAL.jetBody);
+        vshape(g, [[0.16, -0.05], [-0.12, -0.54], [-0.28, -0.48], [-0.05, -0.06]], -0.02, 0.18, 0, PAL.jetBody);
         vcone(g, 0.055, 0.13, -0.06, 0.25, 0.49, PAL.jetBody, "y", 3); // winglets
         vcone(g, 0.055, 0.13, -0.06, 0.25, -0.49, PAL.jetBody, "y", 3);
         vcyl(g, 0.055, 0.14, -0.04, 0.12, 0.38, PAL.stack, "x", 12); // engine pods
@@ -1469,18 +1467,33 @@ export function createGarden(canvas, opts = {}) {
         const d = Math.hypot(ex - sx, ez - sz) || 1;
         return { seg, dir, sc, sr, ec, er, sx, sz, ex, ez, fx: (ex - sx) / d, fz: (ez - sz) / d, len: d };
     }
+    const runwayLandingEndKey = (seg, dir) => `${seg.key}:${dir >= 0 ? "end" : "start"}`;
     function chooseJetRoute(fromC, fromR) {
         const segs = validRunwaySegments(currentCells);
         const dep = nearestValidRunway(fromC, fromR, currentCells);
         if (!dep || !segs.length) return null;
-        const arrSeg = segs[Math.floor(Math.random() * segs.length)];
-        const arrDir = Math.random() < 0.5 ? 1 : -1;
+        const takeoffStartKey = runwayLandingEndKey(dep.seg, -dep.dir);
+        const landingOptions = segs.flatMap((seg) => [
+            { seg, dir: 1 },
+            { seg, dir: -1 },
+        ]);
+        const preferred =
+            landingOptions.length > 2
+                ? landingOptions.filter((opt) => runwayLandingEndKey(opt.seg, opt.dir) !== takeoffStartKey)
+                : landingOptions;
+        const options = preferred.length ? preferred : landingOptions;
+        const picked = options[Math.floor(Math.random() * options.length)];
+        const arrSeg = picked.seg;
+        const arrDir = picked.dir;
         const takeoff = runwayEndpoint(dep.seg, dep.dir);
         const landing = runwayEndpoint(arrSeg, arrDir);
         const span = Math.hypot(landing.sx - takeoff.ex, landing.sz - takeoff.ez);
         const approach = Math.max(2.2, Math.min(5.5, landing.len * 0.45));
-        const ctrl = Math.max(3.0, Math.min(8.0, span * 0.45 + 2.0));
-        const cruiseY = TOP + 4.6 + Math.min(2.0, span * 0.12);
+        const reach = Math.max(10, plotR * 1.9, span * 0.75 + 8);
+        const side = Math.random() < 0.5 ? 1 : -1;
+        const takeSide = { x: -takeoff.fz * side, z: takeoff.fx * side };
+        const landSide = { x: -landing.fz * side, z: landing.fx * side };
+        const cruiseY = TOP + 5.4 + Math.min(3.0, reach * 0.11);
         const liftY = TOP + 2.5;
         const approachY = TOP + 2.0;
         const p0 = { x: takeoff.ex, y: liftY, z: takeoff.ez };
@@ -1491,8 +1504,16 @@ export function createGarden(canvas, opts = {}) {
             landing,
             approach,
             p0,
-            p1: { x: p0.x + takeoff.fx * ctrl, y: cruiseY, z: p0.z + takeoff.fz * ctrl },
-            p2: { x: p3.x - landing.fx * ctrl, y: cruiseY, z: p3.z - landing.fz * ctrl },
+            p1: {
+                x: p0.x + takeoff.fx * reach + takeSide.x * reach * 0.78,
+                y: cruiseY,
+                z: p0.z + takeoff.fz * reach + takeSide.z * reach * 0.78,
+            },
+            p2: {
+                x: p3.x - landing.fx * reach + landSide.x * reach * 0.78,
+                y: cruiseY,
+                z: p3.z - landing.fz * reach + landSide.z * reach * 0.78,
+            },
             p3,
         };
     }
@@ -1574,7 +1595,7 @@ export function createGarden(canvas, opts = {}) {
     }
 
     function adjacentTrack(c, r, surface, cells) {
-        const m = (s) => s === surface || s === "crossing"; // crossings join both networks
+        const m = (s) => s === surface || ((surface === "road" || surface === "rail") && s === "crossing"); // crossings join road/rail
         return {
             n: m(cells.get(cellKey(c, r - 1))?.surface),
             s: m(cells.get(cellKey(c, r + 1))?.surface),
@@ -1617,7 +1638,7 @@ export function createGarden(canvas, opts = {}) {
         };
     }
 
-    function addRoadTile(x, z, adj) {
+    function addRoadTile(x, z, adj, { curbs = true } = {}) {
         const slab = new THREE.Mesh(slabGeo, solidMats(roadMat));
         slab.position.set(x, TOP + 0.06, z);
         ground.add(slab);
@@ -1636,13 +1657,14 @@ export function createGarden(canvas, opts = {}) {
             m.position.set(x, markY, z);
             ground.add(m);
         }
-        const curbs = [
-            ["n", 0, -0.46, SP * 0.86, 0.04],
-            ["s", 0, 0.46, SP * 0.86, 0.04],
-            ["w", -0.46, 0, 0.04, SP * 0.86],
-            ["e", 0.46, 0, 0.04, SP * 0.86],
+        if (!curbs) return;
+        const curbEdges = [
+            ["n", 0, -0.46, SP, 0.04],
+            ["s", 0, 0.46, SP, 0.04],
+            ["w", -0.46, 0, 0.04, SP],
+            ["e", 0.46, 0, 0.04, SP],
         ];
-        for (const [dir, ox, oz, w, d] of curbs) {
+        for (const [dir, ox, oz, w, d] of curbEdges) {
             if (adj[dir]) continue;
             const curb = new THREE.Mesh(new THREE.BoxGeometry(w, 0.035, d), solidMats(stoneMat));
             curb.position.set(x + ox, TOP + 0.13, z + oz);
@@ -1661,8 +1683,9 @@ export function createGarden(canvas, opts = {}) {
                 tie.position.set(x + ox, tieY, z + oz);
                 ground.add(tie);
             };
-            if (ns || iso) for (const oz of [-0.36, -0.18, 0, 0.18, 0.36]) addTie(0.72, 0.075, 0, oz);
-            if (ew) for (const ox of [-0.36, -0.18, 0, 0.18, 0.36]) addTie(0.075, 0.72, ox, 0);
+            const tieOffsets = [-0.4, -0.2, 0, 0.2, 0.4];
+            if (ns || iso) for (const oz of tieOffsets) addTie(0.72, 0.075, 0, oz);
+            if (ew) for (const ox of tieOffsets) addTie(0.075, 0.72, ox, 0);
         }
         const railY = TOP + 0.13;
         const addPair = (along) => {
@@ -1687,6 +1710,7 @@ export function createGarden(canvas, opts = {}) {
         const ns = adj.n || adj.s,
             ew = adj.e || adj.w,
             iso = !ns && !ew;
+        const cross = ns && ew;
         const axis = info.active ? info.axis : ns && !ew ? "z" : "x";
         const markY = TOP + 0.13;
         const addMark = (w, d, ox, oz) => {
@@ -1694,7 +1718,17 @@ export function createGarden(canvas, opts = {}) {
             m.position.set(x + ox, markY, z + oz);
             ground.add(m);
         };
-        if (info.active) {
+        if (cross) {
+            addMark(0.72, 0.06, 0, 0);
+            addMark(0.06, 0.72, 0, 0);
+            for (const [ox, oz] of [
+                [-0.28, -0.28],
+                [0.28, -0.28],
+                [-0.28, 0.28],
+                [0.28, 0.28],
+            ])
+                addMark(0.14, 0.04, ox, oz);
+        } else if (info.active) {
             if (axis === "x") {
                 addMark(0.3, 0.06, 0, 0);
                 if (info.index <= 1 || info.index >= info.len - 2)
@@ -1789,7 +1823,7 @@ export function createGarden(canvas, opts = {}) {
                 if (cell?.surface === "fence") addFenceTile(x, z, adjacentFence(c, r, cells));
                 if (cell?.surface === "crossing") {
                     // level crossing — both networks
-                    addRoadTile(x, z, adjacentTrack(c, r, "road", cells));
+                    addRoadTile(x, z, adjacentTrack(c, r, "road", cells), { curbs: false });
                     addRailTile(x, z, adjacentTrack(c, r, "rail", cells), true);
                 }
             }
@@ -1810,7 +1844,7 @@ export function createGarden(canvas, opts = {}) {
             const topY = TOP + 0.55 + lvl * 0.12;
             const entry = { group: g, baseY: TOP, phase: i * 0.7, wordId: wid, due: p.due };
             plantSprites.push(entry);
-            plantTops.push({ x, z, top: topY, wordId: wid });
+            plantTops.push({ x, z, top: topY, wordId: wid, flower: lvl >= 2 });
             if (p.due) {
                 const drop = makeSprite("💧", 0.45);
                 drop.position.set(x, topY + 0.25, z);
@@ -2249,11 +2283,16 @@ export function createGarden(canvas, opts = {}) {
     }
     function pickBehavior(c) {
         const roll = Math.random();
-        if (roll < 0.4 && plantTops.length) {
-            const t = plantTops[Math.floor(Math.random() * plantTops.length)];
-            c.target.set(t.x, t.top, t.z);
-            c.state = "land";
-            c.timer = 2.5 + Math.random() * 3;
+        const flowerTops = plantTops.filter((t) => t.flower);
+        const wantsFlower = c.kind === "bee" || c.kind === "butterfly";
+        const landingChance = wantsFlower ? 0.72 : 0.4;
+        if (roll < landingChance && plantTops.length) {
+            const candidates = wantsFlower && flowerTops.length ? flowerTops : plantTops;
+            const t = candidates[Math.floor(Math.random() * candidates.length)];
+            const orbit = wantsFlower ? 0.12 + Math.random() * 0.18 : 0;
+            c.target.set(t.x + (Math.random() - 0.5) * orbit, t.top + (wantsFlower ? 0.08 : 0), t.z + (Math.random() - 0.5) * orbit);
+            c.state = wantsFlower ? "flower" : "land";
+            c.timer = wantsFlower ? 3.5 + Math.random() * 3.5 : 2.5 + Math.random() * 3;
         } else if (roll < 0.6 && creatures.length > 1) {
             if (!groupTarget || Math.random() < 0.3)
                 groupTarget = new THREE.Vector3(
@@ -2807,7 +2846,7 @@ export function createGarden(canvas, opts = {}) {
             c.pos.x += (c.target.x - c.pos.x) * Math.min(1, step);
             c.pos.y += (c.target.y - c.pos.y) * Math.min(1, step);
             c.pos.z += (c.target.z - c.pos.z) * Math.min(1, step);
-            const landed = c.state === "land" && c.pos.distanceTo(c.target) < 0.3;
+            const landed = (c.state === "land" || c.state === "flower") && c.pos.distanceTo(c.target) < 0.3;
             c.obj.position.set(c.pos.x, c.pos.y + (landed ? 0 : Math.sin(t * 4 + c.flap) * 0.12), c.pos.z);
             const dx = c.target.x - c.pos.x,
                 dz = c.target.z - c.pos.z;
@@ -2950,9 +2989,13 @@ export function createGarden(canvas, opts = {}) {
                 if (jet.pause > 0) {
                     jet.pause -= dt;
                 } else {
-                    jet.u += dt * (jet.phase === "fly" ? 0.075 : jet.phase === "land" ? 0.16 : 0.20);
+                    jet.u += dt * (jet.phase === "fly" ? 0.045 : jet.phase === "land" ? 0.16 : jet.phase === "turn" ? 0.28 : 0.20);
                     if (jet.u >= 1) {
-                        if (jet.phase === "takeoff") {
+                        if (jet.phase === "turn") {
+                            jet.phase = "takeoff";
+                            jet.u = 0;
+                            jet.pause = 0.2;
+                        } else if (jet.phase === "takeoff") {
                             jet.phase = "fly";
                             jet.u = 0;
                         } else if (jet.phase === "fly") {
@@ -2961,8 +3004,11 @@ export function createGarden(canvas, opts = {}) {
                         } else {
                             st.c = jet.route.landing.ec;
                             st.r = jet.route.landing.er;
+                            const oldLanding = jet.route.landing;
                             const route = chooseJetRoute(st.c, st.r);
-                            st.jet = route ? { route, phase: "takeoff", u: 0, pause: 1.1 } : null;
+                            st.jet = route
+                                ? { route, phase: "turn", u: 0, pause: 0.45, fromHx: oldLanding.fx, fromHz: oldLanding.fz }
+                                : null;
                             continue;
                         }
                     }
@@ -2974,7 +3020,20 @@ export function createGarden(canvas, opts = {}) {
                 const u = Math.max(0, Math.min(1, jet.u));
                 let wx, wy, wz, hx, hz, bank = 0;
                 const groundY = vehicleRideY(v.code);
-                if (jet.phase === "takeoff") {
+                if (jet.phase === "turn") {
+                    const turn = smooth01(u);
+                    const fromA = Math.atan2(jet.fromHz ?? -takeoff.fz, jet.fromHx ?? -takeoff.fx);
+                    const toA = Math.atan2(takeoff.fz, takeoff.fx);
+                    let da = toA - fromA;
+                    if (da > Math.PI) da -= 2 * Math.PI;
+                    if (da < -Math.PI) da += 2 * Math.PI;
+                    const a = fromA + da * turn;
+                    wx = takeoff.sx;
+                    wy = groundY;
+                    wz = takeoff.sz;
+                    hx = Math.cos(a);
+                    hz = Math.sin(a);
+                } else if (jet.phase === "takeoff") {
                     const lift = smooth01((u - 0.55) / 0.45);
                     wx = takeoff.sx + (takeoff.ex - takeoff.sx) * u;
                     wz = takeoff.sz + (takeoff.ez - takeoff.sz) * u;
@@ -3030,7 +3089,7 @@ export function createGarden(canvas, opts = {}) {
                     !(st.ein.dc === st.eout.dc && st.ein.dr === st.eout.dr) &&
                     !(st.ein.dc === -st.eout.dc && st.ein.dr === -st.eout.dr);
                 const uturn = st.ein.dc === -st.eout.dc && st.ein.dr === -st.eout.dr;
-                st.p += dt * VSPEED * (uturn ? 0.28 : arcing ? 0.6 : 1); // ease off for curves and turnarounds
+                st.p += dt * VSPEED * (uturn ? 0.14 : arcing ? 0.6 : 1); // ease off for curves and turnarounds
                 const nc = st.c + st.eout.dc,
                     nr = st.r + st.eout.dr;
                 const nk = cellKey(nc, nr);
@@ -3103,8 +3162,10 @@ export function createGarden(canvas, opts = {}) {
                 const k = 1 - Math.abs(2 * st.p - 1);
                 px = ex + (cx - ex) * k;
                 pz = ez + (cz - ez) * k;
-                hx = st.p < 0.5 ? inb.dc : out.dc;
-                hz = st.p < 0.5 ? inb.dr : out.dr;
+                const side = ((st.c + st.r) & 1) ? 1 : -1;
+                const a = Math.atan2(inb.dr, inb.dc) + Math.PI * smooth01(st.p) * side;
+                hx = Math.cos(a);
+                hz = Math.sin(a);
             } else {
                 // quarter-circle arc
                 const ex = cx - inb.dc * 0.5,
