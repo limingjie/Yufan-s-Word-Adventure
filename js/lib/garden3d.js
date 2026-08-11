@@ -1759,70 +1759,42 @@ export function createGarden(canvas, opts = {}) {
         const gauge = 0.22;
         const vertical = dirs.includes("n") ? "n" : "s";
         const horizontal = dirs.includes("e") ? "e" : "w";
+        const sx = horizontal === "e" ? 1 : -1;
+        const sz = vertical === "s" ? 1 : -1;
         const corner = {
-            x: horizontal === "e" ? 0.5 : -0.5,
-            z: vertical === "s" ? 0.5 : -0.5,
+            x: sx * 0.5,
+            z: sz * 0.5,
         };
-        const sideEnds = {
-            n: [
-                { x: -gauge, z: -0.5 },
-                { x: gauge, z: -0.5 },
-            ],
-            s: [
-                { x: -gauge, z: 0.5 },
-                { x: gauge, z: 0.5 },
-            ],
-            e: [
-                { x: 0.5, z: -gauge },
-                { x: 0.5, z: gauge },
-            ],
-            w: [
-                { x: -0.5, z: -gauge },
-                { x: -0.5, z: gauge },
-            ],
-        };
-        const sortedEnds = (dir) =>
-            [...sideEnds[dir]].sort(
-                (a, b) => Math.hypot(a.x - corner.x, a.z - corner.z) - Math.hypot(b.x - corner.x, b.z - corner.z),
+        const a0 = sx > 0 ? Math.PI : 0;
+        const a1 = sz > 0 ? -Math.PI / 2 : Math.PI / 2;
+        let da = a1 - a0;
+        if (da > Math.PI) da -= Math.PI * 2;
+        if (da < -Math.PI) da += Math.PI * 2;
+        const arcPoint = (radius, t, y = railY) => {
+            const a = a0 + da * t;
+            return new THREE.Vector3(
+                x + corner.x + Math.cos(a) * radius,
+                y,
+                z + corner.z + Math.sin(a) * radius,
             );
-        const vEnds = sortedEnds(vertical);
-        const hEnds = sortedEnds(horizontal);
-        const curvePoint = (p) => new THREE.Vector3(x + p.x, railY, z + p.z);
-        const addRailCurve = (a, b) => {
-            const curve = new THREE.QuadraticBezierCurve3(
-                curvePoint(a),
-                curvePoint(corner),
-                curvePoint(b),
+        };
+        const addRailCurve = (radius) => {
+            const curve = new THREE.CatmullRomCurve3(
+                Array.from({ length: 13 }, (_, i) => arcPoint(radius, i / 12)),
             );
             const rail = new THREE.Mesh(new THREE.TubeGeometry(curve, 14, 0.035, 8, false), railMat);
             ground.add(rail);
         };
-        addRailCurve(vEnds[0], hEnds[0]);
-        addRailCurve(vEnds[1], hEnds[1]);
+        addRailCurve(0.5 - gauge);
+        addRailCurve(0.5 + gauge);
         if (skipTies) return;
 
-        const midA = { x: 0, z: vertical === "n" ? -0.5 : 0.5 };
-        const midB = { x: horizontal === "e" ? 0.5 : -0.5, z: 0 };
-        const q = (a, c, b, t) => {
-            const u = 1 - t;
-            return {
-                x: u * u * a.x + 2 * u * t * c.x + t * t * b.x,
-                z: u * u * a.z + 2 * u * t * c.z + t * t * b.z,
-            };
-        };
-        const dq = (a, c, b, t) => ({
-            x: 2 * (1 - t) * (c.x - a.x) + 2 * t * (b.x - c.x),
-            z: 2 * (1 - t) * (c.z - a.z) + 2 * t * (b.z - c.z),
-        });
         for (const t of [0.08, 0.27, 0.48, 0.69, 0.88]) {
-            const p = q(midA, corner, midB, t);
-            const d = dq(midA, corner, midB, t);
-            const len = Math.hypot(d.x, d.z) || 1;
-            const nx = -d.z / len;
-            const nz = d.x / len;
+            const a = a0 + da * t;
+            const p = arcPoint(0.5, t, TOP + 0.075);
             const tie = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.065, 0.075), solidMats(tieMat));
-            tie.position.set(x + p.x, TOP + 0.075, z + p.z);
-            tie.rotation.y = Math.atan2(-nz, nx);
+            tie.position.copy(p);
+            tie.rotation.y = Math.atan2(-Math.sin(a), Math.cos(a));
             ground.add(tie);
         }
     }
