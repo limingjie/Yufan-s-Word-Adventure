@@ -3139,14 +3139,14 @@ export function createGarden(canvas, opts = {}) {
                         ein: { dc: 0, dr: 0 },
                         eout: gridDir,
                         p: 0.5,
-                        hx: pose.hx,
-                        hz: pose.hz,
+                        hx: gridDir.dc,
+                        hz: gridDir.dr,
                         dwell: 0,
                         stopAt: null,
                         signDwell: null,
                     });
                     v.group.position.set(pose.x, vehicleRideY(v.code), pose.z);
-                    v.group.rotation.y = Math.atan2(-pose.hz, pose.hx);
+                    v.group.rotation.y = Math.atan2(-gridDir.dr, gridDir.dc);
                 } else {
                     parkVehicleAtHome(v);
                 }
