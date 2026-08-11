@@ -502,16 +502,20 @@ export function createGarden(canvas, opts = {}) {
         vcyl(g, 0.1, 0.82, 0, 0.22, 0, PAL.jetBody, "x", 16); // fuselage faces +x
         vellipsoid(g, 0.16, 0.09, 0.09, 0.38, 0.25, 0, PAL.glass); // cockpit
         vellipsoid(g, 0.13, 0.095, 0.095, 0.48, 0.22, 0, PAL.jetBody); // rounded nose
-        vshape(g, [[0.16, 0.05], [-0.12, 0.54], [-0.28, 0.48], [-0.05, 0.06]], -0.02, 0.18, 0, PAL.jetBody);
-        vshape(g, [[0.16, -0.05], [-0.12, -0.54], [-0.28, -0.48], [-0.05, -0.06]], -0.02, 0.18, 0, PAL.jetBody);
+        vbox(g, 0.42, 0.035, 0.08, -0.05, 0.21, 0.12, PAL.jetBody); // wing root fairings
+        vbox(g, 0.42, 0.035, 0.08, -0.05, 0.21, -0.12, PAL.jetBody);
+        vshape(g, [[0.22, 0.1], [-0.06, 0.62], [-0.34, 0.56], [-0.1, 0.11]], -0.04, 0.21, 0, PAL.jetBody);
+        vshape(g, [[0.22, -0.1], [-0.06, -0.62], [-0.34, -0.56], [-0.1, -0.11]], -0.04, 0.21, 0, PAL.jetBody);
         vcone(g, 0.055, 0.13, -0.06, 0.25, 0.49, PAL.jetBody, "y", 3); // winglets
         vcone(g, 0.055, 0.13, -0.06, 0.25, -0.49, PAL.jetBody, "y", 3);
         vcyl(g, 0.055, 0.14, -0.04, 0.12, 0.38, PAL.stack, "x", 12); // engine pods
         vcyl(g, 0.055, 0.14, -0.04, 0.12, -0.38, PAL.stack, "x", 12);
         vcone(g, 0.16, 0.28, -0.44, 0.36, 0, PAL.jetBody, "y", 3); // tail fin
         vbox(g, 0.08, 0.16, 0.06, -0.52, 0.45, 0, PAL.jetStripe); // tail colour
-        vshape(g, [[0.08, 0], [-0.16, 0.25], [-0.23, 0.21], [-0.03, 0]], -0.42, 0.29, 0.06, PAL.jetBody);
-        vshape(g, [[0.08, 0], [-0.16, -0.25], [-0.23, -0.21], [-0.03, 0]], -0.42, 0.29, -0.06, PAL.jetBody);
+        vbox(g, 0.24, 0.025, 0.05, -0.47, 0.29, 0.1, PAL.jetBody); // tailplane roots
+        vbox(g, 0.24, 0.025, 0.05, -0.47, 0.29, -0.1, PAL.jetBody);
+        vshape(g, [[0.1, 0.09], [-0.13, 0.34], [-0.25, 0.29], [-0.03, 0.11]], -0.42, 0.29, 0, PAL.jetBody);
+        vshape(g, [[0.1, -0.09], [-0.13, -0.34], [-0.25, -0.29], [-0.03, -0.11]], -0.42, 0.29, 0, PAL.jetBody);
         vcyl(g, 0.018, 0.64, -0.06, 0.34, 0, PAL.jetStripe, "x", 10); // side stripe
         for (const sx of [0.2, 0.04, -0.12, -0.28]) vbox(g, 0.045, 0.035, 0.035, sx, 0.29, 0.095, PAL.glass);
         for (const sx of [0.2, 0.04, -0.12, -0.28]) vbox(g, 0.045, 0.035, 0.035, sx, 0.29, -0.095, PAL.glass);
@@ -522,7 +526,7 @@ export function createGarden(canvas, opts = {}) {
             vbox(g, 0.025, 0.07, 0.025, -0.12, 0.08, sz, PAL.pole);
             vwheel(g, 0.045, 0.045, -0.12, 0.035, sz);
         }
-        g.scale.setScalar(1.28);
+        g.scale.setScalar(1.5);
         return g;
     }
     function buildHouse() {
