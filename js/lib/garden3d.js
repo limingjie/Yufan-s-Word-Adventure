@@ -13,7 +13,7 @@
 //
 // Two layers per block:
 //   • surface  — grass (default) | road | rail | crossing | fence | runway | water(pond) | stone(fountain)
-//   • occupant — one of: plant | vehicle(car/bus/train/privatejet) | structure | animal | (none)
+//   • occupant — one of: plant | vehicle(car/bus/train/traincar/privatejet) | structure | animal | (none)
 // A car/bus needs a road surface, a train needs rail, and a jet needs runway. One occupant per
 // block, so a plant must be moved before its block can become a road/rail.
 //
@@ -124,6 +124,9 @@ export function createGarden(canvas, opts = {}) {
         trainBody: flat(0x2f8f4e),
         trainRoof: flat(0x256b3c),
         trainTrim: flat(0xf2c84b),
+        trainCarBody: flat(0xb94848),
+        trainCarRoof: flat(0x7b3030),
+        trainCarTrim: flat(0xf0d68a),
         stack: flat(0x333a40),
         wall: flat(0xf3e6c4),
         roof: flat(0xc0432f),
@@ -472,6 +475,26 @@ export function createGarden(canvas, opts = {}) {
         for (const sx of [-0.3, -0.08, 0.16, 0.34])
             for (const sz of [0.25, -0.25]) vwheel(g, 0.07, 0.065, sx, 0.07, sz);
         for (const sz of [0.285, -0.285]) vbox(g, 0.62, 0.025, 0.025, 0.02, 0.09, sz, PAL.trainTrim); // wheel rod
+        vbox(g, 0.12, 0.035, 0.08, -0.54, 0.16, 0, PAL.stack); // rear coupler
+        return g;
+    }
+    function buildTrainCar() {
+        const g = new THREE.Group();
+        vbox(g, 0.82, 0.28, 0.44, 0, 0.24, 0, PAL.trainCarBody);
+        vellipsoid(g, 0.38, 0.07, 0.22, 0, 0.43, 0, PAL.trainCarRoof);
+        vbox(g, 0.88, 0.06, 0.48, 0, 0.52, 0, PAL.trainCarRoof);
+        vbox(g, 0.74, 0.045, 0.04, 0, 0.33, 0.245, PAL.trainCarTrim);
+        vbox(g, 0.74, 0.045, 0.04, 0, 0.33, -0.245, PAL.trainCarTrim);
+        for (const sx of [-0.24, 0, 0.24]) {
+            vbox(g, 0.13, 0.12, 0.04, sx, 0.36, 0.245, PAL.glass, true);
+            vbox(g, 0.13, 0.12, 0.04, sx, 0.36, -0.245, PAL.glass, true);
+        }
+        for (const sx of [-0.38, 0.38]) vbox(g, 0.055, 0.2, 0.36, sx, 0.25, 0, PAL.trainCarRoof);
+        for (const sx of [-0.27, 0.27])
+            for (const sz of [0.25, -0.25]) vwheel(g, 0.075, 0.065, sx, 0.075, sz);
+        for (const sz of [0.285, -0.285]) vbox(g, 0.55, 0.025, 0.025, 0, 0.095, sz, PAL.trainCarTrim);
+        vbox(g, 0.1, 0.035, 0.08, 0.49, 0.16, 0, PAL.stack); // front coupler
+        vbox(g, 0.1, 0.035, 0.08, -0.49, 0.16, 0, PAL.stack); // rear coupler
         return g;
     }
     function buildPrivateJet() {
@@ -499,6 +522,7 @@ export function createGarden(canvas, opts = {}) {
             vbox(g, 0.025, 0.07, 0.025, -0.12, 0.08, sz, PAL.pole);
             vwheel(g, 0.045, 0.045, -0.12, 0.035, sz);
         }
+        g.scale.setScalar(1.28);
         return g;
     }
     function buildHouse() {
@@ -1380,7 +1404,8 @@ export function createGarden(canvas, opts = {}) {
     const canGo = (states, d) => (d.dr !== 0 ? states.ns : states.ew) === "green";
     const dirKey = (d) => `${d.dc},${d.dr}`;
     const vehicleSurface = (code) => SHOP[code]?.vehicle || null; // 'road' | 'rail' | 'runway'
-    const vehicleRideY = (code) => (code === "train" ? TOP + 0.16 : code === "privatejet" ? TOP + 0.12 : TOP + 0.115);
+    const vehicleRideY = (code) =>
+        code === "train" || code === "traincar" ? TOP + 0.16 : code === "privatejet" ? TOP + 0.14 : TOP + 0.115;
     // A car drives road OR crossing; a train drives rail OR crossing (the Level
     // Crossing tile belongs to both networks — Decision #10 stays one-surface).
     // Runways are separate airport surfaces and only jets use them.
@@ -1398,6 +1423,27 @@ export function createGarden(canvas, opts = {}) {
                 out.push({ c: c + dc, r: r + dr });
         }
         return out;
+    }
+    function sameRailNetwork(a, b) {
+        if (!a || !b) return false;
+        const start = cellKey(a.c, a.r);
+        const goal = cellKey(b.c, b.r);
+        if (start === goal) return true;
+        if (!carries(currentCells.get(start)?.surface, "rail") || !carries(currentCells.get(goal)?.surface, "rail"))
+            return false;
+        const seen = new Set([start]);
+        const q = [a];
+        for (let i = 0; i < q.length; i++) {
+            const cur = q[i];
+            for (const n of trackNeighbours(cur.c, cur.r, "rail")) {
+                const k = cellKey(n.c, n.r);
+                if (seen.has(k)) continue;
+                if (k === goal) return true;
+                seen.add(k);
+                q.push(n);
+            }
+        }
+        return false;
     }
     const runwayAt = (cells, c, r) => cells.get(cellKey(c, r))?.surface === "runway";
     function runwaySpan(c, r, cells, axis) {
@@ -1673,9 +1719,15 @@ export function createGarden(canvas, opts = {}) {
     }
 
     function addRailTile(x, z, adj, skipTies = false) {
+        const dirs = ["n", "s", "e", "w"].filter((d) => adj[d]);
+        const corner = dirs.length === 2 && (adj.n || adj.s) && (adj.e || adj.w);
         const ns = adj.n || adj.s,
             ew = adj.e || adj.w,
             iso = !ns && !ew;
+        if (corner) {
+            addCurvedRailTile(x, z, dirs, skipTies);
+            return;
+        }
         if (!skipTies) {
             const tieY = TOP + 0.075;
             const addTie = (w, d, ox, oz) => {
@@ -1701,6 +1753,78 @@ export function createGarden(canvas, opts = {}) {
         };
         if (ns || iso) addPair("z");
         if (ew) addPair("x");
+    }
+    function addCurvedRailTile(x, z, dirs, skipTies = false) {
+        const railY = TOP + 0.13;
+        const gauge = 0.22;
+        const vertical = dirs.includes("n") ? "n" : "s";
+        const horizontal = dirs.includes("e") ? "e" : "w";
+        const corner = {
+            x: horizontal === "e" ? 0.5 : -0.5,
+            z: vertical === "s" ? 0.5 : -0.5,
+        };
+        const sideEnds = {
+            n: [
+                { x: -gauge, z: -0.5 },
+                { x: gauge, z: -0.5 },
+            ],
+            s: [
+                { x: -gauge, z: 0.5 },
+                { x: gauge, z: 0.5 },
+            ],
+            e: [
+                { x: 0.5, z: -gauge },
+                { x: 0.5, z: gauge },
+            ],
+            w: [
+                { x: -0.5, z: -gauge },
+                { x: -0.5, z: gauge },
+            ],
+        };
+        const sortedEnds = (dir) =>
+            [...sideEnds[dir]].sort(
+                (a, b) => Math.hypot(a.x - corner.x, a.z - corner.z) - Math.hypot(b.x - corner.x, b.z - corner.z),
+            );
+        const vEnds = sortedEnds(vertical);
+        const hEnds = sortedEnds(horizontal);
+        const curvePoint = (p) => new THREE.Vector3(x + p.x, railY, z + p.z);
+        const addRailCurve = (a, b) => {
+            const curve = new THREE.QuadraticBezierCurve3(
+                curvePoint(a),
+                curvePoint(corner),
+                curvePoint(b),
+            );
+            const rail = new THREE.Mesh(new THREE.TubeGeometry(curve, 14, 0.035, 8, false), railMat);
+            ground.add(rail);
+        };
+        addRailCurve(vEnds[0], hEnds[0]);
+        addRailCurve(vEnds[1], hEnds[1]);
+        if (skipTies) return;
+
+        const midA = { x: 0, z: vertical === "n" ? -0.5 : 0.5 };
+        const midB = { x: horizontal === "e" ? 0.5 : -0.5, z: 0 };
+        const q = (a, c, b, t) => {
+            const u = 1 - t;
+            return {
+                x: u * u * a.x + 2 * u * t * c.x + t * t * b.x,
+                z: u * u * a.z + 2 * u * t * c.z + t * t * b.z,
+            };
+        };
+        const dq = (a, c, b, t) => ({
+            x: 2 * (1 - t) * (c.x - a.x) + 2 * t * (b.x - c.x),
+            z: 2 * (1 - t) * (c.z - a.z) + 2 * t * (b.z - c.z),
+        });
+        for (const t of [0.08, 0.27, 0.48, 0.69, 0.88]) {
+            const p = q(midA, corner, midB, t);
+            const d = dq(midA, corner, midB, t);
+            const len = Math.hypot(d.x, d.z) || 1;
+            const nx = -d.z / len;
+            const nz = d.x / len;
+            const tie = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.065, 0.075), solidMats(tieMat));
+            tie.position.set(x + p.x, TOP + 0.075, z + p.z);
+            tie.rotation.y = Math.atan2(-nz, nx);
+            ground.add(tie);
+        }
     }
 
     function addRunwayTile(x, z, adj, info) {
@@ -1867,11 +1991,13 @@ export function createGarden(canvas, opts = {}) {
             const g =
                 it.code === "train"
                     ? buildTrain()
-                    : it.code === "bus"
-                      ? buildBus()
-                      : it.code === "privatejet"
-                        ? buildPrivateJet()
-                        : buildCar();
+                    : it.code === "traincar"
+                      ? buildTrainCar()
+                      : it.code === "bus"
+                        ? buildBus()
+                        : it.code === "privatejet"
+                          ? buildPrivateJet()
+                          : buildCar();
             const st = vehicleState.get(it.id);
             g.position.set(worldX(st?.c ?? it.col), vehicleRideY(it.code), worldZ(st?.r ?? it.row));
             g.userData = { itemId: it.id };
@@ -2811,6 +2937,61 @@ export function createGarden(canvas, opts = {}) {
     // ── Render loop ────────────────────────────────────────────────────────────
     let raf = 0;
     const clock = new THREE.Clock();
+    function recordTrainTrail(st, pose) {
+        if (!st.trail) st.trail = [];
+        const last = st.trail[0];
+        if (!last || Math.hypot(last.x - pose.x, last.z - pose.z) > 0.015) {
+            st.trail.unshift(pose);
+            if (st.trail.length > 180) st.trail.length = 180;
+        }
+    }
+    function sampleTrainTrail(trail, followDist) {
+        if (!trail?.length) return null;
+        let dist = 0;
+        for (let i = 1; i < trail.length; i++) {
+            const a = trail[i - 1];
+            const b = trail[i];
+            const seg = Math.hypot(a.x - b.x, a.z - b.z);
+            if (dist + seg >= followDist) {
+                const k = seg ? (followDist - dist) / seg : 0;
+                return {
+                    x: a.x + (b.x - a.x) * k,
+                    z: a.z + (b.z - a.z) * k,
+                    c: Math.round((a.x + (b.x - a.x) * k) / SP + centerC),
+                    r: Math.round((a.z + (b.z - a.z) * k) / SP + centerR),
+                    hx: b.hx || a.hx || 1,
+                    hz: b.hz || a.hz || 0,
+                };
+            }
+            dist += seg;
+        }
+        return trail[trail.length - 1];
+    }
+    function assignTrainCars() {
+        const locomotives = vehicleSprites.filter((v) => v.code === "train");
+        const cars = vehicleSprites.filter((v) => v.code === "traincar");
+        const byLeader = new Map();
+        for (const car of cars) {
+            const cs = vehicleState.get(car.id);
+            if (!cs) continue;
+            let best = null;
+            for (const train of locomotives) {
+                const ts = vehicleState.get(train.id);
+                if (!ts || !sameRailNetwork({ c: cs.c, r: cs.r }, { c: ts.c, r: ts.r })) continue;
+                const d = Math.abs(cs.c - ts.c) + Math.abs(cs.r - ts.r);
+                if (!best || d < best.dist) best = { train, dist: d };
+            }
+            if (!best) continue;
+            if (!byLeader.has(best.train.id)) byLeader.set(best.train.id, []);
+            byLeader.get(best.train.id).push({ car, dist: best.dist });
+        }
+        const assignments = new Map();
+        for (const [leaderId, list] of byLeader) {
+            list.sort((a, b) => a.dist - b.dist || String(a.car.id).localeCompare(String(b.car.id)));
+            list.forEach((entry, slot) => assignments.set(entry.car.id, { leaderId, slot }));
+        }
+        return assignments;
+    }
     function tick() {
         raf = requestAnimationFrame(tick);
         if (document.hidden) return;
@@ -2934,8 +3115,8 @@ export function createGarden(canvas, opts = {}) {
         for (const v of vehicleSprites) {
             const s = vehicleState.get(v.id);
             if (!s) continue;
-            occ.set(cellKey(s.c, s.r), dirKey(s.eout));
-            if (v.code === "train") {
+            if (v.code !== "traincar") occ.set(cellKey(s.c, s.r), dirKey(s.eout));
+            if (v.code === "train" || v.code === "traincar") {
                 if (currentCells.get(cellKey(s.c, s.r))?.surface === "crossing") trainAtCrossing.add(cellKey(s.c, s.r));
                 const nk = cellKey(s.c + s.eout.dc, s.r + s.eout.dr);
                 if (currentCells.get(nk)?.surface === "crossing") trainAtCrossing.add(nk);
@@ -2962,12 +3143,41 @@ export function createGarden(canvas, opts = {}) {
         // behind a same-direction vehicle. Vehicles freeze while arranging. Each cell is
         // traversed edge→edge (straight=line, corner=arc, dead end=in-and-out); at a
         // junction the exit is random, never an immediate reverse unless it's a dead end.
+        const trainCarAssignments = assignTrainCars();
         for (const v of vehicleSprites) {
             const st = vehicleState.get(v.id);
             if (!st) continue;
             const surf = vehicleSurface(v.code);
             if (arrange) {
                 parkVehicleAtHome(v);
+                continue;
+            }
+            if (v.code === "traincar") {
+                const assignment = trainCarAssignments.get(v.id);
+                const leaderSt = assignment ? vehicleState.get(assignment.leaderId) : null;
+                const pose = sampleTrainTrail(leaderSt?.trail, 0.78 * (assignment?.slot + 1 || 1));
+                if (pose) {
+                    const gridDir =
+                        Math.abs(pose.hx) >= Math.abs(pose.hz)
+                            ? { dc: Math.sign(pose.hx) || 1, dr: 0 }
+                            : { dc: 0, dr: Math.sign(pose.hz) || 1 };
+                    Object.assign(st, {
+                        c: pose.c,
+                        r: pose.r,
+                        ein: { dc: 0, dr: 0 },
+                        eout: gridDir,
+                        p: 0.5,
+                        hx: pose.hx,
+                        hz: pose.hz,
+                        dwell: 0,
+                        stopAt: null,
+                        signDwell: null,
+                    });
+                    v.group.position.set(pose.x, vehicleRideY(v.code), pose.z);
+                    v.group.rotation.y = Math.atan2(-pose.hz, pose.hx);
+                } else {
+                    parkVehicleAtHome(v);
+                }
                 continue;
             }
             if (v.code === "privatejet") {
@@ -3194,6 +3404,8 @@ export function createGarden(canvas, opts = {}) {
             } // cars keep right
             v.group.position.set(px, vehicleRideY(v.code), pz);
             v.group.rotation.y = Math.atan2(-hz, hx);
+            if (v.code === "train")
+                recordTrainTrail(st, { x: px, z: pz, c: st.c, r: st.r, hx, hz });
 
             st.sound -= dt;
             if (st.sound <= 0) {

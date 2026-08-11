@@ -24,7 +24,7 @@ export function computeCoins({ wordsAdded = 0, testsTaken = 0, testsCorrect = 0,
 // animal:true → a ground animal with a persisted home cell; fences constrain roam.
 // placeable: true → the learner drags it from the tray onto a specific block and
 //   it remembers its position (col/grid_row/rotation in garden_items). Surface
-//   tiles (road/rail/crossing/fence/runway) sit on a grass block; vehicles (car/bus/train/privatejet) ride a track/runway.
+//   tiles (road/rail/crossing/fence/runway) sit on a grass block; vehicles (car/bus/train/traincar/privatejet) ride a track/runway.
 export const SHOP = {
     // --- Decorations (sky critters) ---
     butterflies: { name: 'Butterflies', icon: '🦋', cost: 15,  layer: 'sky',    type: 'decoration', cat: 'decor' },
@@ -77,6 +77,8 @@ export const SHOP = {
                    desc: 'Blue bus — drives roads and stops at stations' },
     train:       { name: 'Train', icon: '🚂', cost: 60, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, vehicle: 'rail',
                    desc: 'Runs along your rails' },
+    traincar:    { name: 'Train Car', icon: '🚃', cost: 45, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, vehicle: 'rail',
+                   desc: 'Couples behind a train on the same rails' },
     privatejet:  { name: 'Private Jet', icon: '🛩️', cost: 180, layer: 'ground', type: 'decoration', cat: 'playset', placeable: true, vehicle: 'runway',
                    desc: 'Takes off and lands on a straight 10-block runway' },
 

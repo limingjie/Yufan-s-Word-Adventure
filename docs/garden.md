@@ -28,7 +28,7 @@ groups on every edit (gardens are small; full rebuild is cheap).
 
 Each block has a **surface** (`grass` default · `road` · `rail` · `crossing` ·
 `fence` · `runway` · `water`(pond) · `stone`(fountain)) and at most one **occupant** (`plant` ·
-vehicle(`car`/`bus`/`train`/`privatejet`) · `structure` · `animal`). A **car/bus needs a road** under it, a **train
+vehicle(`car`/`bus`/`train`/`traincar`/`privatejet`) · `structure` · `animal`). A **car/bus needs a road** under it, a **train
 needs a rail**, and a **private jet needs runway**; a plant only grows on grass — so a plant must be **moved before**
 its block can become track/fence. `computeCells(skipRef)` derives the occupancy
 map for validation/render. **One surface per block still holds** — road, rail and
@@ -38,7 +38,7 @@ networks treat as drivable (cars/buses: road+crossing; trains: rail+crossing; je
 
 ## Placeable playset — Arrange mode
 
-The **Road / Rail / Level-Crossing / Fence / Runway Block / Transit Station / Control Tower / Car / Bus / Train / Private Jet** shop items are dragged
+The **Road / Rail / Level-Crossing / Fence / Runway Block / Transit Station / Control Tower / Car / Bus / Train / Train Car / Private Jet** shop items are dragged
 onto chosen blocks:
 - **🛒 Shop → buy** a placeable → it lands in the **tray** (now a **top sheet**,
   sized to its content so it can't be clipped by iOS/iPadOS browser chrome) instead
@@ -56,14 +56,14 @@ onto chosen blocks:
   plants and the sprite-less **pond** are easy to move.
 - **Roads/rails/fences/runways auto-connect**: adjacent track/fence/runway slabs sit flush and grow
   centre markings, rails or fence rails/posts toward connected neighbours
-  (straight → corner → cross). A fence costs **1 coin**, is a normal surface tile,
+  (straight → curved rail corner → cross). A fence costs **1 coin**, is a normal surface tile,
   and blocks ground-animal movement.
 - **Runways** are valid for jets only when they form a **straight connected segment
   of at least 10 runway blocks** (`runwayInfo`). Valid segments draw runway
   threshold/centre markings in either axis and blink edge lights at night.
-- **Vehicles are voxel 3D models** (`buildCar`/`buildBus`/`buildTrain`/`buildPrivateJet`, flat-colour boxes —
+- **Vehicles are voxel 3D models** (`buildCar`/`buildBus`/`buildTrain`/`buildTrainCar`/`buildPrivateJet`, flat-colour boxes —
   no external assets) that **drive the connected network**: cars and the blue bus follow
-  **road+crossing** cells, trains **rail+crossing** cells (`carries()` predicate;
+  **road+crossing** cells, trains/train cars **rail+crossing** cells (`carries()` predicate;
   `trackNeighbours` = graph edges). The private jet chooses a valid departure
   runway and an arrival runway/direction, rolls down the runway, climbs into a
   smooth cubic flight path, then aligns to final approach and rolls out on landing;
