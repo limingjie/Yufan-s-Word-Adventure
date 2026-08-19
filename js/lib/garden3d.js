@@ -3248,7 +3248,15 @@ export function createGarden(canvas, opts = {}) {
                         signDwell: null,
                     });
                     v.group.position.set(pose.x, vehicleRideY(v.code), pose.z);
-                    v.group.rotation.y = Math.atan2(-useHz, useHx);
+                    // Smoothly rotate toward the target heading using shortest-angle
+                    // interpolation so train cars turn naturally through curves.
+                    const targetA = Math.atan2(-useHz, useHx);
+                    const curA = v.group.rotation.y || 0;
+                    let da = targetA - curA;
+                    if (da > Math.PI) da -= 2 * Math.PI;
+                    if (da < -Math.PI) da += 2 * Math.PI;
+                    const maxStep = Math.min(1, dt * 6); // tuning: larger = snappier
+                    v.group.rotation.y = curA + da * maxStep;
                 } else {
                     parkVehicleAtHome(v);
                 }
