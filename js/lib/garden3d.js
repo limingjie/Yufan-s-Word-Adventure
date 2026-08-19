@@ -422,8 +422,7 @@ export function createGarden(canvas, opts = {}) {
             vbox(g, 0.18, 0.035, 0.025, -0.05, 0.2, sz, PAL.carRoof); // door line
         }
         vbox(g, 0.08, 0.04, 0.34, -0.43, 0.12, 0, PAL.tyre); // rear bumper
-        for (const sx of [0.22, -0.22])
-            for (const sz of [0.24, -0.24]) vwheel(g, 0.085, 0.075, sx, 0.08, sz);
+        for (const sx of [0.22, -0.22]) for (const sz of [0.24, -0.24]) vwheel(g, 0.085, 0.075, sx, 0.08, sz);
         return g;
     }
     function buildBus() {
@@ -490,8 +489,7 @@ export function createGarden(canvas, opts = {}) {
             vbox(g, 0.13, 0.12, 0.04, sx, 0.36, -0.245, PAL.glass, true);
         }
         for (const sx of [-0.38, 0.38]) vbox(g, 0.055, 0.2, 0.36, sx, 0.25, 0, PAL.trainCarRoof);
-        for (const sx of [-0.27, 0.27])
-            for (const sz of [0.25, -0.25]) vwheel(g, 0.075, 0.065, sx, 0.075, sz);
+        for (const sx of [-0.27, 0.27]) for (const sz of [0.25, -0.25]) vwheel(g, 0.075, 0.065, sx, 0.075, sz);
         for (const sz of [0.285, -0.285]) vbox(g, 0.55, 0.025, 0.025, 0, 0.095, sz, PAL.trainCarTrim);
         vbox(g, 0.1, 0.035, 0.08, 0.49, 0.16, 0, PAL.stack); // front coupler
         vbox(g, 0.1, 0.035, 0.08, -0.49, 0.16, 0, PAL.stack); // rear coupler
@@ -504,8 +502,32 @@ export function createGarden(canvas, opts = {}) {
         vellipsoid(g, 0.13, 0.095, 0.095, 0.48, 0.22, 0, PAL.jetBody); // rounded nose
         vbox(g, 0.42, 0.035, 0.08, -0.05, 0.21, 0.12, PAL.jetBody); // wing root fairings
         vbox(g, 0.42, 0.035, 0.08, -0.05, 0.21, -0.12, PAL.jetBody);
-        vshape(g, [[0.22, 0.1], [-0.06, 0.62], [-0.34, 0.56], [-0.1, 0.11]], -0.04, 0.21, 0, PAL.jetBody);
-        vshape(g, [[0.22, -0.1], [-0.06, -0.62], [-0.34, -0.56], [-0.1, -0.11]], -0.04, 0.21, 0, PAL.jetBody);
+        vshape(
+            g,
+            [
+                [0.22, 0.1],
+                [-0.06, 0.62],
+                [-0.34, 0.56],
+                [-0.1, 0.11],
+            ],
+            -0.04,
+            0.21,
+            0,
+            PAL.jetBody,
+        );
+        vshape(
+            g,
+            [
+                [0.22, -0.1],
+                [-0.06, -0.62],
+                [-0.34, -0.56],
+                [-0.1, -0.11],
+            ],
+            -0.04,
+            0.21,
+            0,
+            PAL.jetBody,
+        );
         vcone(g, 0.055, 0.13, -0.06, 0.25, 0.49, PAL.jetBody, "y", 3); // winglets
         vcone(g, 0.055, 0.13, -0.06, 0.25, -0.49, PAL.jetBody, "y", 3);
         vcyl(g, 0.055, 0.14, -0.04, 0.12, 0.38, PAL.stack, "x", 12); // engine pods
@@ -514,8 +536,32 @@ export function createGarden(canvas, opts = {}) {
         vbox(g, 0.08, 0.16, 0.06, -0.52, 0.45, 0, PAL.jetStripe); // tail colour
         vbox(g, 0.24, 0.025, 0.05, -0.47, 0.29, 0.1, PAL.jetBody); // tailplane roots
         vbox(g, 0.24, 0.025, 0.05, -0.47, 0.29, -0.1, PAL.jetBody);
-        vshape(g, [[0.1, 0.09], [-0.13, 0.34], [-0.25, 0.29], [-0.03, 0.11]], -0.42, 0.29, 0, PAL.jetBody);
-        vshape(g, [[0.1, -0.09], [-0.13, -0.34], [-0.25, -0.29], [-0.03, -0.11]], -0.42, 0.29, 0, PAL.jetBody);
+        vshape(
+            g,
+            [
+                [0.1, 0.09],
+                [-0.13, 0.34],
+                [-0.25, 0.29],
+                [-0.03, 0.11],
+            ],
+            -0.42,
+            0.29,
+            0,
+            PAL.jetBody,
+        );
+        vshape(
+            g,
+            [
+                [0.1, -0.09],
+                [-0.13, -0.34],
+                [-0.25, -0.29],
+                [-0.03, -0.11],
+            ],
+            -0.42,
+            0.29,
+            0,
+            PAL.jetBody,
+        );
         vcyl(g, 0.018, 0.64, -0.06, 0.34, 0, PAL.jetStripe, "x", 10); // side stripe
         for (const sx of [0.2, 0.04, -0.12, -0.28]) vbox(g, 0.045, 0.035, 0.035, sx, 0.29, 0.095, PAL.glass);
         for (const sx of [0.2, 0.04, -0.12, -0.28]) vbox(g, 0.045, 0.035, 0.035, sx, 0.29, -0.095, PAL.glass);
@@ -740,7 +786,16 @@ export function createGarden(canvas, opts = {}) {
             const l = vcyl(g, 0.033, h, x, h * 0.5, z, mat, "y", 10);
             l.userData.walkLeg = z > 0 ? 1 : -1;
             legs.push(l);
-            vellipsoid(g, 0.052, 0.022, 0.04, x + 0.015, 0.012, z, kind === "cow" || kind === "deer" ? PAL.hoof : PAL.dark);
+            vellipsoid(
+                g,
+                0.052,
+                0.022,
+                0.04,
+                x + 0.015,
+                0.012,
+                z,
+                kind === "cow" || kind === "deer" ? PAL.hoof : PAL.dark,
+            );
             return l;
         };
         const eye = (x, y, z) => vellipsoid(g, 0.018, 0.018, 0.018, x, y, z, PAL.dark);
@@ -793,7 +848,16 @@ export function createGarden(canvas, opts = {}) {
         const bodyY = kind === "bear" ? 0.25 : 0.23;
         vellipsoid(g, bw * 0.5, bh * 0.62, 0.15, -0.02, bodyY, 0, C);
         vellipsoid(g, bw * 0.34, 0.035, 0.16, -0.03, bodyY + bh * 0.55, 0, kind === "deer" ? PAL.deerChest : C);
-        vellipsoid(g, kind === "bear" ? 0.14 : 0.12, kind === "bear" ? 0.12 : 0.105, 0.11, bw / 2 - 0.015, 0.34 + (bh - 0.22), 0, C);
+        vellipsoid(
+            g,
+            kind === "bear" ? 0.14 : 0.12,
+            kind === "bear" ? 0.12 : 0.105,
+            0.11,
+            bw / 2 - 0.015,
+            0.34 + (bh - 0.22),
+            0,
+            C,
+        );
         if (kind === "rabbit")
             for (const sz of [0.06, -0.06]) {
                 const e = vellipsoid(g, 0.028, 0.12, 0.018, bw / 2 - 0.035, 0.55, sz, C);
@@ -805,8 +869,7 @@ export function createGarden(canvas, opts = {}) {
                 vcone(g, 0.045, 0.09, bw / 2 - 0.02, 0.48, sz, C, "y", 3);
                 vellipsoid(g, 0.012, 0.026, 0.01, bw / 2 - 0.01, 0.475, sz, PAL.pink);
             }
-        else if (kind === "dog")
-            for (const sz of [0.1, -0.1]) ear(bw / 2 - 0.03, 0.42, sz, PAL.dark);
+        else if (kind === "dog") for (const sz of [0.1, -0.1]) ear(bw / 2 - 0.03, 0.42, sz, PAL.dark);
         else if (kind === "cow") {
             for (const sz of [0.09, -0.09]) ear(bw / 2 - 0.01, 0.47, sz, PAL.cowSpot);
             for (const sz of [0.08, -0.08]) {
@@ -850,8 +913,7 @@ export function createGarden(canvas, opts = {}) {
             for (const sz of [0.08, -0.08]) {
                 leg(sx, sz, kind === "bear" ? 0.17 : 0.145, kind === "cow" ? PAL.hoof : C);
             }
-        if (kind === "pig")
-            vcyl(g, 0.018, 0.05, -bw / 2 - 0.03, 0.31, 0, PAL.pink, "z", 10);
+        if (kind === "pig") vcyl(g, 0.018, 0.05, -bw / 2 - 0.03, 0.31, 0, PAL.pink, "z", 10);
         else if (kind === "rabbit") vellipsoid(g, 0.06, 0.06, 0.06, -bw / 2 - 0.04, 0.3, 0, PAL.signWhite);
         else if (kind === "deer") vellipsoid(g, 0.035, 0.035, 0.09, -bw / 2 - 0.04, 0.34, 0, PAL.deerChest);
         else if (kind === "bear") vellipsoid(g, 0.05, 0.04, 0.065, -bw / 2 - 0.03, 0.3, 0, C);
@@ -1513,7 +1575,10 @@ export function createGarden(canvas, opts = {}) {
         const sr = fromStart ? seg.startR : seg.endR;
         const ec = fromStart ? seg.endC : seg.startC;
         const er = fromStart ? seg.endR : seg.startR;
-        const sx = worldX(sc), sz = worldZ(sr), ex = worldX(ec), ez = worldZ(er);
+        const sx = worldX(sc),
+            sz = worldZ(sr),
+            ex = worldX(ec),
+            ez = worldZ(er);
         const d = Math.hypot(ex - sx, ez - sz) || 1;
         return { seg, dir, sc, sr, ec, er, sx, sz, ex, ez, fx: (ex - sx) / d, fz: (ez - sz) / d, len: d };
     }
@@ -1746,28 +1811,22 @@ export function createGarden(canvas, opts = {}) {
         const railY = TOP + 0.13;
         const addPair = (along) => {
             for (const off of [-0.22, 0.22]) {
-                    const gridDir =
-                        Math.abs(pose.hx) >= Math.abs(pose.hz)
-                            ? { dc: Math.sign(pose.hx) || 1, dr: 0 }
-                            : { dc: 0, dr: Math.sign(pose.hz) || 1 };
-                    // Use the sampled trail heading (pose.hx/hz) for smooth facing on
-                    // curves; keep gridDir for claiming the cell network.
-                    const useHx = typeof pose.hx === "number" ? pose.hx : gridDir.dc;
-                    const useHz = typeof pose.hz === "number" ? pose.hz : gridDir.dr;
-                    Object.assign(st, {
-                        c: pose.c,
-                        r: pose.r,
-                        ein: { dc: 0, dr: 0 },
-                        eout: gridDir,
-                        p: 0.5,
-                        hx: useHx,
-                        hz: useHz,
-                        dwell: 0,
-                        stopAt: null,
-                        signDwell: null,
-                    });
-                    v.group.position.set(pose.x, vehicleRideY(v.code), pose.z);
-                    v.group.rotation.y = Math.atan2(-useHz, useHx);
+                const geo =
+                    along === "z" ? new THREE.BoxGeometry(0.06, 0.06, SP) : new THREE.BoxGeometry(SP, 0.06, 0.06);
+                const m = new THREE.Mesh(geo, solidMats(railMat));
+                m.position.set(along === "z" ? x + off : x, railY, along === "z" ? z : z + off);
+                ground.add(m);
+            }
+        };
+        if (ns || iso) addPair("z");
+        if (ew) addPair("x");
+    }
+    function addCurvedRailTile(x, z, dirs, skipTies = false) {
+        const railY = TOP + 0.13;
+        const gauge = 0.22;
+        const vertical = dirs.includes("n") ? "n" : "s";
+        const horizontal = dirs.includes("e") ? "e" : "w";
+        const sx = horizontal === "e" ? 1 : -1;
         const sz = vertical === "s" ? 1 : -1;
         const corner = {
             x: sx * 0.5,
@@ -1780,16 +1839,10 @@ export function createGarden(canvas, opts = {}) {
         if (da < -Math.PI) da += Math.PI * 2;
         const arcPoint = (radius, t, y = railY) => {
             const a = a0 + da * t;
-            return new THREE.Vector3(
-                x + corner.x + Math.cos(a) * radius,
-                y,
-                z + corner.z + Math.sin(a) * radius,
-            );
+            return new THREE.Vector3(x + corner.x + Math.cos(a) * radius, y, z + corner.z + Math.sin(a) * radius);
         };
         const addRailCurve = (radius) => {
-            const curve = new THREE.CatmullRomCurve3(
-                Array.from({ length: 13 }, (_, i) => arcPoint(radius, i / 12)),
-            );
+            const curve = new THREE.CatmullRomCurve3(Array.from({ length: 13 }, (_, i) => arcPoint(radius, i / 12)));
             const rail = new THREE.Mesh(new THREE.TubeGeometry(curve, 14, 0.035, 8, false), railMat);
             ground.add(rail);
         };
@@ -1806,7 +1859,6 @@ export function createGarden(canvas, opts = {}) {
             ground.add(tie);
         }
     }
-
     function addRunwayTile(x, z, adj, info) {
         const slab = new THREE.Mesh(slabGeo, solidMats(runwayMat));
         slab.position.set(x, TOP + 0.065, z);
@@ -2396,7 +2448,11 @@ export function createGarden(canvas, opts = {}) {
             const candidates = wantsFlower && flowerTops.length ? flowerTops : plantTops;
             const t = candidates[Math.floor(Math.random() * candidates.length)];
             const orbit = wantsFlower ? 0.12 + Math.random() * 0.18 : 0;
-            c.target.set(t.x + (Math.random() - 0.5) * orbit, t.top + (wantsFlower ? 0.08 : 0), t.z + (Math.random() - 0.5) * orbit);
+            c.target.set(
+                t.x + (Math.random() - 0.5) * orbit,
+                t.top + (wantsFlower ? 0.08 : 0),
+                t.z + (Math.random() - 0.5) * orbit,
+            );
             c.state = wantsFlower ? "flower" : "land";
             c.timer = wantsFlower ? 3.5 + Math.random() * 3.5 : 2.5 + Math.random() * 3;
         } else if (roll < 0.6 && creatures.length > 1) {
@@ -3141,20 +3197,22 @@ export function createGarden(canvas, opts = {}) {
                         Math.abs(pose.hx) >= Math.abs(pose.hz)
                             ? { dc: Math.sign(pose.hx) || 1, dr: 0 }
                             : { dc: 0, dr: Math.sign(pose.hz) || 1 };
+                    const useHx = typeof pose.hx === "number" ? pose.hx : gridDir.dc;
+                    const useHz = typeof pose.hz === "number" ? pose.hz : gridDir.dr;
                     Object.assign(st, {
                         c: pose.c,
                         r: pose.r,
                         ein: { dc: 0, dr: 0 },
                         eout: gridDir,
                         p: 0.5,
-                        hx: gridDir.dc,
-                        hz: gridDir.dr,
+                        hx: useHx,
+                        hz: useHz,
                         dwell: 0,
                         stopAt: null,
                         signDwell: null,
                     });
                     v.group.position.set(pose.x, vehicleRideY(v.code), pose.z);
-                    v.group.rotation.y = Math.atan2(-gridDir.dr, gridDir.dc) + (v.code === "traincar" ? Math.PI : 0);
+                    v.group.rotation.y = Math.atan2(-useHz, useHx);
                 } else {
                     parkVehicleAtHome(v);
                 }
@@ -3179,7 +3237,9 @@ export function createGarden(canvas, opts = {}) {
                 if (jet.pause > 0) {
                     jet.pause -= dt;
                 } else {
-                    jet.u += dt * (jet.phase === "fly" ? 0.045 : jet.phase === "land" ? 0.16 : jet.phase === "turn" ? 0.28 : 0.20);
+                    jet.u +=
+                        dt *
+                        (jet.phase === "fly" ? 0.045 : jet.phase === "land" ? 0.16 : jet.phase === "turn" ? 0.28 : 0.2);
                     if (jet.u >= 1) {
                         if (jet.phase === "turn") {
                             jet.phase = "takeoff";
@@ -3197,7 +3257,14 @@ export function createGarden(canvas, opts = {}) {
                             const oldLanding = jet.route.landing;
                             const route = chooseJetRoute(st.c, st.r);
                             st.jet = route
-                                ? { route, phase: "turn", u: 0, pause: 0.45, fromHx: oldLanding.fx, fromHz: oldLanding.fz }
+                                ? {
+                                      route,
+                                      phase: "turn",
+                                      u: 0,
+                                      pause: 0.45,
+                                      fromHx: oldLanding.fx,
+                                      fromHz: oldLanding.fz,
+                                  }
                                 : null;
                             continue;
                         }
@@ -3208,7 +3275,12 @@ export function createGarden(canvas, opts = {}) {
                 const takeoff = route.takeoff;
                 const landing = route.landing;
                 const u = Math.max(0, Math.min(1, jet.u));
-                let wx, wy, wz, hx, hz, bank = 0;
+                let wx,
+                    wy,
+                    wz,
+                    hx,
+                    hz,
+                    bank = 0;
                 const groundY = vehicleRideY(v.code);
                 if (jet.phase === "turn") {
                     const turn = smooth01(u);
@@ -3352,7 +3424,7 @@ export function createGarden(canvas, opts = {}) {
                 const k = 1 - Math.abs(2 * st.p - 1);
                 px = ex + (cx - ex) * k;
                 pz = ez + (cz - ez) * k;
-                const side = ((st.c + st.r) & 1) ? 1 : -1;
+                const side = (st.c + st.r) & 1 ? 1 : -1;
                 const a = Math.atan2(inb.dr, inb.dc) + Math.PI * smooth01(st.p) * side;
                 hx = Math.cos(a);
                 hz = Math.sin(a);
@@ -3384,8 +3456,7 @@ export function createGarden(canvas, opts = {}) {
             } // cars keep right
             v.group.position.set(px, vehicleRideY(v.code), pz);
             v.group.rotation.y = Math.atan2(-hz, hx);
-            if (v.code === "train")
-                recordTrainTrail(st, { x: px, z: pz, c: st.c, r: st.r, hx, hz });
+            if (v.code === "train") recordTrainTrail(st, { x: px, z: pz, c: st.c, r: st.r, hx, hz });
 
             st.sound -= dt;
             if (st.sound <= 0) {
