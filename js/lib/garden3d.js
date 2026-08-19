@@ -2990,18 +2990,41 @@ export function createGarden(canvas, opts = {}) {
             const seg = Math.hypot(a.x - b.x, a.z - b.z);
             if (dist + seg >= followDist) {
                 const k = seg ? (followDist - dist) / seg : 0;
+                const x = a.x + (b.x - a.x) * k;
+                const z = a.z + (b.z - a.z) * k;
+                // geometric tangent between a and b is more robust than stored hx/hz
+                const tx = b.x - a.x;
+                const tz = b.z - a.z;
+                const tlen = Math.hypot(tx, tz);
+                const hx = tlen ? tx / tlen : b.hx || a.hx || 1;
+                const hz = tlen ? tz / tlen : b.hz || a.hz || 0;
                 return {
-                    x: a.x + (b.x - a.x) * k,
-                    z: a.z + (b.z - a.z) * k,
-                    c: Math.round((a.x + (b.x - a.x) * k) / SP + centerC),
-                    r: Math.round((a.z + (b.z - a.z) * k) / SP + centerR),
-                    hx: b.hx || a.hx || 1,
-                    hz: b.hz || a.hz || 0,
+                    x,
+                    z,
+                    c: Math.round(x / SP + centerC),
+                    r: Math.round(z / SP + centerR),
+                    hx,
+                    hz,
                 };
             }
             dist += seg;
         }
-        return trail[trail.length - 1];
+        const last = trail[trail.length - 1];
+        if (trail.length >= 2) {
+            const prev = trail[trail.length - 2];
+            const tx = last.x - prev.x;
+            const tz = last.z - prev.z;
+            const tlen = Math.hypot(tx, tz);
+            return {
+                x: last.x,
+                z: last.z,
+                c: last.c,
+                r: last.r,
+                hx: tlen ? tx / tlen : last.hx || prev.hx || 1,
+                hz: tlen ? tz / tlen : last.hz || prev.hz || 0,
+            };
+        }
+        return last;
     }
     function assignTrainCars() {
         const locomotives = vehicleSprites.filter((v) => v.code === "train");
