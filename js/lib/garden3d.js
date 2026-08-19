@@ -3197,8 +3197,13 @@ export function createGarden(canvas, opts = {}) {
                         Math.abs(pose.hx) >= Math.abs(pose.hz)
                             ? { dc: Math.sign(pose.hx) || 1, dr: 0 }
                             : { dc: 0, dr: Math.sign(pose.hz) || 1 };
-                    const useHx = typeof pose.hx === "number" ? pose.hx : gridDir.dc;
-                    const useHz = typeof pose.hz === "number" ? pose.hz : gridDir.dr;
+                    // If the sampled gridDir is axis-aligned (straight rail), prefer
+                    // the grid direction to avoid small diagonal tangents causing
+                    // a 45° tilt on straight track. Otherwise use the trail tangent
+                    // for smooth facing through curves.
+                    const isStraight = gridDir.dc === 0 || gridDir.dr === 0;
+                    const useHx = isStraight ? gridDir.dc : typeof pose.hx === "number" ? pose.hx : gridDir.dc;
+                    const useHz = isStraight ? gridDir.dr : typeof pose.hz === "number" ? pose.hz : gridDir.dr;
                     Object.assign(st, {
                         c: pose.c,
                         r: pose.r,
