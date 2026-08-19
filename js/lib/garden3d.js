@@ -3202,8 +3202,16 @@ export function createGarden(canvas, opts = {}) {
                     // a 45° tilt on straight track. Otherwise use the trail tangent
                     // for smooth facing through curves.
                     const isStraight = gridDir.dc === 0 || gridDir.dr === 0;
-                    const useHx = isStraight ? gridDir.dc : typeof pose.hx === "number" ? pose.hx : gridDir.dc;
-                    const useHz = isStraight ? gridDir.dr : typeof pose.hz === "number" ? pose.hz : gridDir.dr;
+                    let useHx = isStraight ? gridDir.dc : typeof pose.hx === "number" ? pose.hx : gridDir.dc;
+                    let useHz = isStraight ? gridDir.dr : typeof pose.hz === "number" ? pose.hz : gridDir.dr;
+                    // Ensure the sampled tangent faces the same general direction as
+                    // the grid exit; if it's roughly opposite, flip it to avoid a
+                    // 180° reversed car orientation.
+                    const dot = useHx * gridDir.dc + useHz * gridDir.dr;
+                    if (dot < 0) {
+                        useHx = -useHx;
+                        useHz = -useHz;
+                    }
                     Object.assign(st, {
                         c: pose.c,
                         r: pose.r,
