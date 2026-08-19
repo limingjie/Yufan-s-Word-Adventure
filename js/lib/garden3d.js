@@ -1746,24 +1746,28 @@ export function createGarden(canvas, opts = {}) {
         const railY = TOP + 0.13;
         const addPair = (along) => {
             for (const off of [-0.22, 0.22]) {
-                const geo =
-                    along === "z"
-                        ? new THREE.BoxGeometry(0.06, 0.06, SP)
-                        : new THREE.BoxGeometry(SP, 0.06, 0.06);
-                const m = new THREE.Mesh(geo, solidMats(railMat));
-                m.position.set(along === "z" ? x + off : x, railY, along === "z" ? z : z + off);
-                ground.add(m);
-            }
-        };
-        if (ns || iso) addPair("z");
-        if (ew) addPair("x");
-    }
-    function addCurvedRailTile(x, z, dirs, skipTies = false) {
-        const railY = TOP + 0.13;
-        const gauge = 0.22;
-        const vertical = dirs.includes("n") ? "n" : "s";
-        const horizontal = dirs.includes("e") ? "e" : "w";
-        const sx = horizontal === "e" ? 1 : -1;
+                    const gridDir =
+                        Math.abs(pose.hx) >= Math.abs(pose.hz)
+                            ? { dc: Math.sign(pose.hx) || 1, dr: 0 }
+                            : { dc: 0, dr: Math.sign(pose.hz) || 1 };
+                    // Use the sampled trail heading (pose.hx/hz) for smooth facing on
+                    // curves; keep gridDir for claiming the cell network.
+                    const useHx = typeof pose.hx === "number" ? pose.hx : gridDir.dc;
+                    const useHz = typeof pose.hz === "number" ? pose.hz : gridDir.dr;
+                    Object.assign(st, {
+                        c: pose.c,
+                        r: pose.r,
+                        ein: { dc: 0, dr: 0 },
+                        eout: gridDir,
+                        p: 0.5,
+                        hx: useHx,
+                        hz: useHz,
+                        dwell: 0,
+                        stopAt: null,
+                        signDwell: null,
+                    });
+                    v.group.position.set(pose.x, vehicleRideY(v.code), pose.z);
+                    v.group.rotation.y = Math.atan2(-useHz, useHx);
         const sz = vertical === "s" ? 1 : -1;
         const corner = {
             x: sx * 0.5,
@@ -3150,7 +3154,7 @@ export function createGarden(canvas, opts = {}) {
                         signDwell: null,
                     });
                     v.group.position.set(pose.x, vehicleRideY(v.code), pose.z);
-                    v.group.rotation.y = Math.atan2(-gridDir.dr, gridDir.dc);
+                    v.group.rotation.y = Math.atan2(-gridDir.dr, gridDir.dc) + (v.code === "traincar" ? Math.PI : 0);
                 } else {
                     parkVehicleAtHome(v);
                 }
