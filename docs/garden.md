@@ -131,9 +131,10 @@ onto chosen blocks:
   `?` help (a round white circle chip — the shared `.help-btn`), and the
   "💧 N need watering → Review" CTA. (No Add/Quiz buttons here — those are
   reached from the nav tabs / Home; the garden bar is review-focused.)
-- **Garden Shop** (bottom sheet) spends coins via `buyGardenItem()`, laid out as a
+- **Garden Shop** (bottom sheet) spends coins via `buyGardenItem()`/`buyGardenItems()`, laid out as a
   **card grid grouped by category** (`cat`: playset · structures · animals · decor ·
-  themes). Items **stack** — buy as many as you can afford (decorations show ×count;
+  themes). Repeatable items have a quantity field so several can be bought in one
+  validated purchase. Items **stack** (decorations show ×count;
   themes/boosters/gnome are one-off). Each purchase adds one instance live and
   persists (`getGardenItems`): structures via `addStructure`, placeables to the
   tray, animals/critters/gnome via `addDecoration`. Boosters are cosmetic only.

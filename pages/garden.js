@@ -4,7 +4,7 @@ import {
     getUserSunlight,
     getUserCoins,
     getGardenItems,
-    buyGardenItem,
+    buyGardenItems,
     completeReview,
     recordTestResult,
     getGardenPlants,
@@ -519,7 +519,6 @@ export async function render(container) {
     ];
     function shopCard(it) {
         const qty = itemCounts.get(it.code) || 0;
-        const afford = balance >= it.cost;
         const oneOff = !!it.oneOff || it.type === "theme" || it.type === "booster";
         let btn;
         if (oneOff && qty > 0) {
@@ -530,7 +529,11 @@ export async function render(container) {
                         : `<button class="btn btn-secondary btn-sm shop-theme" data-code="${it.code}">Use</button>`
                     : `<span class="shop-owned">Owned ✓</span>`;
         } else {
-            btn = `<button class="btn btn-primary btn-sm shop-buy" data-code="${it.code}" ${afford ? "" : "disabled"}>${it.cost} 🪙</button>`;
+            const maxQty = Math.min(999, Math.floor(balance / it.cost));
+            btn = `<div class="shop-buy-row">
+                <input class="shop-quantity" data-code="${it.code}" type="number" min="1" max="${maxQty}" value="1" aria-label="Quantity of ${esc(it.name)}">
+                <button class="btn btn-primary btn-sm shop-buy" data-code="${it.code}" ${maxQty < 1 ? "disabled" : ""}>Buy</button>
+            </div>`;
         }
         const countBadge = !oneOff && qty > 0 ? `<span class="shop-count">×${qty}</span>` : "";
         const tag =
@@ -544,6 +547,7 @@ export async function render(container) {
                 <span class="shop-ic">${it.icon}</span>
                 <div class="shop-name">${esc(it.name)}${tag}${countBadge}</div>
                 ${it.desc ? `<div class="shop-desc">${esc(it.desc)}</div>` : ""}
+                <div class="shop-price">${it.cost} 🪙</div>
                 ${btn}
             </div>`;
     }
@@ -570,7 +574,12 @@ export async function render(container) {
         drawer.querySelector("#shopClose").addEventListener("click", () => {
             drawer.style.display = "none";
         });
-        drawer.querySelectorAll(".shop-buy").forEach((b) => b.addEventListener("click", () => buy(b.dataset.code)));
+        drawer.querySelectorAll(".shop-buy").forEach((b) =>
+            b.addEventListener("click", () => {
+                const input = drawer.querySelector(`.shop-quantity[data-code="${b.dataset.code}"]`);
+                buy(b.dataset.code, input?.value);
+            }),
+        );
         drawer.querySelectorAll(".shop-theme").forEach((b) =>
             b.addEventListener("click", () => {
                 setActiveTheme(b.dataset.code);
@@ -579,39 +588,44 @@ export async function render(container) {
         );
     }
 
-    async function buy(code) {
+    async function buy(code, requestedQuantity = 1) {
         try {
-            const res = await buyGardenItem(code);
+            const info = SHOP[code];
+            const oneOff = !!info.oneOff || info.type === "theme" || info.type === "booster";
+            const quantity = oneOff ? 1 : Math.max(1, Math.min(999, Number.parseInt(requestedQuantity, 10) || 1));
+            const res = await buyGardenItems(code, quantity);
             balance = res.balance;
             owned.add(code);
-            itemCounts.set(code, (itemCounts.get(code) || 0) + 1);
-            items.push({ id: res.id, item_code: code, col: null, grid_row: null, rotation: 0 });
+            itemCounts.set(code, (itemCounts.get(code) || 0) + res.ids.length);
+            res.ids.forEach((id) => items.push({ id, item_code: code, col: null, grid_row: null, rotation: 0 }));
             document.getElementById("coinWallet").textContent = `🪙 ${balance}`;
             if (SHOP[code]?.type === "theme") setActiveTheme(code);
             document.getElementById("themeSwitch").hidden = !(owned.has("night") || owned.has("sunnyday"));
             if (isPlaceable(code)) {
                 // Goes to the tray; the shop STAYS OPEN so the learner can stock
                 // up on roads/rails, then hit ✋ Arrange and drag them on.
-                unplaced.push({ id: res.id, code });
+                res.ids.forEach((id) => unplaced.push({ id, code }));
                 if (arrangeOn) renderTray();
-                toast(`${SHOP[code].icon} ${SHOP[code].name} added to your tray — open ✋ Arrange to place it.`);
+                toast(
+                    `${SHOP[code].icon} ${SHOP[code].name} ×${quantity} added to your tray — open ✋ Arrange to place them.`,
+                );
                 renderShop();
                 return;
             }
             if (STRUCTURES.includes(code)) {
-                controller?.addStructure(res.id, code); // auto-placed + persisted live
-                toast(`${SHOP[code].icon} ${SHOP[code].name} added to your garden!`);
+                res.ids.forEach((id) => controller?.addStructure(id, code)); // auto-placed + persisted live
+                toast(`${SHOP[code].icon} ${SHOP[code].name} ×${quantity} added to your garden!`);
                 renderShop();
                 return;
             }
             if (isAnimal(code)) {
-                controller?.addAnimal(res.id, code); // auto-placed + persisted live
-                toast(`${SHOP[code].icon} ${SHOP[code].name} added to your garden!`);
+                res.ids.forEach((id) => controller?.addAnimal(id, code)); // auto-placed + persisted live
+                toast(`${SHOP[code].icon} ${SHOP[code].name} ×${quantity} added to your garden!`);
                 renderShop();
                 return;
             }
-            controller?.addDecoration(code); // adds ONE instance (theme/boosters skipped inside)
-            toast(`${SHOP[code].icon} ${SHOP[code].name} added to your garden!`);
+            res.ids.forEach(() => controller?.addDecoration(code));
+            toast(`${SHOP[code].icon} ${SHOP[code].name} ×${quantity} added to your garden!`);
             renderShop();
         } catch (err) {
             toast(

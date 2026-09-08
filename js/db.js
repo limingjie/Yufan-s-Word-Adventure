@@ -726,20 +726,31 @@ let gardenPurchaseQueue = Promise.resolve();
 
 /** Buy a shop item. Re-checks balance before inserting. Returns new balance. */
 export async function buyGardenItem(itemCode) {
-    const purchase = gardenPurchaseQueue.catch(() => {}).then(() => buyGardenItemNow(itemCode));
+    const purchase = gardenPurchaseQueue.catch(() => {}).then(() => buyGardenItemsNow(itemCode, 1));
     gardenPurchaseQueue = purchase.catch(() => {});
     return purchase;
 }
 
-async function buyGardenItemNow(itemCode) {
+/** Buy several instances in one validated purchase. Returns all inserted ids. */
+export async function buyGardenItems(itemCode, quantity) {
+    const purchase = gardenPurchaseQueue.catch(() => {}).then(() => buyGardenItemsNow(itemCode, quantity));
+    gardenPurchaseQueue = purchase.catch(() => {});
+    return purchase;
+}
+
+async function buyGardenItemsNow(itemCode, quantity) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Not authenticated");
 
+    const count = Number.isInteger(quantity) ? quantity : Number.parseInt(quantity, 10);
+    if (count < 1 || count > 999) throw new Error("Invalid quantity");
+
     const cost = itemCost(itemCode);
     if (cost <= 0) throw new Error("Unknown item");
+    if (isOneOffItem(itemCode) && count !== 1) throw new Error("One-off items can only be bought once");
 
     const { balance } = await getUserCoins();
-    if (balance < cost) throw new Error("Not enough coins");
+    if (balance < cost * count) throw new Error("Not enough coins");
 
     if (isOneOffItem(itemCode)) {
         const { data: existing, error: existingError } = await supabase
@@ -754,12 +765,12 @@ async function buyGardenItemNow(itemCode) {
 
     const { data, error } = await supabase
         .from("garden_items")
-        .insert({ user_id: user.id, item_code: itemCode })
-        .select("id")
-        .single();
+        .insert(Array.from({ length: count }, () => ({ user_id: user.id, item_code: itemCode })))
+        .select("id");
     if (error) throw error;
 
-    return { balance: balance - cost, id: data?.id };
+    const ids = (data || []).map((row) => row.id);
+    return { balance: balance - cost * count, id: ids[0], ids };
 }
 
 export async function getUserStreak() {
