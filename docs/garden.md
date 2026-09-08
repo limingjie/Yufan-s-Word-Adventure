@@ -27,7 +27,7 @@ groups on every edit (gardens are small; full rebuild is cheap).
 ## Two layers per block (surface + occupant)
 
 Each block has a **surface** (`grass` default · `road` · `rail` · `crossing` ·
-`fence` · `runway` · `water`(pond) · `stone`(fountain)) and at most one **occupant** (`plant` ·
+`fence` · `runway` · `ocean` · `beach` · `parking` · `roadbridge` · `railbridge` · `crosswalk` · `water`(pond) · `stone`(fountain)) and at most one **occupant** (`plant` ·
 vehicle(`car`/`bus`/`train`/`traincar`/`privatejet`) · `structure` · `animal`). A **car/bus needs a road** under it, a **train
 needs a rail**, and a **private jet needs runway**; a plant only grows on grass — so a plant must be **moved before**
 its block can become track/fence. `computeCells(skipRef)` derives the occupancy
@@ -38,7 +38,7 @@ networks treat as drivable (cars/buses: road+crossing; trains: rail+crossing; je
 
 ## Placeable playset — Arrange mode
 
-The **Road / Rail / Level-Crossing / Fence / Runway Block / Transit Station / Control Tower / Car / Bus / Train / Train Car / Private Jet** shop items are dragged
+The **Road / Rail / Level-Crossing / Fence / Runway Block / Ocean Block / Beach Block / Parking Lot / Road Bridge / Rail Bridge / Crosswalk / Transit Station / Control Tower / Car / Bus / Train / Train Car / Private Jet / Boat / Pedestrian** shop items are dragged
 onto chosen blocks:
 - **🛒 Shop → buy** a placeable → it lands in the **tray** (now a **top sheet**,
   sized to its content so it can't be clipped by iOS/iPadOS browser chrome) instead
@@ -61,6 +61,12 @@ onto chosen blocks:
 - **Runways** are valid for jets only when they form a **straight connected segment
   of at least 10 runway blocks** (`runwayInfo`). Valid segments draw runway
   threshold/centre markings in either axis and blink edge lights at night.
+- **Ocean playset:** Ocean Blocks form the boat network, Beach Blocks mark the shoreline, and Boats
+  sail across connected ocean cells. Road Bridges and Rail Bridges join only their matching network
+  and must touch ocean cells. Cars may be placed on Parking Lots; each occupied parking space adds
+  one derived coin to the wallet. Car paint is stable per purchased car (red, blue, or green).
+- **Pedestrians and crosswalks:** Pedestrians are persisted ground walkers. When Crosswalk tiles
+  exist, pedestrians choose them as destinations; crosswalks must be placed beside a road.
 - **Vehicles are voxel 3D models** (`buildCar`/`buildBus`/`buildTrain`/`buildTrainCar`/`buildPrivateJet`, flat-colour boxes —
   no external assets) that **drive the connected network**: cars and the blue bus follow
   **road+crossing** cells, trains/train cars **rail+crossing** cells (`carries()` predicate;

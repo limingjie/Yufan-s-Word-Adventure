@@ -11,13 +11,17 @@ import { computeCoins, itemCost, isOneOffItem } from "./lib/coins.js";
 import { MISSION_NEW_WORDS, missionThreshold } from "./lib/missions.js";
 
 function localYMD(d) {
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 async function getTestCountsForUser(userId) {
     const [takenRes, correctRes] = await Promise.all([
         supabase.from("test_results").select("id", { count: "exact", head: true }).eq("user_id", userId),
-        supabase.from("test_results").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("correct", true),
+        supabase
+            .from("test_results")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", userId)
+            .eq("correct", true),
     ]);
     if (takenRes.error) throw takenRes.error;
     if (correctRes.error) throw correctRes.error;
@@ -52,9 +56,9 @@ export async function addWord(wordData) {
             audio_url_uk: wordData.audioUrlUK || null,
             audio_url_us: wordData.audioUrlUS || null,
             word_forms: wordData.wordForms || null,
-            synonyms:   wordData.synonyms  || null,
-            antonyms:   wordData.antonyms  || null,
-            quotes:     wordData.quotes    || null,
+            synonyms: wordData.synonyms || null,
+            antonyms: wordData.antonyms || null,
+            quotes: wordData.quotes || null,
         })
         .select()
         .single();
@@ -80,7 +84,12 @@ export async function getWords(options = {}) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Not authenticated");
 
-    let query = supabase.from("words").select("*").eq("user_id", user.id).is("deleted_at", null).order("created_at", { ascending: false });
+    let query = supabase
+        .from("words")
+        .select("*")
+        .eq("user_id", user.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false });
 
     if (options.limit) {
         query = query.limit(options.limit);
@@ -99,14 +108,19 @@ export async function getWordsWithSRS() {
     if (!user) throw new Error("Not authenticated");
 
     const [wordsResult, scheduleResult] = await Promise.all([
-        supabase.from("words").select("*").eq("user_id", user.id).is("deleted_at", null).order("created_at", { ascending: false }),
+        supabase
+            .from("words")
+            .select("*")
+            .eq("user_id", user.id)
+            .is("deleted_at", null)
+            .order("created_at", { ascending: false }),
         supabase.from("review_schedule").select("word_id,review_level").eq("user_id", user.id),
     ]);
 
     if (wordsResult.error) throw wordsResult.error;
 
-    const levelMap = new Map((scheduleResult.data || []).map(s => [s.word_id, s.review_level]));
-    return (wordsResult.data || []).map(w => ({ ...w, review_level: levelMap.get(w.id) ?? 0 }));
+    const levelMap = new Map((scheduleResult.data || []).map((s) => [s.word_id, s.review_level]));
+    return (wordsResult.data || []).map((w) => ({ ...w, review_level: levelMap.get(w.id) ?? 0 }));
 }
 
 /**
@@ -133,10 +147,7 @@ export async function updateWord(wordId, updates) {
  * Soft-delete a word (moves it to trash)
  */
 export async function deleteWord(wordId) {
-    const { error } = await supabase
-        .from("words")
-        .update({ deleted_at: new Date().toISOString() })
-        .eq("id", wordId);
+    const { error } = await supabase.from("words").update({ deleted_at: new Date().toISOString() }).eq("id", wordId);
 
     if (error) throw error;
     return true;
@@ -146,10 +157,7 @@ export async function deleteWord(wordId) {
  * Restore a soft-deleted word from trash
  */
 export async function restoreWord(wordId) {
-    const { error } = await supabase
-        .from("words")
-        .update({ deleted_at: null })
-        .eq("id", wordId);
+    const { error } = await supabase.from("words").update({ deleted_at: null }).eq("id", wordId);
 
     if (error) throw error;
     return true;
@@ -190,7 +198,11 @@ export async function getWordsCount() {
     const user = await getCurrentUser();
     if (!user) throw new Error("Not authenticated");
 
-    const { count, error } = await supabase.from("words").select("id", { count: "exact" }).eq("user_id", user.id).is("deleted_at", null);
+    const { count, error } = await supabase
+        .from("words")
+        .select("id", { count: "exact" })
+        .eq("user_id", user.id)
+        .is("deleted_at", null);
 
     if (error) throw error;
     return count;
@@ -231,21 +243,19 @@ export async function getWordsForReviewToday(scope = "all") {
 
     if (error) throw error;
 
-    let active = (data || []).filter(row => row.words?.deleted_at == null);
+    let active = (data || []).filter((row) => row.words?.deleted_at == null);
 
-    const isToday = row => localYMD(new Date(row.words.created_at)) === today;
+    const isToday = (row) => localYMD(new Date(row.words.created_at)) === today;
 
     if (scope === "new") {
         // Today's freshly-added words, lowest level first. No cap.
-        return active
-            .filter(isToday)
-            .sort((a, b) => a.review_level - b.review_level);
+        return active.filter(isToday).sort((a, b) => a.review_level - b.review_level);
     }
 
     if (scope === "curve") {
         // Older due words only, by memory curve (level ascending), capped at 30.
         return active
-            .filter(row => !isToday(row))
+            .filter((row) => !isToday(row))
             .sort((a, b) => a.review_level - b.review_level)
             .slice(0, 30);
     }
@@ -616,16 +626,25 @@ export async function getUserCoins() {
         supabase.from("words").select("id", { count: "exact", head: true }).eq("user_id", user.id),
         getTestCountsForUser(user.id),
         supabase.from("achievements").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-        supabase.from("garden_items").select("item_code").eq("user_id", user.id),
+        supabase.from("garden_items").select("item_code, col, grid_row").eq("user_id", user.id),
     ]);
 
-    const wordsAdded   = wordsRes.count || 0;
+    const wordsAdded = wordsRes.count || 0;
     const { testsTaken, testsCorrect } = testCounts;
-    const badgeCount   = badgeRes.count || 0;
+    const badgeCount = badgeRes.count || 0;
+    const gardenRows = itemsRes.data || [];
+    const parkingCells = new Set(
+        gardenRows
+            .filter((r) => r.item_code === "parking" && r.col != null && r.grid_row != null)
+            .map((r) => `${r.col}:${r.grid_row}`),
+    );
+    const parkedCars = gardenRows
+        .filter((r) => r.item_code === "car" && r.col != null && r.grid_row != null)
+        .filter((r) => parkingCells.has(`${r.col}:${r.grid_row}`)).length;
 
-    const earned = computeCoins({ wordsAdded, testsTaken, testsCorrect, badgeCount });
+    const earned = computeCoins({ wordsAdded, testsTaken, testsCorrect, badgeCount, parkedCars });
     const seenOneOff = new Set();
-    const spent  = (itemsRes.data || []).reduce((s, r) => {
+    const spent = (itemsRes.data || []).reduce((s, r) => {
         if (isOneOffItem(r.item_code)) {
             if (seenOneOff.has(r.item_code)) return s;
             seenOneOff.add(r.item_code);
@@ -640,7 +659,7 @@ export async function getGardenItems() {
     if (!user) return [];
     const { data, error } = await supabase
         .from("garden_items")
-        .select("id, item_code, col, grid_row, rotation, created_at")
+        .select("id, item_code, col, grid_row, rotation, paint, created_at")
         .eq("user_id", user.id);
     if (error) throw error;
     return data || [];
@@ -665,8 +684,7 @@ export async function setPlantPosition(wordId, col, gridRow) {
     if (!user) throw new Error("Not authenticated");
     const { error } = await supabase
         .from("garden_plants")
-        .upsert({ user_id: user.id, word_id: wordId, col, grid_row: gridRow },
-                { onConflict: "user_id,word_id" });
+        .upsert({ user_id: user.id, word_id: wordId, col, grid_row: gridRow }, { onConflict: "user_id,word_id" });
     if (error) throw error;
 }
 
@@ -675,21 +693,22 @@ export async function setPlantPositions(rows) {
     const user = await getCurrentUser();
     if (!user || !rows?.length) return;
     const payload = rows.map((r) => ({
-        user_id: user.id, word_id: r.wordId, col: r.col, grid_row: r.gridRow ?? r.row,
+        user_id: user.id,
+        word_id: r.wordId,
+        col: r.col,
+        grid_row: r.gridRow ?? r.row,
     }));
-    const { error } = await supabase
-        .from("garden_plants")
-        .upsert(payload, { onConflict: "user_id,word_id" });
+    const { error } = await supabase.from("garden_plants").upsert(payload, { onConflict: "user_id,word_id" });
     if (error) throw error;
 }
 
 /** Move/rotate a placed item (or send it back to the tray with null col/row). */
-export async function placeGardenItem(id, col, gridRow, rotation = 0) {
+export async function placeGardenItem(id, col, gridRow, rotation = 0, paint = null) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Not authenticated");
     const { error } = await supabase
         .from("garden_items")
-        .update({ col, grid_row: gridRow, rotation })
+        .update({ col, grid_row: gridRow, rotation, paint })
         .eq("id", id)
         .eq("user_id", user.id);
     if (error) throw error;
@@ -699,11 +718,7 @@ export async function placeGardenItem(id, col, gridRow, rotation = 0) {
 export async function removeGardenItem(id) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Not authenticated");
-    const { error } = await supabase
-        .from("garden_items")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", user.id);
+    const { error } = await supabase.from("garden_items").delete().eq("id", id).eq("user_id", user.id);
     if (error) throw error;
 }
 
@@ -763,19 +778,19 @@ export async function getUserStreak() {
     if (dates.size === 0) return 0;
 
     const sorted = [...dates].sort((a, b) => (a < b ? 1 : -1));
-    const now       = new Date();
-    const today     = localYMD(now);
+    const now = new Date();
+    const today = localYMD(now);
     const yesterday = localYMD(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
 
     if (sorted[0] !== today && sorted[0] !== yesterday) return 0;
 
-    let streak    = 0;
+    let streak = 0;
     let cursorYMD = sorted[0];
 
     for (const date of sorted) {
         if (date === cursorYMD) {
             streak++;
-            const [y, m, d] = cursorYMD.split('-').map(Number);
+            const [y, m, d] = cursorYMD.split("-").map(Number);
             cursorYMD = localYMD(new Date(y, m - 1, d - 1));
         } else {
             break;
@@ -804,88 +819,123 @@ export async function getDailyProgress(userId) {
         const user = await getCurrentUser();
         userId = user?.id;
     }
-    if (!userId) return { wordsAdded: 0, reviewsNewDone: 0, reviewsCurveDone: 0, meaningQuizCount: 0, spellingQuizCount: 0, newDue: 0, curveDue: 0, reviewsNewAcc: null, reviewsCurveAcc: null, meaningAcc: null, spellingAcc: null, reviewsNewTries: 0, meaningTries: 0, spellingTries: 0, reviewsCurveTries: 0 };
+    if (!userId)
+        return {
+            wordsAdded: 0,
+            reviewsNewDone: 0,
+            reviewsCurveDone: 0,
+            meaningQuizCount: 0,
+            spellingQuizCount: 0,
+            newDue: 0,
+            curveDue: 0,
+            reviewsNewAcc: null,
+            reviewsCurveAcc: null,
+            meaningAcc: null,
+            spellingAcc: null,
+            reviewsNewTries: 0,
+            meaningTries: 0,
+            spellingTries: 0,
+            reviewsCurveTries: 0,
+        };
 
-    const now   = new Date();
+    const now = new Date();
     const today = localYMD(now);
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-    const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
 
     const [wordsRes, testsRes, dueRes] = await Promise.all([
-        supabase.from('words')
-            .select('id')
-            .eq('user_id', userId)
-            .gte('created_at', start)
-            .lt('created_at', end),
-        supabase.from('test_results')
-            .select('word_id, test_type, correct')
-            .eq('user_id', userId)
-            .gte('tested_at', start)
-            .lt('tested_at', end),
-        supabase.from('review_schedule')
-            .select('word_id, words!inner(created_at, deleted_at)')
-            .eq('user_id', userId)
-            .lte('next_review_date', today),
+        supabase.from("words").select("id").eq("user_id", userId).gte("created_at", start).lt("created_at", end),
+        supabase
+            .from("test_results")
+            .select("word_id, test_type, correct")
+            .eq("user_id", userId)
+            .gte("tested_at", start)
+            .lt("tested_at", end),
+        supabase
+            .from("review_schedule")
+            .select("word_id, words!inner(created_at, deleted_at)")
+            .eq("user_id", userId)
+            .lte("next_review_date", today),
     ]);
 
-    const todayWordIds = new Set((wordsRes.data || []).map(w => w.id));
-    const wordsAdded   = todayWordIds.size;
-    const tests        = testsRes.data || [];
+    const todayWordIds = new Set((wordsRes.data || []).map((w) => w.id));
+    const wordsAdded = todayWordIds.size;
+    const tests = testsRes.data || [];
 
     // Distinct words answered CORRECTLY today — a failed word does NOT count
     // toward a mission's goal, so getting things wrong lowers the numerator and
     // the 85% completion threshold has to be earned.
     const distinctCorrect = (type, pred = () => true) =>
-        new Set(tests.filter(t => t.test_type === type && t.correct && pred(t.word_id)).map(t => t.word_id)).size;
+        new Set(tests.filter((t) => t.test_type === type && t.correct && pred(t.word_id)).map((t) => t.word_id)).size;
 
     // Missions 2-4 track today's NEW words only (they're gated by mission 1).
-    const isToday = id => todayWordIds.has(id);
-    const reviewsNewDone    = distinctCorrect('review',  isToday);
-    const meaningQuizCount  = distinctCorrect('meaning', isToday);
-    const spellingQuizCount = distinctCorrect('spelling', isToday);
+    const isToday = (id) => todayWordIds.has(id);
+    const reviewsNewDone = distinctCorrect("review", isToday);
+    const meaningQuizCount = distinctCorrect("meaning", isToday);
+    const spellingQuizCount = distinctCorrect("spelling", isToday);
 
     // Mission 5 (the older-word mixed drill) practices each due word in ONE of
     // three modalities, so its progress is distinct OLDER words answered
     // correctly today across review/meaning/spelling combined.
-    const isOlder = id => !todayWordIds.has(id);
+    const isOlder = (id) => !todayWordIds.has(id);
     const reviewsCurveDone = new Set(
-        tests.filter(t => isOlder(t.word_id) && t.correct
-            && (t.test_type === 'review' || t.test_type === 'meaning' || t.test_type === 'spelling'))
-            .map(t => t.word_id)
+        tests
+            .filter(
+                (t) =>
+                    isOlder(t.word_id) &&
+                    t.correct &&
+                    (t.test_type === "review" || t.test_type === "meaning" || t.test_type === "spelling"),
+            )
+            .map((t) => t.word_id),
     ).size;
 
     // Today's accuracy per mission scope (over attempts, not distinct words).
     // null when there are no attempts yet, so the UI can hide it.
     const accuracy = (type, pred = () => true) => {
-        const rows = tests.filter(t => t.test_type === type && pred(t.word_id));
-        return rows.length ? Math.round(rows.filter(t => t.correct).length / rows.length * 100) : null;
+        const rows = tests.filter((t) => t.test_type === type && pred(t.word_id));
+        return rows.length ? Math.round((rows.filter((t) => t.correct).length / rows.length) * 100) : null;
     };
-    const reviewsNewAcc   = accuracy('review',  isToday);
-    const meaningAcc      = accuracy('meaning', isToday);
-    const spellingAcc     = accuracy('spelling', isToday);
+    const reviewsNewAcc = accuracy("review", isToday);
+    const meaningAcc = accuracy("meaning", isToday);
+    const spellingAcc = accuracy("spelling", isToday);
     // Mission 5 accuracy spans all three modalities on older words.
-    const curveRows       = tests.filter(t => isOlder(t.word_id)
-        && (t.test_type === 'review' || t.test_type === 'meaning' || t.test_type === 'spelling'));
+    const curveRows = tests.filter(
+        (t) =>
+            isOlder(t.word_id) && (t.test_type === "review" || t.test_type === "meaning" || t.test_type === "spelling"),
+    );
     const reviewsCurveAcc = curveRows.length
-        ? Math.round(curveRows.filter(t => t.correct).length / curveRows.length * 100) : null;
+        ? Math.round((curveRows.filter((t) => t.correct).length / curveRows.length) * 100)
+        : null;
 
     // Total attempts per mission scope (the denominator behind each accuracy %),
     // surfaced so the mission card can show effort volume ("🎯 88% · 25 tries").
-    const tries = (type, pred = () => true) => tests.filter(t => t.test_type === type && pred(t.word_id)).length;
-    const reviewsNewTries  = tries('review',  isToday);
-    const meaningTries     = tries('meaning', isToday);
-    const spellingTries    = tries('spelling', isToday);
+    const tries = (type, pred = () => true) => tests.filter((t) => t.test_type === type && pred(t.word_id)).length;
+    const reviewsNewTries = tries("review", isToday);
+    const meaningTries = tries("meaning", isToday);
+    const spellingTries = tries("spelling", isToday);
     const reviewsCurveTries = curveRows.length;
 
     // Still-due queues, split new vs curve.
-    const due = (dueRes.data || []).filter(r => r.words?.deleted_at == null);
-    const newDue   = due.filter(r => localYMD(new Date(r.words.created_at)) === today).length;
-    const curveDue = Math.min(30, due.filter(r => localYMD(new Date(r.words.created_at)) !== today).length);
+    const due = (dueRes.data || []).filter((r) => r.words?.deleted_at == null);
+    const newDue = due.filter((r) => localYMD(new Date(r.words.created_at)) === today).length;
+    const curveDue = Math.min(30, due.filter((r) => localYMD(new Date(r.words.created_at)) !== today).length);
 
     return {
-        wordsAdded, reviewsNewDone, reviewsCurveDone, meaningQuizCount, spellingQuizCount, newDue, curveDue,
-        reviewsNewAcc, reviewsCurveAcc, meaningAcc, spellingAcc,
-        reviewsNewTries, meaningTries, spellingTries, reviewsCurveTries,
+        wordsAdded,
+        reviewsNewDone,
+        reviewsCurveDone,
+        meaningQuizCount,
+        spellingQuizCount,
+        newDue,
+        curveDue,
+        reviewsNewAcc,
+        reviewsCurveAcc,
+        meaningAcc,
+        spellingAcc,
+        reviewsNewTries,
+        meaningTries,
+        spellingTries,
+        reviewsCurveTries,
     };
 }
 
@@ -899,17 +949,18 @@ export async function getDailyProgress(userId) {
 export async function getTodayAttemptCounts(testType) {
     const user = await getCurrentUser();
     if (!user) return new Map();
-    const now   = new Date();
+    const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-    const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
-    const { data } = await supabase.from('test_results')
-        .select('word_id')
-        .eq('user_id', user.id)
-        .eq('test_type', testType)
-        .gte('tested_at', start)
-        .lt('tested_at', end);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+    const { data } = await supabase
+        .from("test_results")
+        .select("word_id")
+        .eq("user_id", user.id)
+        .eq("test_type", testType)
+        .gte("tested_at", start)
+        .lt("tested_at", end);
     const counts = new Map();
-    for (const r of (data || [])) counts.set(r.word_id, (counts.get(r.word_id) || 0) + 1);
+    for (const r of data || []) counts.set(r.word_id, (counts.get(r.word_id) || 0) + 1);
     return counts;
 }
 
@@ -929,23 +980,32 @@ export async function getMissionHistory(userId, days = 14) {
     }
     if (!userId) return [];
 
-    const now       = new Date();
+    const now = new Date();
     const startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1));
-    const start     = startDate.toISOString();
+    const start = startDate.toISOString();
 
     const [wordsRes, testsRes] = await Promise.all([
-        supabase.from('words').select('id, created_at').eq('user_id', userId).is('deleted_at', null).gte('created_at', start),
-        supabase.from('test_results').select('word_id, test_type, correct, tested_at').eq('user_id', userId).gte('tested_at', start),
+        supabase
+            .from("words")
+            .select("id, created_at")
+            .eq("user_id", userId)
+            .is("deleted_at", null)
+            .gte("created_at", start),
+        supabase
+            .from("test_results")
+            .select("word_id, test_type, correct, tested_at")
+            .eq("user_id", userId)
+            .gte("tested_at", start),
     ]);
 
-    const wordsByDay = new Map();   // ymd -> Set(wordId) of words created that day
+    const wordsByDay = new Map(); // ymd -> Set(wordId) of words created that day
     for (const w of wordsRes.data || []) {
         const d = localYMD(new Date(w.created_at));
         if (!wordsByDay.has(d)) wordsByDay.set(d, new Set());
         wordsByDay.get(d).add(w.id);
     }
 
-    const testsByDay = new Map();   // ymd -> test rows
+    const testsByDay = new Map(); // ymd -> test rows
     for (const t of testsRes.data || []) {
         const d = localYMD(new Date(t.tested_at));
         if (!testsByDay.has(d)) testsByDay.set(d, []);
@@ -954,35 +1014,49 @@ export async function getMissionHistory(userId, days = 14) {
 
     const out = [];
     for (let i = 0; i < days; i++) {
-        const dd  = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        const dd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
         const ymd = localYMD(dd);
 
-        const newSet     = wordsByDay.get(ymd) || new Set();
+        const newSet = wordsByDay.get(ymd) || new Set();
         const wordsAdded = newSet.size;
-        const dayTests   = testsByDay.get(ymd) || [];
+        const dayTests = testsByDay.get(ymd) || [];
 
         // Distinct words answered CORRECTLY (matches getDailyProgress).
         const distinct = (type, pred) =>
-            new Set(dayTests.filter(t => t.test_type === type && t.correct && pred(t.word_id)).map(t => t.word_id)).size;
-        const isNew = id => newSet.has(id);
+            new Set(dayTests.filter((t) => t.test_type === type && t.correct && pred(t.word_id)).map((t) => t.word_id))
+                .size;
+        const isNew = (id) => newSet.has(id);
 
-        const reviewsNew   = distinct('review',   isNew);
-        const meaning      = distinct('meaning',  isNew);
-        const spelling     = distinct('spelling', isNew);
+        const reviewsNew = distinct("review", isNew);
+        const meaning = distinct("meaning", isNew);
+        const spelling = distinct("spelling", isNew);
         // Mission 5 drill: distinct OLDER words correct across all three modalities.
         const reviewsCurve = new Set(
-            dayTests.filter(t => t.correct && !isNew(t.word_id)
-                && (t.test_type === 'review' || t.test_type === 'meaning' || t.test_type === 'spelling'))
-                .map(t => t.word_id)
+            dayTests
+                .filter(
+                    (t) =>
+                        t.correct &&
+                        !isNew(t.word_id) &&
+                        (t.test_type === "review" || t.test_type === "meaning" || t.test_type === "spelling"),
+                )
+                .map((t) => t.word_id),
         ).size;
 
         // Mirror buildMissions: 85% of each target counts as complete.
         const practiceNeed = missionThreshold(wordsAdded);
-        const coreDone = wordsAdded >= missionThreshold(MISSION_NEW_WORDS)
-            && reviewsNew >= practiceNeed && meaning >= practiceNeed && spelling >= practiceNeed;
+        const coreDone =
+            wordsAdded >= missionThreshold(MISSION_NEW_WORDS) &&
+            reviewsNew >= practiceNeed &&
+            meaning >= practiceNeed &&
+            spelling >= practiceNeed;
 
         out.push({
-            date: ymd, wordsAdded, reviewsNew, reviewsCurve, meaning, spelling,
+            date: ymd,
+            wordsAdded,
+            reviewsNew,
+            reviewsCurve,
+            meaning,
+            spelling,
             totalTests: dayTests.length,
             hasActivity: wordsAdded > 0 || dayTests.length > 0,
             coreDone,
@@ -1009,20 +1083,21 @@ export async function getPrioritizedWords() {
 
     if (wordsResult.error) throw wordsResult.error;
 
-    const schedMap = new Map((scheduleResult.data || []).map(s => [s.word_id, s]));
-    const words = (wordsResult.data || []).map(w => {
+    const schedMap = new Map((scheduleResult.data || []).map((s) => [s.word_id, s]));
+    const words = (wordsResult.data || []).map((w) => {
         const s = schedMap.get(w.id);
         return { ...w, review_level: s?.review_level ?? 0, next_review_date: s?.next_review_date ?? today };
     });
 
-    const rank = w => {
-        if (localYMD(new Date(w.created_at)) === today) return 0;       // added today
-        if (w.next_review_date <= today) return 1;                       // due
-        return 2;                                                        // future
+    const rank = (w) => {
+        if (localYMD(new Date(w.created_at)) === today) return 0; // added today
+        if (w.next_review_date <= today) return 1; // due
+        return 2; // future
     };
 
     words.sort((a, b) => {
-        const ra = rank(a), rb = rank(b);
+        const ra = rank(a),
+            rb = rank(b);
         if (ra !== rb) return ra - rb;
         if (ra === 2) return a.next_review_date < b.next_review_date ? -1 : 1;
         return a.review_level - b.review_level;
@@ -1044,10 +1119,7 @@ export async function updateAvatar(emoji, color) {
     if (emoji !== undefined) patch.avatar_emoji = emoji || null;
     if (color !== undefined) patch.avatar_color = color;
 
-    const { error } = await supabase
-        .from("profiles")
-        .update(patch)
-        .eq("id", user.id);
+    const { error } = await supabase.from("profiles").update(patch).eq("id", user.id);
 
     if (error) throw error;
     return true;

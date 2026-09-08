@@ -12,7 +12,7 @@
 // things around); dropping near an edge auto-grows the field next rebuild.
 //
 // Two layers per block:
-//   • surface  — grass (default) | road | rail | crossing | fence | runway | water(pond) | stone(fountain)
+//   • surface  — grass (default) | road | rail | crossing | fence | runway | ocean | beach | parking | bridge | crosswalk
 //   • occupant — one of: plant | vehicle(car/bus/train/traincar/privatejet) | structure | animal | (none)
 // A car/bus needs a road surface, a train needs rail, and a jet needs runway. One occupant per
 // block, so a plant must be moved before its block can become a road/rail.
@@ -27,7 +27,7 @@
 //   opts.night / opts.warm  bool theme flags
 //   opts.onPlantClick(wordId)               tap a plant (normal mode → review)
 //   opts.onAssignHomes([{wordId,col,row}])  words that had no stored position
-//   opts.onItemMoved(id,col,row,rotation)   a placed item was dropped/rotated
+//   opts.onItemMoved(id,col,row,rotation,paint)   a placed item was dropped/rotated
 //   opts.onItemRemoved(id)                  a placed item was removed
 //   opts.onPlantMoved(wordId,col,row)       a plant was dragged to a new block
 //   opts.onSelectItem(id|null)              a placed item was selected/deselected
@@ -90,6 +90,9 @@ export function createGarden(canvas, opts = {}) {
     const grassMat = new THREE.MeshStandardMaterial({ color: 0x5fae3a, roughness: 1, flatShading: true });
     const grassMatAlt = new THREE.MeshStandardMaterial({ color: 0x69b943, roughness: 1, flatShading: true });
     const waterMat = new THREE.MeshStandardMaterial({ color: 0x2f8fe8, roughness: 0.7, flatShading: true });
+    const oceanMat = new THREE.MeshStandardMaterial({ color: 0x1976d2, roughness: 0.55, flatShading: true });
+    const beachMat = new THREE.MeshStandardMaterial({ color: 0xe8c878, roughness: 1, flatShading: true });
+    const parkingMat = new THREE.MeshStandardMaterial({ color: 0x62676d, roughness: 1, flatShading: true });
     const stoneMat = new THREE.MeshStandardMaterial({ color: 0xb8bec8, roughness: 1, flatShading: true });
     const roadMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4f, roughness: 1, flatShading: true });
     const runwayMat = new THREE.MeshStandardMaterial({ color: 0x363a3f, roughness: 1, flatShading: true });
@@ -113,6 +116,13 @@ export function createGarden(canvas, opts = {}) {
     const PAL = {
         carBody: flat(0xe23b3b),
         carRoof: flat(0xb52d2d),
+        carBlue: flat(0x2878d0),
+        carBlueRoof: flat(0x1d5599),
+        carGreen: flat(0x2caa68),
+        carGreenRoof: flat(0x1e7548),
+        boat: flat(0xf4f6f8),
+        boatHull: flat(0x7a3e2b),
+        boatSail: flat(0xfff4cf, { side: THREE.DoubleSide }),
         busBody: flat(0x2574d8),
         busRoof: flat(0x1954a6),
         jetBody: flat(0xf4f6f8),
@@ -402,15 +412,22 @@ export function createGarden(canvas, opts = {}) {
         return new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide });
     }
     const stopTextMat = makeStopTextMaterial();
-    function buildCar() {
+    function carColor(id) {
+        const text = String(id ?? "");
+        const hash = [...text].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+        return ["red", "blue", "green"][hash % 3];
+    }
+    function buildCar(color = "red") {
         const g = new THREE.Group();
-        vellipsoid(g, 0.4, 0.11, 0.23, 0, 0.18, 0, PAL.carBody); // rounded chassis
+        const body = color === "blue" ? PAL.carBlue : color === "green" ? PAL.carGreen : PAL.carBody;
+        const roof = color === "blue" ? PAL.carBlueRoof : color === "green" ? PAL.carGreenRoof : PAL.carRoof;
+        vellipsoid(g, 0.4, 0.11, 0.23, 0, 0.18, 0, body); // rounded chassis
         vellipsoid(g, 0.23, 0.12, 0.21, -0.04, 0.34, 0, PAL.glass); // cabin glass
-        vbox(g, 0.34, 0.07, 0.36, -0.04, 0.45, 0, PAL.carRoof); // roof
+        vbox(g, 0.34, 0.07, 0.36, -0.04, 0.45, 0, roof); // roof
         vbox(g, 0.12, 0.1, 0.36, 0.23, 0.34, 0, PAL.glass); // windshield
         vbox(g, 0.12, 0.08, 0.34, -0.27, 0.32, 0, PAL.glass); // rear window
-        vellipsoid(g, 0.16, 0.045, 0.18, 0.25, 0.27, 0, PAL.carBody); // hood
-        vellipsoid(g, 0.12, 0.04, 0.17, -0.31, 0.26, 0, PAL.carRoof); // trunk
+        vellipsoid(g, 0.16, 0.045, 0.18, 0.25, 0.27, 0, body); // hood
+        vellipsoid(g, 0.12, 0.04, 0.17, -0.31, 0.26, 0, roof); // trunk
         vbox(g, 0.05, 0.05, 0.3, 0.42, 0.18, 0, PAL.dark); // grille
         vbox(g, 0.05, 0.035, 0.18, 0.47, 0.17, 0, PAL.signWhite); // plate
         for (const sz of [0.13, -0.13]) vellipsoid(g, 0.035, 0.028, 0.03, 0.39, 0.18, sz, PAL.headlight);
@@ -418,11 +435,49 @@ export function createGarden(canvas, opts = {}) {
         vcyl(g, 0.018, 0.08, 0.15, 0.31, 0.25, PAL.dark, "z", 8); // side mirrors
         vcyl(g, 0.018, 0.08, 0.15, 0.31, -0.25, PAL.dark, "z", 8);
         for (const sz of [0.235, -0.235]) {
-            vbox(g, 0.03, 0.13, 0.025, 0.02, 0.25, sz, PAL.carRoof); // door pillar
-            vbox(g, 0.18, 0.035, 0.025, -0.05, 0.2, sz, PAL.carRoof); // door line
+            vbox(g, 0.03, 0.13, 0.025, 0.02, 0.25, sz, roof); // door pillar
+            vbox(g, 0.18, 0.035, 0.025, -0.05, 0.2, sz, roof); // door line
         }
         vbox(g, 0.08, 0.04, 0.34, -0.43, 0.12, 0, PAL.tyre); // rear bumper
         for (const sx of [0.22, -0.22]) for (const sz of [0.24, -0.24]) vwheel(g, 0.085, 0.075, sx, 0.08, sz);
+        return g;
+    }
+    function buildBoat() {
+        const g = new THREE.Group();
+        vshape(
+            g,
+            [
+                [-0.48, -0.18],
+                [0.48, -0.18],
+                [0.3, 0.18],
+                [-0.3, 0.18],
+            ],
+            0,
+            0.12,
+            0,
+            PAL.boatHull,
+        );
+        vbox(g, 0.08, 0.58, 0.06, 0, 0.5, 0, PAL.pole);
+        vshape(
+            g,
+            [
+                [0, 0],
+                [0.34, -0.2],
+                [0.34, 0.2],
+            ],
+            0.02,
+            0.72,
+            0,
+            PAL.boatSail,
+            { rotX: -Math.PI / 2 },
+        );
+        return g;
+    }
+    function buildPedestrian() {
+        const g = new THREE.Group();
+        vellipsoid(g, 0.1, 0.12, 0.1, 0, 0.78, 0, PAL.gFace);
+        vbox(g, 0.18, 0.3, 0.14, 0, 0.52, 0, PAL.gBody);
+        for (const z of [-0.06, 0.06]) vbox(g, 0.06, 0.28, 0.06, 0, 0.22, z, PAL.dark);
         return g;
     }
     function buildBus() {
@@ -769,6 +824,7 @@ export function createGarden(canvas, opts = {}) {
 
     // Ground animals — smooth low-poly bodies, all facing +x (like vehicles).
     function buildAnimal(kind) {
+        if (kind === "pedestrian") return buildPedestrian();
         const g = new THREE.Group();
         const C =
             {
@@ -1274,7 +1330,21 @@ export function createGarden(canvas, opts = {}) {
     }
 
     // Find the free cell nearest a preferred origin (expanding-ring scan).
-    const HARD = ["road", "rail", "crossing", "fence", "runway", "water", "stone"];
+    const HARD = [
+        "road",
+        "rail",
+        "crossing",
+        "fence",
+        "runway",
+        "water",
+        "ocean",
+        "beach",
+        "parking",
+        "roadbridge",
+        "railbridge",
+        "crosswalk",
+        "stone",
+    ];
     function nearestFreeCell(prefC, prefR, cells) {
         if (!cells.get(cellKey(prefC, prefR))?.occupant && !HARD.includes(cells.get(cellKey(prefC, prefR))?.surface)) {
             return { col: prefC, row: prefR };
@@ -1346,7 +1416,7 @@ export function createGarden(canvas, opts = {}) {
             it.col = spot.col;
             it.row = spot.row;
             it.rotation = it.rotation || 0;
-            cb.itemMoved(it.id, it.col, it.row, it.rotation || 0);
+            cb.itemMoved(it.id, it.col, it.row, it.rotation || 0, it.paint || null);
         }
     }
 
@@ -1469,14 +1539,17 @@ export function createGarden(canvas, opts = {}) {
     }
     const canGo = (states, d) => (d.dr !== 0 ? states.ns : states.ew) === "green";
     const dirKey = (d) => `${d.dc},${d.dr}`;
-    const vehicleSurface = (code) => SHOP[code]?.vehicle || null; // 'road' | 'rail' | 'runway'
+    const vehicleSurface = (code) => SHOP[code]?.vehicle || null; // 'road' | 'rail' | 'runway' | 'water'
     const vehicleRideY = (code) =>
         code === "train" || code === "traincar" ? TOP + 0.16 : code === "privatejet" ? TOP + 0.14 : TOP + 0.115;
     // A car drives road OR crossing; a train drives rail OR crossing (the Level
     // Crossing tile belongs to both networks — Decision #10 stays one-surface).
     // Runways are separate airport surfaces and only jets use them.
     const carries = (surface, vehSurf) =>
-        surface === vehSurf || ((vehSurf === "road" || vehSurf === "rail") && surface === "crossing");
+        surface === vehSurf ||
+        (vehSurf === "road" && ["crossing", "parking", "roadbridge"].includes(surface)) ||
+        (vehSurf === "rail" && ["crossing", "railbridge"].includes(surface)) ||
+        (vehSurf === "water" && surface === "ocean");
     function trackNeighbours(c, r, vehSurf) {
         const out = [];
         for (const [dc, dr] of [
@@ -1710,7 +1783,7 @@ export function createGarden(canvas, opts = {}) {
     }
 
     function adjacentTrack(c, r, surface, cells) {
-        const m = (s) => s === surface || ((surface === "road" || surface === "rail") && s === "crossing"); // crossings join road/rail
+        const m = (s) => carries(s, surface);
         return {
             n: m(cells.get(cellKey(c, r - 1))?.surface),
             s: m(cells.get(cellKey(c, r + 1))?.surface),
@@ -1964,6 +2037,9 @@ export function createGarden(canvas, opts = {}) {
                     z = worldZ(r);
                 let mats;
                 if (cell?.surface === "water") mats = solidMats(waterMat);
+                else if (cell?.surface === "ocean") mats = solidMats(oceanMat);
+                else if (cell?.surface === "beach") mats = blockMats(beachMat);
+                else if (cell?.surface === "parking") mats = blockMats(parkingMat);
                 else if (cell?.surface === "stone") mats = blockMats(stoneMat);
                 else mats = blockMats((r + c) & 1 ? grassMat : grassMatAlt); // flat checker
                 const b = new THREE.Mesh(blockGeo, mats);
@@ -1973,7 +2049,10 @@ export function createGarden(canvas, opts = {}) {
                 blockCells.push({ mesh: b, col: c, row: r });
 
                 if (cell?.surface === "road") addRoadTile(x, z, adjacentTrack(c, r, "road", cells));
+                if (cell?.surface === "roadbridge")
+                    addRoadTile(x, z, adjacentTrack(c, r, "road", cells), { curbs: false });
                 if (cell?.surface === "rail") addRailTile(x, z, adjacentTrack(c, r, "rail", cells));
+                if (cell?.surface === "railbridge") addRailTile(x, z, adjacentTrack(c, r, "rail", cells), true);
                 if (cell?.surface === "runway")
                     addRunwayTile(x, z, adjacentTrack(c, r, "runway", cells), runwayInfo(c, r, cells));
                 if (cell?.surface === "fence") addFenceTile(x, z, adjacentFence(c, r, cells));
@@ -1981,6 +2060,29 @@ export function createGarden(canvas, opts = {}) {
                     // level crossing — both networks
                     addRoadTile(x, z, adjacentTrack(c, r, "road", cells), { curbs: false });
                     addRailTile(x, z, adjacentTrack(c, r, "rail", cells), true);
+                }
+                if (cell?.surface === "parking") {
+                    for (const [ox, oz] of [
+                        [-0.28, -0.28],
+                        [0.28, -0.28],
+                        [-0.28, 0.28],
+                        [0.28, 0.28],
+                    ]) {
+                        const mark = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.035, 0.35), solidMats(lineMat));
+                        mark.position.set(x + ox, TOP + 0.13, z + oz);
+                        mark.rotation.y = Math.PI / 4;
+                        ground.add(mark);
+                    }
+                }
+                if (cell?.surface === "crosswalk") {
+                    for (const ox of [-0.34, -0.17, 0, 0.17, 0.34]) {
+                        const stripe = new THREE.Mesh(
+                            new THREE.BoxGeometry(0.1, 0.035, 0.72),
+                            solidMats(PAL.runwayLine),
+                        );
+                        stripe.position.set(x + ox, TOP + 0.13, z);
+                        ground.add(stripe);
+                    }
                 }
             }
         }
@@ -2029,7 +2131,9 @@ export function createGarden(canvas, opts = {}) {
                         ? buildBus()
                         : it.code === "privatejet"
                           ? buildPrivateJet()
-                          : buildCar();
+                          : it.code === "boat"
+                            ? buildBoat()
+                            : buildCar(it.paint || carColor(it.id));
             const st = vehicleState.get(it.id);
             g.position.set(worldX(st?.c ?? it.col), vehicleRideY(it.code), worldZ(st?.r ?? it.row));
             g.userData = { itemId: it.id };
@@ -2192,6 +2296,39 @@ export function createGarden(canvas, opts = {}) {
                 return { ok: false, reason: "A station goes beside a road or rail. Lay one next to it first." };
             return { ok: true };
         }
+        if (kind === "bridge") {
+            if (cell && (occupantBlocks(cell, kind) || isHardSurface(cell.surface)))
+                return { ok: false, reason: "That block is taken." };
+            const nextToOcean = [
+                [0, -1],
+                [0, 1],
+                [1, 0],
+                [-1, 0],
+            ].some(([dc, dr]) => ["ocean", "water"].includes(cells.get(cellKey(c + dc, r + dr))?.surface));
+            return nextToOcean ? { ok: true } : { ok: false, reason: "A bridge must touch ocean blocks." };
+        }
+        if (kind === "crosswalk") {
+            if (cell && (occupantBlocks(cell, kind) || isHardSurface(cell.surface)))
+                return { ok: false, reason: "That block is taken." };
+            const nextToRoad = [
+                [0, -1],
+                [0, 1],
+                [1, 0],
+                [-1, 0],
+            ].some(([dc, dr]) => roadNeighbour(cells.get(cellKey(c + dc, r + dr))));
+            return nextToRoad ? { ok: true } : { ok: false, reason: "A crosswalk must touch a road." };
+        }
+        if (kind === "pedestrian") {
+            if (cell && (occupantBlocks(cell, kind) || isHardSurface(cell.surface)))
+                return { ok: false, reason: "Place the pedestrian on an open grass block." };
+            return { ok: true };
+        }
+        if (kind === "boat") {
+            if (cell?.surface !== "ocean") return { ok: false, reason: "A boat needs an ocean block." };
+            if (occupantBlocks(cell, kind))
+                return { ok: false, reason: "That ocean block already has something on it." };
+            return { ok: true };
+        }
         if (kind === "tower") {
             if (cell && (occupantBlocks(cell, kind) || isHardSurface(cell.surface)))
                 return { ok: false, reason: "The control tower needs an empty grass block." };
@@ -2216,6 +2353,10 @@ export function createGarden(canvas, opts = {}) {
             if (occupantBlocks(cell, kind)) return { ok: false, reason: "That runway already has something on it." };
             return { ok: true };
         }
+        if (kind === "car" && cell?.surface === "parking") {
+            if (occupantBlocks(cell, kind)) return { ok: false, reason: "That parking space is occupied." };
+            return { ok: true };
+        }
         return { ok: false, reason: "Cannot place that here." };
     }
     function kindOf(code) {
@@ -2223,6 +2364,10 @@ export function createGarden(canvas, opts = {}) {
         if (info?.animal) return "animal";
         if (info?.station) return "station";
         if (info?.tower) return "tower";
+        if (code === "pedestrian") return "pedestrian";
+        if (code === "boat") return "boat";
+        if (code === "crosswalk") return "crosswalk";
+        if (["roadbridge", "railbridge"].includes(code)) return "bridge";
         if (info?.surface) return "track";
         if (code === "bus") return "car";
         if (info?.vehicle === "road") return "car";
@@ -2314,6 +2459,14 @@ export function createGarden(canvas, opts = {}) {
     }
 
     function randomAnimalPoint(w) {
+        if (w.kind === "pedestrian") {
+            const crossings = [...currentCells.entries()].filter(([, cell]) => cell.surface === "crosswalk");
+            if (crossings.length) {
+                const [key] = crossings[Math.floor(Math.random() * crossings.length)];
+                const [c, r] = key.split(":").map(Number);
+                return randomPointInCell(c, r);
+            }
+        }
         if (!w.home) return randomFieldPoint();
         w.region = reachableAnimalCells(w.home);
         const keys = [...w.region];
@@ -2680,6 +2833,13 @@ export function createGarden(canvas, opts = {}) {
     function addAnimal(id, code) {
         placedItems.push({ id, code, col: null, row: null, rotation: 0 });
         assignAnimalHomes();
+        buildLayout();
+    }
+    function setCarColor(id, paint) {
+        const it = placedItems.find((p) => p.id === id);
+        if (!it || it.code !== "car" || !["red", "blue", "green"].includes(paint)) return;
+        it.paint = paint;
+        cb.itemMoved(it.id, it.col, it.row, it.rotation || 0, paint);
         buildLayout();
     }
 
@@ -3568,6 +3728,7 @@ export function createGarden(canvas, opts = {}) {
         removeSelected,
         addStructure,
         addAnimal,
+        setCarColor,
         zoomView,
         panView,
         recenterView,

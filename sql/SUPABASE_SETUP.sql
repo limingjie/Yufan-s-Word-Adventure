@@ -306,11 +306,13 @@ CREATE TABLE IF NOT EXISTS garden_items (
   col        int,
   grid_row   int,
   rotation   int DEFAULT 0,
+  paint      text,
   created_at timestamptz DEFAULT now()
 );
 ALTER TABLE garden_items ADD COLUMN IF NOT EXISTS col      int;
 ALTER TABLE garden_items ADD COLUMN IF NOT EXISTS grid_row int;
 ALTER TABLE garden_items ADD COLUMN IF NOT EXISTS rotation int DEFAULT 0;
+ALTER TABLE garden_items ADD COLUMN IF NOT EXISTS paint text;
 
 CREATE INDEX IF NOT EXISTS idx_garden_items_user ON garden_items(user_id);
 
