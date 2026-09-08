@@ -43,4 +43,5 @@ Extract: `responseData.translatedText`
 
 - Dictionary API 404 → show "not found" message, user fills in manually
 - MyMemory failure → non-fatal, user fills in Chinese manually
+- Requests are time-limited: dictionary 5s, MyMemory 3s, and optional audio probes 2s. Audio probes run after the form is ready and never block the lookup.
 - Always allow manual editing of all fields before saving
