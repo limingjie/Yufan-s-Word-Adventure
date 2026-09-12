@@ -561,6 +561,40 @@ export function createGarden(canvas, opts = {}) {
         vbox(g, 0.1, 0.035, 0.08, -0.49, 0.16, 0, PAL.stack); // rear coupler
         return g;
     }
+    function airlineBrand(airline) {
+        return (
+            {
+                "Air Canada": { icon: "✦", color: "#d71920" },
+                Westjet: { icon: "W", color: "#087e8b" },
+                Flair: { icon: "F", color: "#f26b38" },
+                "China Eastern": { icon: "CE", color: "#1f5aa6" },
+                "Air China": { icon: "凤", color: "#d71920" },
+            }[airline] || { icon: "✦", color: "#d71920" }
+        );
+    }
+    function buildAirlineDecal(airline, z) {
+        const brand = airlineBrand(airline);
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 384;
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = brand.color;
+        ctx.font = "900 138px Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(brand.icon, canvas.width / 2, 112);
+        ctx.fillStyle = "#25313b";
+        ctx.font = "700 42px Arial, sans-serif";
+        ctx.fillText(airline, canvas.width / 2, 290);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
+        const decal = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 0.24), material);
+        decal.position.set(-0.45, 0.52, z);
+        if (z < 0) decal.rotation.y = Math.PI;
+        return decal;
+    }
     function buildPrivateJet(airline = "Air Canada", coating = "Gloss") {
         const g = new THREE.Group();
         const airlineColors = {
@@ -611,8 +645,39 @@ export function createGarden(canvas, opts = {}) {
         vcone(g, 0.055, 0.13, -0.06, 0.25, -0.49, bodyMat, "y", 3);
         vcyl(g, 0.055, 0.14, -0.04, 0.12, 0.38, PAL.stack, "x", 12); // engine pods
         vcyl(g, 0.055, 0.14, -0.04, 0.12, -0.38, PAL.stack, "x", 12);
-        vcone(g, 0.16, 0.28, -0.44, 0.36, 0, bodyMat, "y", 3); // tail fin
-        vbox(g, 0.08, 0.16, 0.06, -0.52, 0.45, 0, stripeMat); // tail colour
+        vshape(
+            g,
+            [
+                [-0.58, 0.29],
+                [-0.31, 0.3],
+                [-0.34, 0.48],
+                [-0.28, 0.74],
+                [-0.48, 0.66],
+            ],
+            0,
+            0,
+            0.035,
+            bodyMat,
+            { rotX: 0 },
+        );
+        vshape(
+            g,
+            [
+                [-0.58, 0.29],
+                [-0.31, 0.3],
+                [-0.34, 0.48],
+                [-0.28, 0.74],
+                [-0.48, 0.66],
+            ],
+            0,
+            0,
+            -0.035,
+            bodyMat,
+            { rotX: 0 },
+        );
+        g.add(buildAirlineDecal(airline, 0.052));
+        g.add(buildAirlineDecal(airline, -0.052));
+        vbox(g, 0.08, 0.16, 0.075, -0.52, 0.45, 0, stripeMat); // tail colour
         vbox(g, 0.24, 0.025, 0.05, -0.47, 0.29, 0.1, bodyMat); // tailplane roots
         vbox(g, 0.24, 0.025, 0.05, -0.47, 0.29, -0.1, bodyMat);
         vshape(
