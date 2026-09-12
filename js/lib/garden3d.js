@@ -219,6 +219,9 @@ export function createGarden(canvas, opts = {}) {
         gateR: flat(0xd11f1f),
         runwayLine: flat(0xf5f5f5),
         runwayLight: flat(0x80d8ff, { emissive: 0x4fc3ff, emissiveIntensity: 0.9 }),
+        terminal: flat(0xe9edf2),
+        terminalRoof: flat(0x2f6f9f),
+        terminalGlass: flat(0x8bd3ed),
     };
     function vbox(group, w, h, d, x, y, z, mat, glow) {
         const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -480,7 +483,7 @@ export function createGarden(canvas, opts = {}) {
         for (const z of [-0.06, 0.06]) vbox(g, 0.06, 0.28, 0.06, 0, 0.22, z, PAL.dark);
         return g;
     }
-    function buildBus() {
+    function buildBus(doubleDeck = false) {
         const g = new THREE.Group();
         vbox(g, 0.94, 0.28, 0.44, 0, 0.22, 0, PAL.busBody); // long blue body
         vellipsoid(g, 0.43, 0.07, 0.23, -0.02, 0.4, 0, PAL.busRoof);
@@ -499,6 +502,14 @@ export function createGarden(canvas, opts = {}) {
         vbox(g, 0.2, 0.05, 0.46, 0.02, 0.11, 0, PAL.busRoof);
         vcyl(g, 0.025, 0.42, -0.18, 0.47, 0, PAL.busRoof, "z", 10);
         vcyl(g, 0.025, 0.42, 0.18, 0.47, 0, PAL.busRoof, "z", 10);
+        if (doubleDeck) {
+            vbox(g, 0.9, 0.24, 0.42, 0, 0.62, 0, PAL.busBody);
+            for (const sx of [-0.26, -0.06, 0.14]) {
+                vbox(g, 0.12, 0.1, 0.04, sx, 0.65, 0.23, PAL.glass);
+                vbox(g, 0.12, 0.1, 0.04, sx, 0.65, -0.23, PAL.glass);
+            }
+            vbox(g, 0.94, 0.04, 0.44, 0, 0.49, 0, PAL.busRoof);
+        }
         vbox(g, 0.72, 0.035, 0.035, -0.05, 0.18, 0.255, PAL.headlight);
         vbox(g, 0.72, 0.035, 0.035, -0.05, 0.18, -0.255, PAL.headlight);
         for (const sx of [0.3, -0.3]) for (const sz of [0.25, -0.25]) vwheel(g, 0.09, 0.08, sx, 0.08, sz);
@@ -550,13 +561,26 @@ export function createGarden(canvas, opts = {}) {
         vbox(g, 0.1, 0.035, 0.08, -0.49, 0.16, 0, PAL.stack); // rear coupler
         return g;
     }
-    function buildPrivateJet() {
+    function buildPrivateJet(airline = "Air Canada", coating = "Gloss") {
         const g = new THREE.Group();
-        vcyl(g, 0.1, 0.82, 0, 0.22, 0, PAL.jetBody, "x", 16); // fuselage faces +x
+        const airlineColors = {
+            "Air Canada": [0xf4f6f8, 0xd71920],
+            Westjet: [0xf4f6f8, 0x087e8b],
+            Flair: [0xfff4e6, 0xf26b38],
+            "China Eastern": [0xf4f6f8, 0x1f5aa6],
+            "Air China": [0xf4f6f8, 0xd71920],
+        };
+        const [bodyColor, stripeColor] = airlineColors[airline] || airlineColors["Air Canada"];
+        let finish = { roughness: 0.45 };
+        if (coating === "Metallic") finish = { metalness: 0.65, roughness: 0.28 };
+        if (coating === "Matte") finish = { roughness: 1 };
+        const bodyMat = flat(bodyColor, finish);
+        const stripeMat = flat(stripeColor, finish);
+        vcyl(g, 0.1, 0.82, 0, 0.22, 0, bodyMat, "x", 16); // fuselage faces +x
         vellipsoid(g, 0.16, 0.09, 0.09, 0.38, 0.25, 0, PAL.glass); // cockpit
-        vellipsoid(g, 0.13, 0.095, 0.095, 0.48, 0.22, 0, PAL.jetBody); // rounded nose
-        vbox(g, 0.42, 0.035, 0.08, -0.05, 0.21, 0.12, PAL.jetBody); // wing root fairings
-        vbox(g, 0.42, 0.035, 0.08, -0.05, 0.21, -0.12, PAL.jetBody);
+        vellipsoid(g, 0.13, 0.095, 0.095, 0.48, 0.22, 0, bodyMat); // rounded nose
+        vbox(g, 0.42, 0.035, 0.08, -0.05, 0.21, 0.12, bodyMat); // wing root fairings
+        vbox(g, 0.42, 0.035, 0.08, -0.05, 0.21, -0.12, bodyMat);
         vshape(
             g,
             [
@@ -568,7 +592,7 @@ export function createGarden(canvas, opts = {}) {
             -0.04,
             0.21,
             0,
-            PAL.jetBody,
+            bodyMat,
         );
         vshape(
             g,
@@ -581,16 +605,16 @@ export function createGarden(canvas, opts = {}) {
             -0.04,
             0.21,
             0,
-            PAL.jetBody,
+            bodyMat,
         );
-        vcone(g, 0.055, 0.13, -0.06, 0.25, 0.49, PAL.jetBody, "y", 3); // winglets
-        vcone(g, 0.055, 0.13, -0.06, 0.25, -0.49, PAL.jetBody, "y", 3);
+        vcone(g, 0.055, 0.13, -0.06, 0.25, 0.49, bodyMat, "y", 3); // winglets
+        vcone(g, 0.055, 0.13, -0.06, 0.25, -0.49, bodyMat, "y", 3);
         vcyl(g, 0.055, 0.14, -0.04, 0.12, 0.38, PAL.stack, "x", 12); // engine pods
         vcyl(g, 0.055, 0.14, -0.04, 0.12, -0.38, PAL.stack, "x", 12);
-        vcone(g, 0.16, 0.28, -0.44, 0.36, 0, PAL.jetBody, "y", 3); // tail fin
-        vbox(g, 0.08, 0.16, 0.06, -0.52, 0.45, 0, PAL.jetStripe); // tail colour
-        vbox(g, 0.24, 0.025, 0.05, -0.47, 0.29, 0.1, PAL.jetBody); // tailplane roots
-        vbox(g, 0.24, 0.025, 0.05, -0.47, 0.29, -0.1, PAL.jetBody);
+        vcone(g, 0.16, 0.28, -0.44, 0.36, 0, bodyMat, "y", 3); // tail fin
+        vbox(g, 0.08, 0.16, 0.06, -0.52, 0.45, 0, stripeMat); // tail colour
+        vbox(g, 0.24, 0.025, 0.05, -0.47, 0.29, 0.1, bodyMat); // tailplane roots
+        vbox(g, 0.24, 0.025, 0.05, -0.47, 0.29, -0.1, bodyMat);
         vshape(
             g,
             [
@@ -602,7 +626,7 @@ export function createGarden(canvas, opts = {}) {
             -0.42,
             0.29,
             0,
-            PAL.jetBody,
+            bodyMat,
         );
         vshape(
             g,
@@ -615,9 +639,9 @@ export function createGarden(canvas, opts = {}) {
             -0.42,
             0.29,
             0,
-            PAL.jetBody,
+            bodyMat,
         );
-        vcyl(g, 0.018, 0.64, -0.06, 0.34, 0, PAL.jetStripe, "x", 10); // side stripe
+        vcyl(g, 0.018, 0.64, -0.06, 0.34, 0, stripeMat, "x", 10); // side stripe
         for (const sx of [0.2, 0.04, -0.12, -0.28]) vbox(g, 0.045, 0.035, 0.035, sx, 0.29, 0.095, PAL.glass);
         for (const sx of [0.2, 0.04, -0.12, -0.28]) vbox(g, 0.045, 0.035, 0.035, sx, 0.29, -0.095, PAL.glass);
         vbox(g, 0.12, 0.05, 0.12, 0.5, 0.22, 0, PAL.headlight); // nose light
@@ -695,6 +719,21 @@ export function createGarden(canvas, opts = {}) {
         vellipsoid(g, 0.09, 0.06, 0.09, 0, 1.9, 0, PAL.runwayLight, true);
         return g;
     }
+    function buildAirportTerminal(hasGate = false) {
+        const g = new THREE.Group();
+        vbox(g, 0.82, 0.42, 0.62, 0, 0.23, 0, PAL.terminal);
+        vbox(g, 0.9, 0.08, 0.7, 0, 0.48, 0, PAL.terminalRoof);
+        vbox(g, 0.68, 0.2, 0.04, 0, 0.28, 0.33, PAL.terminalGlass, true);
+        vbox(g, 0.12, 0.28, 0.08, -0.28, 0.18, 0.36, PAL.door);
+        vbox(g, 0.12, 0.28, 0.08, 0.28, 0.18, 0.36, PAL.door);
+        if (hasGate) {
+            vbox(g, 0.38, 0.08, 0.12, 0, 0.14, -0.42, PAL.stnPlat);
+            vbox(g, 0.06, 0.24, 0.06, -0.14, 0.28, -0.42, PAL.stnPost);
+            vbox(g, 0.06, 0.24, 0.06, 0.14, 0.28, -0.42, PAL.stnPost);
+            vbox(g, 0.38, 0.06, 0.04, 0, 0.43, -0.46, PAL.gateR);
+        }
+        return g;
+    }
     function buildPond() {
         const g = new THREE.Group();
         vleaf(g, 0.34, 0.3, 0.1, 0.035, -0.1, PAL.leaf, 0.3);
@@ -710,14 +749,13 @@ export function createGarden(canvas, opts = {}) {
             vellipsoid(g, 0.06, 0.03, 0.045, x, 0.03, z, PAL.stone);
         return g;
     }
-    const buildStructure = (code) =>
-        code === "cottage"
-            ? buildHouse()
-            : code === "pond"
-              ? buildPond()
-              : code === "controltower"
-                ? buildControlTower()
-                : buildFountain();
+    function buildStructure(code) {
+        if (code === "cottage") return buildHouse();
+        if (code === "pond") return buildPond();
+        if (code === "controltower") return buildControlTower();
+        if (code === "airportterminal") return buildAirportTerminal();
+        return buildFountain();
+    }
 
     // Plants — 6 voxel growth stages mapped to mastery (review_level 0–5). Each
     // stage carries vivid bloom dots / colourful leaves so it stands out on grass.
@@ -1284,6 +1322,8 @@ export function createGarden(canvas, opts = {}) {
     const isAnimal = (code) => !!SHOP[code]?.animal;
     const isStation = (code) => !!SHOP[code]?.station;
     const isTower = (code) => !!SHOP[code]?.tower;
+    const isTerminal = (code) => !!SHOP[code]?.terminal;
+    const isRoundabout = (code) => code === "roundabout";
     const structureSurface = (code) => (code === "pond" ? "water" : code === "fountain" ? "stone" : "grass");
 
     const plantPos = opts.plantPos || new Map();
@@ -1308,10 +1348,18 @@ export function createGarden(canvas, opts = {}) {
             if (it === skipRef || it.id === skipRef) continue;
             if (it.col == null || it.row == null) continue;
             const info = SHOP[it.code];
-            if (info?.surface) set(it.col, it.row, { surface: info.surface, code: it.code });
+            if (isRoundabout(it.code)) {
+                for (let dc = -1; dc <= 1; dc++)
+                    for (let dr = -1; dr <= 1; dr++)
+                        set(it.col + dc, it.row + dr, {
+                            surface: "roundabout",
+                            code: it.code,
+                            roundaboutCenter: dc === 0 && dr === 0,
+                        });
+            } else if (info?.surface) set(it.col, it.row, { surface: info.surface, code: it.code });
             else if (isStructure(it.code))
                 set(it.col, it.row, { surface: structureSurface(it.code), occupant: "structure", code: it.code });
-            else if (isStation(it.code) || isTower(it.code))
+            else if (isStation(it.code) || isTower(it.code) || isTerminal(it.code))
                 set(it.col, it.row, { occupant: "structure", code: it.code });
             else if (isAnimal(it.code)) set(it.col, it.row, { occupant: "animal", code: it.code, ref: it.id });
         }
@@ -1336,6 +1384,7 @@ export function createGarden(canvas, opts = {}) {
         "crossing",
         "fence",
         "runway",
+        "roundabout",
         "water",
         "ocean",
         "beach",
@@ -1520,7 +1569,7 @@ export function createGarden(canvas, opts = {}) {
     const vehicleState = new Map(); // id → { c, r, ein, eout, p, sound, hx, hz, dwell, stopAt }
     const VSPEED = 1.25; // cells per second
     const LANE = 0.16; // keep-right lateral offset (cars only)
-    const stopLineP = (code) => (code === "bus" ? 0.52 : 0.6); // keep vehicle noses behind junctions
+    const stopLineP = (code) => (code === "bus" || code === "doubledeckerbus" ? 0.52 : 0.6); // keep vehicle noses behind junctions
     // Canada-style signal cycle per axis: green → yellow → all-red, then the other.
     const SIG_G = 6,
         SIG_Y = 2,
@@ -1547,10 +1596,12 @@ export function createGarden(canvas, opts = {}) {
     // Runways are separate airport surfaces and only jets use them.
     const carries = (surface, vehSurf) =>
         surface === vehSurf ||
-        (vehSurf === "road" && ["crossing", "parking", "roadbridge"].includes(surface)) ||
+        (vehSurf === "road" && ["crossing", "parking", "roadbridge", "roundabout"].includes(surface)) ||
         (vehSurf === "rail" && ["crossing", "railbridge"].includes(surface)) ||
         (vehSurf === "water" && surface === "ocean");
     function trackNeighbours(c, r, vehSurf) {
+        const here = currentCells.get(cellKey(c, r));
+        if (here?.roundaboutCenter) return [];
         const out = [];
         for (const [dc, dr] of [
             [0, -1],
@@ -1558,8 +1609,8 @@ export function createGarden(canvas, opts = {}) {
             [1, 0],
             [-1, 0],
         ]) {
-            if (carries(currentCells.get(cellKey(c + dc, r + dr))?.surface, vehSurf))
-                out.push({ c: c + dc, r: r + dr });
+            const next = currentCells.get(cellKey(c + dc, r + dr));
+            if (carries(next?.surface, vehSurf) && !next?.roundaboutCenter) out.push({ c: c + dc, r: r + dr });
         }
         return out;
     }
@@ -1641,6 +1692,16 @@ export function createGarden(canvas, opts = {}) {
             out.push(seg);
         }
         return out;
+    }
+    function nearestRunwayCell(c, r, cells = currentCells) {
+        let best = null;
+        for (const [key, cell] of cells) {
+            if (cell.surface !== "runway") continue;
+            const [cc, rr] = key.split(":").map(Number);
+            const distance = Math.abs(cc - c) + Math.abs(rr - r);
+            if (!best || distance < best.distance) best = { c: cc, r: rr, distance };
+        }
+        return best;
     }
     function runwayEndpoint(seg, dir = 1) {
         const fromStart = dir >= 0;
@@ -1783,12 +1844,12 @@ export function createGarden(canvas, opts = {}) {
     }
 
     function adjacentTrack(c, r, surface, cells) {
-        const m = (s) => carries(s, surface);
+        const m = (s, cell) => carries(s, surface) && !cell?.roundaboutCenter;
         return {
-            n: m(cells.get(cellKey(c, r - 1))?.surface),
-            s: m(cells.get(cellKey(c, r + 1))?.surface),
-            e: m(cells.get(cellKey(c + 1, r))?.surface),
-            w: m(cells.get(cellKey(c - 1, r))?.surface),
+            n: m(cells.get(cellKey(c, r - 1))?.surface, cells.get(cellKey(c, r - 1))),
+            s: m(cells.get(cellKey(c, r + 1))?.surface, cells.get(cellKey(c, r + 1))),
+            e: m(cells.get(cellKey(c + 1, r))?.surface, cells.get(cellKey(c + 1, r))),
+            w: m(cells.get(cellKey(c - 1, r))?.surface, cells.get(cellKey(c - 1, r))),
         };
     }
     function adjacentTransit(c, r, cells) {
@@ -1858,6 +1919,18 @@ export function createGarden(canvas, opts = {}) {
             curb.position.set(x + ox, TOP + 0.13, z + oz);
             ground.add(curb);
         }
+    }
+    function addRoundaboutTile(x, z, cell, adj) {
+        if (cell.roundaboutCenter) {
+            const island = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.12, 12), solidMats(grassMat));
+            island.position.set(x, TOP + 0.12, z);
+            ground.add(island);
+            const marker = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.34), solidMats(PAL.bloomY));
+            marker.position.set(x, TOP + 0.2, z);
+            ground.add(marker);
+            return;
+        }
+        addRoadTile(x, z, adj);
     }
 
     function addRailTile(x, z, adj, skipTies = false) {
@@ -2008,6 +2081,15 @@ export function createGarden(canvas, opts = {}) {
             vcyl(ground, 0.055, 0.5, x + ox * 1.8, TOP + 0.3, z + oz * 1.8, PAL.fencePost, "y", 10);
         }
     }
+    function buildVehicleModel(it) {
+        if (it.code === "train") return buildTrain();
+        if (it.code === "traincar") return buildTrainCar();
+        if (it.code === "bus") return buildBus();
+        if (it.code === "doubledeckerbus") return buildBus(true);
+        if (it.code === "privatejet") return buildPrivateJet(it.airline, it.coating);
+        if (it.code === "boat") return buildBoat();
+        return buildCar(it.paint || carColor(it.id));
+    }
 
     function buildLayout() {
         resetAnimalWalkers();
@@ -2049,6 +2131,7 @@ export function createGarden(canvas, opts = {}) {
                 blockCells.push({ mesh: b, col: c, row: r });
 
                 if (cell?.surface === "road") addRoadTile(x, z, adjacentTrack(c, r, "road", cells));
+                if (cell?.surface === "roundabout") addRoundaboutTile(x, z, cell, adjacentTrack(c, r, "road", cells));
                 if (cell?.surface === "roadbridge")
                     addRoadTile(x, z, adjacentTrack(c, r, "road", cells), { curbs: false });
                 if (cell?.surface === "rail") addRailTile(x, z, adjacentTrack(c, r, "rail", cells));
@@ -2122,18 +2205,7 @@ export function createGarden(canvas, opts = {}) {
             if (!info?.vehicle || it.col == null) continue;
             liveIds.add(it.id);
             reconcileVehicle(it);
-            const g =
-                it.code === "train"
-                    ? buildTrain()
-                    : it.code === "traincar"
-                      ? buildTrainCar()
-                      : it.code === "bus"
-                        ? buildBus()
-                        : it.code === "privatejet"
-                          ? buildPrivateJet()
-                          : it.code === "boat"
-                            ? buildBoat()
-                            : buildCar(it.paint || carColor(it.id));
+            const g = buildVehicleModel(it);
             const st = vehicleState.get(it.id);
             g.position.set(worldX(st?.c ?? it.col), vehicleRideY(it.code), worldZ(st?.r ?? it.row));
             g.userData = { itemId: it.id };
@@ -2144,12 +2216,22 @@ export function createGarden(canvas, opts = {}) {
 
         // Structures + stations as voxel models. Tappable to move/remove.
         for (const it of placedItems) {
-            if (it.col == null || !(isStructure(it.code) || isStation(it.code) || isTower(it.code))) continue;
+            if (
+                it.col == null ||
+                !(isStructure(it.code) || isStation(it.code) || isTower(it.code) || isTerminal(it.code))
+            )
+                continue;
             const x = worldX(it.col),
                 z = worldZ(it.row);
-            const g = isStation(it.code) ? buildStation() : buildStructure(it.code);
+            const runway = isTerminal(it.code) ? nearestRunwayCell(it.col, it.row, currentCells) : null;
+            const g = isStation(it.code)
+                ? buildStation()
+                : isTerminal(it.code)
+                  ? buildAirportTerminal(!!runway)
+                  : buildStructure(it.code);
             g.position.set(x, TOP, z);
             if (isStation(it.code)) g.rotation.y = stationFacing(it.col, it.row, currentCells);
+            if (runway) g.rotation.y = Math.atan2(-(runway.c - it.col), -(runway.r - it.row));
             g.userData = { itemId: it.id };
             props.add(g);
             if (it.code === "cottage") cottageSpot = new THREE.Vector3(x, TOP + 0.6, z);
@@ -2258,7 +2340,8 @@ export function createGarden(canvas, opts = {}) {
     // ── Validation ──────────────────────────────────────────────────────────────
     const isHardSurface = (s) => HARD.includes(s);
     const railNeighbour = (cell) => ["rail", "crossing"].includes(cell?.surface);
-    const roadNeighbour = (cell) => ["road", "crossing"].includes(cell?.surface);
+    const roadNeighbour = (cell) =>
+        ["road", "crossing", "roundabout"].includes(cell?.surface) && !cell?.roundaboutCenter;
     const occupantBlocks = (cell, kind) => {
         if (!cell?.occupant) return false;
         return !(cell.occupant === "animal" && kind !== "animal");
@@ -2266,6 +2349,16 @@ export function createGarden(canvas, opts = {}) {
     function validPlacement(kind, c, r, skipRef) {
         const cells = computeCells(skipRef);
         const cell = cells.get(cellKey(c, r));
+        if (kind === "roundabout") {
+            for (let dc = -1; dc <= 1; dc++) {
+                for (let dr = -1; dr <= 1; dr++) {
+                    const target = cells.get(cellKey(c + dc, r + dr));
+                    if (target?.occupant || isHardSurface(target?.surface))
+                        return { ok: false, reason: "The 3x3 roundabout needs nine empty grass blocks." };
+                }
+            }
+            return { ok: true };
+        }
         if (kind === "plant" || kind === "track" || kind === "animal") {
             if (cell && (occupantBlocks(cell, kind) || isHardSurface(cell.surface))) {
                 return {
@@ -2334,6 +2427,13 @@ export function createGarden(canvas, opts = {}) {
                 return { ok: false, reason: "The control tower needs an empty grass block." };
             return { ok: true };
         }
+        if (kind === "terminal") {
+            if (cell && (occupantBlocks(cell, kind) || isHardSurface(cell.surface)))
+                return { ok: false, reason: "The airport terminal needs an empty grass block." };
+            if (!nearestRunwayCell(c, r, cells))
+                return { ok: false, reason: "Build a runway before placing the terminal." };
+            return { ok: true };
+        }
         if (kind === "car") {
             if (!carries(cell?.surface, "road"))
                 return { ok: false, reason: "A car needs a road. Place a road there first." };
@@ -2364,6 +2464,8 @@ export function createGarden(canvas, opts = {}) {
         if (info?.animal) return "animal";
         if (info?.station) return "station";
         if (info?.tower) return "tower";
+        if (info?.terminal) return "terminal";
+        if (code === "roundabout") return "roundabout";
         if (code === "pedestrian") return "pedestrian";
         if (code === "boat") return "boat";
         if (code === "crosswalk") return "crosswalk";
@@ -2840,6 +2942,16 @@ export function createGarden(canvas, opts = {}) {
         if (!it || it.code !== "car" || !["red", "blue", "green"].includes(paint)) return;
         it.paint = paint;
         cb.itemMoved(it.id, it.col, it.row, it.rotation || 0, paint);
+        buildLayout();
+    }
+    function setPlaneStyle(id, airline, coating) {
+        const it = placedItems.find((p) => p.id === id);
+        const airlines = ["Air Canada", "Westjet", "Flair", "China Eastern", "Air China"];
+        const coatings = ["Gloss", "Matte", "Metallic"];
+        if (!it || it.code !== "privatejet" || !airlines.includes(airline) || !coatings.includes(coating)) return;
+        it.airline = airline;
+        it.coating = coating;
+        cb.itemMoved(it.id, it.col, it.row, it.rotation || 0, it.paint || null, airline, coating);
         buildLayout();
     }
 
@@ -3598,7 +3710,7 @@ export function createGarden(canvas, opts = {}) {
                     occ.set(nk, dirKey(eout)); // claim the cell this frame
                     if (st.stopAt && st.stopAt !== nk) st.stopAt = null; // left the stop sign behind
                     if (v.code === "train" && stationRailCells.has(nk)) st.dwell = 2.5; // pull into the station
-                    if (v.code === "bus" && stationRoadCells.has(nk)) st.dwell = 2.0; // pull into the station
+                    if ((v.code === "bus" || v.code === "doubledeckerbus") && stationRoadCells.has(nk)) st.dwell = 2.0; // pull into the station
                 }
             }
 
@@ -3729,6 +3841,7 @@ export function createGarden(canvas, opts = {}) {
         addStructure,
         addAnimal,
         setCarColor,
+        setPlaneStyle,
         zoomView,
         panView,
         recenterView,

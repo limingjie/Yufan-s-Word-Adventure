@@ -38,7 +38,7 @@ networks treat as drivable (cars/buses: road+crossing; trains: rail+crossing; je
 
 ## Placeable playset — Arrange mode
 
-The **Road / Rail / Level-Crossing / Fence / Runway Block / Ocean Block / Beach Block / Parking Lot / Road Bridge / Rail Bridge / Crosswalk / Transit Station / Control Tower / Car / Bus / Train / Train Car / Private Jet / Boat / Pedestrian** shop items are dragged
+The **Road / Rail / Level-Crossing / 4-Way Roundabout / Fence / Runway Block / Ocean Block / Beach Block / Parking Lot / Road Bridge / Rail Bridge / Crosswalk / Transit Station / Control Tower / Airport Terminal / Car / Bus / Double-Decker Bus / Train / Train Car / Private Jet / Boat / Pedestrian** shop items are dragged
 onto chosen blocks:
 - **🛒 Shop → buy** a placeable → it lands in the **tray** (now a **top sheet**,
   sized to its content so it can't be clipped by iOS/iPadOS browser chrome) instead
@@ -70,7 +70,8 @@ onto chosen blocks:
 - **Vehicles are voxel 3D models** (`buildCar`/`buildBus`/`buildTrain`/`buildTrainCar`/`buildPrivateJet`, flat-colour boxes —
   no external assets) that **drive the connected network**: cars and the blue bus follow
   **road+crossing** cells, trains/train cars **rail+crossing** cells (`carries()` predicate;
-  `trackNeighbours` = graph edges). The private jet chooses a valid departure
+  `trackNeighbours` = graph edges). The double-decker bus follows the same road
+  network and station rules as a standard bus. The private jet chooses a valid departure
   runway and an arrival runway/direction, rolls down the runway, climbs into a
   smooth cubic flight path, then aligns to final approach and rolls out on landing;
   short/broken runways leave it parked. Ground vehicles **turn to face travel** and **arc through
@@ -113,6 +114,10 @@ onto chosen blocks:
   blocks.
 - **Control Tower** is a premium placeable airport structure (`tower: true`) that
   needs an empty grass block. Its tall voxel cabin and beacon turn on at night.
+- **Airport Terminal** is a placeable airport structure that needs an empty grass
+  block beside an existing runway. It faces the nearest runway and generates a
+  visible gate. Airplanes can be styled per item with Air Canada, Westjet, Flair,
+  China Eastern, or Air China colours and Gloss, Matte, or Metallic coating.
 - **`rotation` is retired for the UI** — auto-connecting tiles and auto-facing
   vehicles made it do nothing, so the Arrange panel only offers 🗑 Remove (the
   column stays in the DB, harmless).

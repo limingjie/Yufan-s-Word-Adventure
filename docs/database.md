@@ -94,6 +94,9 @@ item_code  text NOT NULL            -- maps to coins.js SHOP
 col        int                      -- chosen block for placeables/structures/animals…
 grid_row   int                      -- …NULL = tray/unplaced, or needs auto-home
 rotation   int  DEFAULT 0           -- retained for compatibility; UI auto-faces most items
+paint      text                      -- car paint or airplane coating metadata
+airline    text                      -- airplane airline/livery selection
+coating    text                      -- airplane finish: Gloss, Matte, or Metallic
 created_at timestamptz DEFAULT now()
 ```
 Items **stack** (one row per purchase). Coin balance is derived as

@@ -67,6 +67,8 @@ export async function render(container) {
             row: i.grid_row ?? null,
             rotation: i.rotation || 0,
             paint: i.paint || null,
+            airline: i.airline || null,
+            coating: i.coating || null,
         }));
     let unplaced = items
         .filter((i) => isPlaceable(i.item_code) && i.col == null)
@@ -183,8 +185,17 @@ export async function render(container) {
             onPlantMoved: (wordId, col, row) => {
                 setPlantPosition(wordId, col, row).catch(() => {});
             },
-            onItemMoved: (id, col, row, rotation, paint) => {
-                placeGardenItem(id, col, row, rotation, paint).catch(() => {});
+            onItemMoved: (id, col, row, rotation, paint, airline, coating) => {
+                const stored = items.find((i) => i.id === id);
+                placeGardenItem(
+                    id,
+                    col,
+                    row,
+                    rotation,
+                    paint ?? stored?.paint ?? null,
+                    airline ?? stored?.airline ?? null,
+                    coating ?? stored?.coating ?? null,
+                ).catch(() => {});
                 if (unplaced.some((u) => u.id === id)) {
                     unplaced = unplaced.filter((u) => u.id !== id);
                     renderTray();
@@ -469,8 +480,26 @@ export async function render(container) {
             <span class="car-paint-label">Paint</span>
             ${["red", "blue", "green"].map((color) => `<button class="btn btn-secondary btn-sm car-paint" data-paint="${color}">${color}</button>`).join("")}`
                 : "";
-        panel.innerHTML = `${paint}<button id="delItem" class="btn btn-danger btn-sm">🗑 Remove</button>`;
+        const airplane =
+            item?.item_code === "privatejet"
+                ? `<label>Airline <select id="planeAirline"><option>Air Canada</option><option>Westjet</option><option>Flair</option><option>China Eastern</option><option>Air China</option></select></label>
+                   <label>Coating <select id="planeCoating"><option>Gloss</option><option>Matte</option><option>Metallic</option></select></label>`
+                : "";
+        panel.innerHTML = `${paint}${airplane}<button id="delItem" class="btn btn-danger btn-sm">🗑 Remove</button>`;
         panel.style.display = "flex";
+        const airlineSelect = panel.querySelector("#planeAirline");
+        const coatingSelect = panel.querySelector("#planeCoating");
+        if (airlineSelect) airlineSelect.value = item.airline || "Air Canada";
+        if (coatingSelect) coatingSelect.value = item.coating || "Gloss";
+        const savePlaneStyle = () => {
+            const stored = items.find((i) => i.id === id);
+            if (!stored) return;
+            stored.airline = airlineSelect.value;
+            stored.coating = coatingSelect.value;
+            controller?.setPlaneStyle(id, stored.airline, stored.coating);
+        };
+        airlineSelect?.addEventListener("change", savePlaneStyle);
+        coatingSelect?.addEventListener("change", savePlaneStyle);
         panel.querySelectorAll(".car-paint").forEach((button) =>
             button.addEventListener("click", () => {
                 controller?.setCarColor(id, button.dataset.paint);

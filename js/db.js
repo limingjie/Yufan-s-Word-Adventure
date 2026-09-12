@@ -657,12 +657,19 @@ export async function getUserCoins() {
 export async function getGardenItems() {
     const user = await getCurrentUser();
     if (!user) return [];
-    const { data, error } = await supabase
+    const result = await supabase
+        .from("garden_items")
+        .select("id, item_code, col, grid_row, rotation, paint, airline, coating, created_at")
+        .eq("user_id", user.id);
+    if (!result.error) return result.data || [];
+    // Keep older deployments usable until the consolidated schema is applied.
+    if (result.error.code !== "42703") throw result.error;
+    const legacy = await supabase
         .from("garden_items")
         .select("id, item_code, col, grid_row, rotation, paint, created_at")
         .eq("user_id", user.id);
-    if (error) throw error;
-    return data || [];
+    if (legacy.error) throw legacy.error;
+    return (legacy.data || []).map((item) => ({ ...item, airline: null, coating: null }));
 }
 
 // Plant positions — { word_id, col, grid_row }. A word missing here has no home
@@ -703,15 +710,22 @@ export async function setPlantPositions(rows) {
 }
 
 /** Move/rotate a placed item (or send it back to the tray with null col/row). */
-export async function placeGardenItem(id, col, gridRow, rotation = 0, paint = null) {
+export async function placeGardenItem(id, col, gridRow, rotation = 0, paint = null, airline = null, coating = null) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Not authenticated");
-    const { error } = await supabase
+    const result = await supabase
+        .from("garden_items")
+        .update({ col, grid_row: gridRow, rotation, paint, airline, coating })
+        .eq("id", id)
+        .eq("user_id", user.id);
+    if (!result.error) return;
+    if (result.error.code !== "42703") throw result.error;
+    const legacy = await supabase
         .from("garden_items")
         .update({ col, grid_row: gridRow, rotation, paint })
         .eq("id", id)
         .eq("user_id", user.id);
-    if (error) throw error;
+    if (legacy.error) throw legacy.error;
 }
 
 /** Delete a placed/owned item. Coins refund automatically (balance is derived). */

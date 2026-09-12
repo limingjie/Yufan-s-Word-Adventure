@@ -1,21 +1,57 @@
-import { getCurrentProfile, getCurrentUser, patchCurrentProfile } from '../js/auth.js';
-import { getUserSunlight, getUserCoins, getUserStreak, getDailyProgress, updateAvatar, getBadgeCount } from '../js/db.js';
-import { getRankInfo, getRankProgress } from '../js/lib/growth.js';
-import { buildMissions, renderMissionList, allMissionsDone } from '../js/lib/missions.js';
-import { showEarnHelp } from '../js/lib/help.js';
-import { supabase } from '../js/supabase.js';
+import { getCurrentProfile, getCurrentUser, patchCurrentProfile } from "../js/auth.js";
+import {
+    getUserSunlight,
+    getUserCoins,
+    getUserStreak,
+    getDailyProgress,
+    updateAvatar,
+    getBadgeCount,
+} from "../js/db.js";
+import { getRankInfo, getRankProgress } from "../js/lib/growth.js";
+import { buildMissions, renderMissionList, allMissionsDone } from "../js/lib/missions.js";
+import { showEarnHelp } from "../js/lib/help.js";
+import { supabase } from "../js/supabase.js";
 
 // Kid-friendly animal & plant quick-picks (18 — the picker also accepts any
 // typed emoji or up to 2 letters). 5 per row → 4 tidy rows with the input +
 // initial cells, no scrolling.
-const AVATAR_EMOJIS = ['🦊','🐰','🐱','🐶','🐼','🐨','🦁','🐯','🐸','🐵','🦉','🦄','🌸','🌻','🌷','🌵','🍀','🌳'];
+const AVATAR_EMOJIS = [
+    "🦊",
+    "🐰",
+    "🐱",
+    "🐶",
+    "🐼",
+    "🐨",
+    "🦁",
+    "🐯",
+    "🐸",
+    "🐵",
+    "🦉",
+    "🦄",
+    "🌸",
+    "🌻",
+    "🌷",
+    "🌵",
+    "🍀",
+    "🌳",
+];
 
 // Background palette (the picker also accepts any custom color). 9 → 2 rows of 5
 // with the custom-color cell.
-const AVATAR_COLORS = ['#007BFF','#FF6B6B','#FFA94D','#FFD43B','#51CF66','#20C997','#22B8CF','#845EF7','#F783AC'];
+const AVATAR_COLORS = [
+    "#007BFF",
+    "#FF6B6B",
+    "#FFA94D",
+    "#FFD43B",
+    "#51CF66",
+    "#20C997",
+    "#22B8CF",
+    "#845EF7",
+    "#F783AC",
+];
 
 // GitHub-contribution green scale, keyed by words added that day
-const CAL_SHADES = ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'];
+const CAL_SHADES = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
 
 export async function render(container) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">⏳</div><p>Loading…</p></div>`;
@@ -30,26 +66,24 @@ export async function render(container) {
         getBadgeCount(),
     ]);
 
-    const { sun }   = sunData;
-    const rankInfo  = getRankInfo(sun);
-    const progress  = getRankProgress(sun);
-    const initial   = (profile?.display_name || '?')[0].toUpperCase();
-    const color     = profile?.avatar_color || '#007BFF';
+    const { sun } = sunData;
+    const rankInfo = getRankInfo(sun);
+    const progress = getRankProgress(sun);
+    const initial = (profile?.display_name || "?")[0].toUpperCase();
+    const color = profile?.avatar_color || "#007BFF";
     const avatarFace = profile?.avatar_emoji || initial;
 
     const missions = buildMissions(daily);
-    const allDone  = allMissionsDone(missions);
+    const allDone = allMissionsDone(missions);
 
-    const sunChip = rankInfo.next
-        ? `☀️ ${sun} / ${rankInfo.next.minSun}`
-        : `☀️ ${sun} · Max!`;
+    const sunChip = rankInfo.next ? `☀️ ${sun} / ${rankInfo.next.minSun}` : `☀️ ${sun} · Max!`;
 
     container.innerHTML = `
         <div style="max-width:600px;margin:0 auto">
 
             <!-- Compact header -->
             <div class="home-header">
-                <button id="avatarBtn" class="avatar avatar-btn${profile?.avatar_emoji ? ' avatar-emoji' : ''}"
+                <button id="avatarBtn" class="avatar avatar-btn${profile?.avatar_emoji ? " avatar-emoji" : ""}"
                         style="background:${color}" title="Change avatar">${avatarFace}</button>
                 <div class="home-id">
                     <div class="home-name">Hello, ${esc(profile?.display_name)}! 👋</div>
@@ -62,7 +96,7 @@ export async function render(container) {
                     <div class="xp-mini-wrap"><div class="xp-mini-fill" style="width:${progress}%"></div></div>
                 </div>
                 <div class="home-actions">
-                    ${streak >= 2 ? `<span class="streak-chip">🔥 ${streak}</span>` : ''}
+                    ${streak >= 2 ? `<span class="streak-chip">🔥 ${streak}</span>` : ""}
                     <button id="earnHelpBtn" class="help-btn" title="How are Sunlight & Coins earned?">?</button>
                 </div>
             </div>
@@ -83,7 +117,7 @@ export async function render(container) {
                     </div>
                     <div class="cal-legend">
                         <span>Less</span>
-                        ${CAL_SHADES.map(c => `<span class="cal-swatch" style="background:${c}"></span>`).join('')}
+                        ${CAL_SHADES.map((c) => `<span class="cal-swatch" style="background:${c}"></span>`).join("")}
                         <span>More</span>
                     </div>
                 </div>
@@ -91,38 +125,52 @@ export async function render(container) {
 
             <!-- Daily missions -->
             <div style="margin:1.1rem 0">
-                <div class="section-label">Today's Missions ${allDone ? '🎉' : ''}</div>
-                ${allDone ? `<div class="all-done-banner">🎉 All missions complete — amazing work!</div>` : ''}
+                <div class="section-label">Today's Missions ${allDone ? "🎉" : ""}</div>
+                ${allDone ? `<div class="all-done-banner">🎉 All missions complete — amazing work!</div>` : ""}
                 ${renderMissionList(missions)}
             </div>
         </div>`;
 
     // ---- Mission actions (locked cards are non-interactive divs and skipped) ----
     const MISSION_ACTIONS = {
-        add:        () => { sessionStorage.setItem('openAddDrawer', 'true'); location.hash = '#/learner/words'; },
-        reviewNew:  () => { sessionStorage.setItem('reviewScope', 'new');     location.hash = '#/learner/review'; },
-        meaning:    () => { sessionStorage.setItem('quizMode', 'meaning');    location.hash = '#/learner/quiz'; },
-        spelling:   () => { sessionStorage.setItem('quizMode', 'spelling');   location.hash = '#/learner/quiz'; },
-        reviewCurve:() => { location.hash = '#/learner/curve-drill'; },
+        add: () => {
+            sessionStorage.setItem("openAddDrawer", "true");
+            location.hash = "#/learner/words";
+        },
+        reviewNew: () => {
+            sessionStorage.setItem("reviewScope", "new");
+            location.hash = "#/learner/review";
+        },
+        meaning: () => {
+            sessionStorage.setItem("quizMode", "meaning");
+            location.hash = "#/learner/quiz";
+        },
+        spelling: () => {
+            sessionStorage.setItem("quizMode", "spelling");
+            location.hash = "#/learner/quiz";
+        },
+        reviewCurve: () => {
+            location.hash = "#/learner/curve-drill";
+        },
     };
-    container.querySelectorAll('button.mission-card').forEach(card => {
-        card.addEventListener('click', () => MISSION_ACTIONS[card.dataset.key]?.());
+    container.querySelectorAll("button.mission-card").forEach((card) => {
+        card.addEventListener("click", () => MISSION_ACTIONS[card.dataset.key]?.());
     });
 
     // ---- Earn help ----
-    document.getElementById('earnHelpBtn').addEventListener('click', showEarnHelp);
+    document.getElementById("earnHelpBtn").addEventListener("click", showEarnHelp);
 
     // ---- Avatar picker (emoji + background color) ----
-    document.getElementById('avatarBtn').addEventListener('click', () => openAvatarPicker());
+    document.getElementById("avatarBtn").addEventListener("click", () => openAvatarPicker());
 
     function openAvatarPicker() {
-        let selEmoji = profile?.avatar_emoji || '';   // '' = use initial
+        let selEmoji = profile?.avatar_emoji || ""; // '' = use initial
         let selColor = profile?.avatar_color || color;
         // The custom-emoji input only holds a value the quick-picks don't cover.
-        const customStart = selEmoji && !AVATAR_EMOJIS.includes(selEmoji) ? selEmoji : '';
+        const customStart = selEmoji && !AVATAR_EMOJIS.includes(selEmoji) ? selEmoji : "";
 
-        const overlay = document.createElement('div');
-        overlay.className = 'modal';
+        const overlay = document.createElement("div");
+        overlay.className = "modal";
         overlay.innerHTML = `
             <div class="modal-content avatar-modal" style="max-width:360px">
                 <div class="modal-header">
@@ -143,7 +191,7 @@ export async function render(container) {
                            inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off"
                            spellcheck="false" value="${esc(customStart)}">
                     <button class="cell-box emoji-option emoji-initial" data-emoji="">${initial}</button>
-                    ${AVATAR_EMOJIS.map(e => `<button class="cell-box emoji-option" data-emoji="${e}">${e}</button>`).join('')}
+                    ${AVATAR_EMOJIS.map((e) => `<button class="cell-box emoji-option" data-emoji="${e}">${e}</button>`).join("")}
                 </div>
 
                 <!-- Background grid: custom color + palette -->
@@ -152,67 +200,92 @@ export async function render(container) {
                     <label class="cell-box color-input-cell">
                         <input type="color" id="avatarColor" value="${selColor}">
                     </label>
-                    ${AVATAR_COLORS.map(c => `<button class="cell-box color-swatch" data-color="${c}" style="background:${c}"></button>`).join('')}
+                    ${AVATAR_COLORS.map((c) => `<button class="cell-box color-swatch" data-color="${c}" style="background:${c}"></button>`).join("")}
                 </div>
             </div>`;
         document.body.appendChild(overlay);
 
-        const preview    = overlay.querySelector('#avatarPreview');
-        const colorInput = overlay.querySelector('#avatarColor');
-        const emojiInput = overlay.querySelector('#avatarInput');
+        const preview = overlay.querySelector("#avatarPreview");
+        const colorInput = overlay.querySelector("#avatarColor");
+        const emojiInput = overlay.querySelector("#avatarInput");
 
         function syncPreview() {
             preview.textContent = selEmoji || initial;
             preview.style.background = selColor;
-            preview.classList.toggle('avatar-emoji', !!selEmoji);
+            preview.classList.toggle("avatar-emoji", !!selEmoji);
 
             const isCustom = !!selEmoji && !AVATAR_EMOJIS.includes(selEmoji);
-            emojiInput.classList.toggle('selected', isCustom);
-            overlay.querySelectorAll('.emoji-option').forEach(b =>
-                b.classList.toggle('selected', b.dataset.emoji === selEmoji && !isCustom));
-            overlay.querySelectorAll('.color-swatch').forEach(b =>
-                b.classList.toggle('selected', b.dataset.color.toLowerCase() === selColor.toLowerCase()));
+            emojiInput.classList.toggle("selected", isCustom);
+            overlay
+                .querySelectorAll(".emoji-option")
+                .forEach((b) => b.classList.toggle("selected", b.dataset.emoji === selEmoji && !isCustom));
+            overlay
+                .querySelectorAll(".color-swatch")
+                .forEach((b) =>
+                    b.classList.toggle("selected", b.dataset.color.toLowerCase() === selColor.toLowerCase()),
+                );
         }
         syncPreview();
 
         const close = () => overlay.remove();
-        overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
-        overlay.querySelector('#avatarClose').addEventListener('click', close);
+        overlay.addEventListener("click", (e) => {
+            if (e.target === overlay) close();
+        });
+        overlay.querySelector("#avatarClose").addEventListener("click", close);
 
-        colorInput.addEventListener('input', () => { selColor = colorInput.value; syncPreview(); });
-        emojiInput.addEventListener('input', () => { selEmoji = emojiInput.value.trim(); syncPreview(); });
-        overlay.querySelectorAll('.emoji-option').forEach(b =>
-            b.addEventListener('click', () => { selEmoji = b.dataset.emoji; emojiInput.value = ''; syncPreview(); }));
-        overlay.querySelectorAll('.color-swatch').forEach(b =>
-            b.addEventListener('click', () => { selColor = b.dataset.color; colorInput.value = selColor; syncPreview(); }));
+        colorInput.addEventListener("input", () => {
+            selColor = colorInput.value;
+            syncPreview();
+        });
+        emojiInput.addEventListener("input", () => {
+            selEmoji = emojiInput.value.trim();
+            syncPreview();
+        });
+        overlay.querySelectorAll(".emoji-option").forEach((b) =>
+            b.addEventListener("click", () => {
+                selEmoji = b.dataset.emoji;
+                emojiInput.value = "";
+                syncPreview();
+            }),
+        );
+        overlay.querySelectorAll(".color-swatch").forEach((b) =>
+            b.addEventListener("click", () => {
+                selColor = b.dataset.color;
+                colorInput.value = selColor;
+                syncPreview();
+            }),
+        );
 
-        overlay.querySelector('#avatarSave').addEventListener('click', async () => {
+        overlay.querySelector("#avatarSave").addEventListener("click", async () => {
             const emoji = selEmoji || null;
-            const btn = document.getElementById('avatarBtn');
+            const btn = document.getElementById("avatarBtn");
             btn.textContent = emoji || initial;
             btn.style.background = selColor;
-            btn.classList.toggle('avatar-emoji', !!emoji);
+            btn.classList.toggle("avatar-emoji", !!emoji);
             close();
             try {
                 await updateAvatar(emoji, selColor);
                 patchCurrentProfile({ avatar_emoji: emoji, avatar_color: selColor });
-                if (profile) { profile.avatar_emoji = emoji; profile.avatar_color = selColor; }
-                globalThis.dispatchEvent(new Event('profile-updated'));
+                if (profile) {
+                    profile.avatar_emoji = emoji;
+                    profile.avatar_color = selColor;
+                }
+                globalThis.dispatchEvent(new Event("profile-updated"));
             } catch (err) {
-                console.error('Failed to save avatar:', err);
+                console.error("Failed to save avatar:", err);
             }
         });
     }
 
     // ---- Calendar (GitHub contribution graph: weeks = columns, days = rows) ----
-    let calAdded    = {};
+    let calAdded = {};
     let calReviewed = {};
 
-    document.getElementById('calGrid').addEventListener('click', (e) => {
-        const cell = e.target.closest('[data-date]');
+    document.getElementById("calGrid").addEventListener("click", (e) => {
+        const cell = e.target.closest("[data-date]");
         if (cell && (calAdded[cell.dataset.date] || calReviewed[cell.dataset.date])) {
-            sessionStorage.setItem('wordDateFilter', cell.dataset.date);
-            location.hash = '#/learner/words';
+            sessionStorage.setItem("wordDateFilter", cell.dataset.date);
+            location.hash = "#/learner/words";
         }
     });
 
@@ -222,50 +295,63 @@ export async function render(container) {
     let lastWeeks = -1;
 
     function weeksThatFit() {
-        const ghcal  = container.querySelector('.ghcal');
-        const cs     = getComputedStyle(ghcal);
-        const cell   = Number.parseFloat(cs.getPropertyValue('--ghc')) || 14;
-        const gap    = Number.parseFloat(cs.getPropertyValue('--ghg')) || 3;
-        const labelW = Number.parseFloat(cs.getPropertyValue('--ghw')) || 22;
-        const labels = container.querySelector('.ghcal-week-labels');
+        const ghcal = container.querySelector(".ghcal");
+        if (!(ghcal instanceof Element)) return null;
+        const cs = getComputedStyle(ghcal);
+        const cell = Number.parseFloat(cs.getPropertyValue("--ghc")) || 14;
+        const gap = Number.parseFloat(cs.getPropertyValue("--ghg")) || 3;
+        const labelW = Number.parseFloat(cs.getPropertyValue("--ghw")) || 22;
+        const labels = container.querySelector(".ghcal-week-labels");
         const labelsShown = labels && labels.offsetParent !== null;
 
         const avail = ghcal.clientWidth - (labelsShown ? labelW + gap : 0);
         const n = Math.floor((avail + gap) / (cell + gap));
-        return Math.max(6, Math.min(53, n));   // 6 weeks min, ~1 year max
+        return Math.max(6, Math.min(53, n)); // 6 weeks min, ~1 year max
     }
 
     async function renderCalendar() {
         const numWeeks = weeksThatFit();
-        if (numWeeks === lastWeeks) return;     // width unchanged → nothing to rebuild
+        if (numWeeks == null) return;
+        if (numWeeks === lastWeeks) return; // width unchanged → nothing to rebuild
         lastWeeks = numWeeks;
 
         const now = new Date();
-        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());  // today, local midnight
+        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // today, local midnight
         const start = new Date(end);
-        start.setDate(start.getDate() - end.getDay());          // Sunday of the current week
-        start.setDate(start.getDate() - (numWeeks - 1) * 7);    // …then back numWeeks-1 weeks
+        start.setDate(start.getDate() - end.getDay()); // Sunday of the current week
+        start.setDate(start.getDate() - (numWeeks - 1) * 7); // …then back numWeeks-1 weeks
 
         const [wordsRes, testsRes] = await Promise.all([
-            supabase.from('words').select('created_at').eq('user_id', user.id).gte('created_at', start.toISOString()),
-            supabase.from('test_results').select('tested_at').eq('user_id', user.id).gte('tested_at', start.toISOString()),
+            supabase.from("words").select("created_at").eq("user_id", user.id).gte("created_at", start.toISOString()),
+            supabase
+                .from("test_results")
+                .select("tested_at")
+                .eq("user_id", user.id)
+                .gte("tested_at", start.toISOString()),
         ]);
 
-        calAdded    = {};
+        calAdded = {};
         calReviewed = {};
-        for (const w of wordsRes.data || []) { const d = localYMD(new Date(w.created_at)); calAdded[d]    = (calAdded[d]    || 0) + 1; }
-        for (const t of testsRes.data || []) { const d = localYMD(new Date(t.tested_at)); calReviewed[d] = (calReviewed[d] || 0) + 1; }
+        for (const w of wordsRes.data || []) {
+            const d = localYMD(new Date(w.created_at));
+            calAdded[d] = (calAdded[d] || 0) + 1;
+        }
+        for (const t of testsRes.data || []) {
+            const d = localYMD(new Date(t.tested_at));
+            calReviewed[d] = (calReviewed[d] || 0) + 1;
+        }
 
         const todayYMD = localYMD(end);
-        const cells  = [];
+        const cells = [];
         const months = [];
         let lastMonth = -1;
 
         const cur = new Date(start);
         while (cur <= end) {
-            if (cur.getDay() === 0) {   // new column starts on Sunday → emit a month label slot
+            if (cur.getDay() === 0) {
+                // new column starts on Sunday → emit a month label slot
                 const m = cur.getMonth();
-                months.push(m === lastMonth ? '' : cur.toLocaleDateString('en-US', { month: 'short' }));
+                months.push(m === lastMonth ? "" : cur.toLocaleDateString("en-US", { month: "short" }));
                 lastMonth = m;
             }
             const ds = localYMD(cur);
@@ -273,45 +359,51 @@ export async function render(container) {
             cur.setDate(cur.getDate() + 1);
         }
 
-        document.getElementById('calGrid').innerHTML = cells.join('');
-        document.getElementById('calMonths').innerHTML =
-            months.map(m => `<div class="ghcal-month">${m}</div>`).join('');
+        document.getElementById("calGrid").innerHTML = cells.join("");
+        document.getElementById("calMonths").innerHTML = months
+            .map((m) => `<div class="ghcal-month">${m}</div>`)
+            .join("");
     }
 
     // Re-fit on resize. The observer targets this render's .ghcal node, so it
     // stops mattering once the node is replaced on navigation.
-    new ResizeObserver(() => renderCalendar()).observe(container.querySelector('.ghcal'));
+    const calendar = container.querySelector(".ghcal");
+    if (calendar instanceof Element) new ResizeObserver(() => renderCalendar()).observe(calendar);
 }
 
 function shadeIndex(nAdded) {
-    if (nAdded <= 0)  return 0;
-    if (nAdded <= 3)  return 1;
-    if (nAdded <= 9)  return 2;
+    if (nAdded <= 0) return 0;
+    if (nAdded <= 3) return 1;
+    if (nAdded <= 9) return 2;
     if (nAdded <= 14) return 3;
     return 4;
 }
 
 function buildCell(ds, isToday, nAdded, nTests) {
-    const bg      = CAL_SHADES[shadeIndex(nAdded)];
+    const bg = CAL_SHADES[shadeIndex(nAdded)];
     const hasData = nAdded > 0 || nTests > 0;
-    const cursor  = hasData ? 'pointer' : 'default';
+    const cursor = hasData ? "pointer" : "default";
 
-    const dateLabel = new Date(ds + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const wordPart  = `${nAdded} word${nAdded === 1 ? '' : 's'} added`;
-    const testPart  = `${nTests} test${nTests === 1 ? '' : 's'}`;
+    const dateLabel = new Date(ds + "T00:00:00").toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+    });
+    const wordPart = `${nAdded} word${nAdded === 1 ? "" : "s"} added`;
+    const testPart = `${nTests} test${nTests === 1 ? "" : "s"}`;
     const tip = hasData ? `${wordPart} · ${testPart} on ${dateLabel}` : `No activity on ${dateLabel}`;
 
-    return `<div class="ghcal-cell${isToday ? ' today' : ''}" data-date="${ds}" title="${tip}" style="background:${bg};cursor:${cursor}"></div>`;
+    return `<div class="ghcal-cell${isToday ? " today" : ""}" data-date="${ds}" title="${tip}" style="background:${bg};cursor:${cursor}"></div>`;
 }
 
 function localYMD(d) {
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function esc(str) {
-    return String(str ?? '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;');
+    return String(str ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
 }
