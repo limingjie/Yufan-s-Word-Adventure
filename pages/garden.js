@@ -540,7 +540,10 @@ export async function render(container) {
     // Shop renders as a grid of card "blocks", grouped by category (scales better
     // than rows as the catalog grows).
     const CATS = [
-        ["playset", "🚦 Roads & Rails"],
+        ["paths", "🛣️ Paths & Infrastructure"],
+        ["transit", "🚗 Vehicles & Transit"],
+        ["attractions", "🎡 Playground & Rides"],
+        ["waterfront", "🌊 Waterfront"],
         ["structures", "🏡 Structures"],
         ["animals", "🐾 Animals"],
         ["decor", "✨ Decorations"],
