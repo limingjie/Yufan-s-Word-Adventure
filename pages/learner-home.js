@@ -296,7 +296,7 @@ export async function render(container) {
 
     function weeksThatFit() {
         const ghcal = container.querySelector(".ghcal");
-        if (!(ghcal instanceof Element)) return null;
+        if (!ghcal || ghcal.nodeType !== 1) return null;
         const cs = getComputedStyle(ghcal);
         const cell = Number.parseFloat(cs.getPropertyValue("--ghc")) || 14;
         const gap = Number.parseFloat(cs.getPropertyValue("--ghg")) || 3;

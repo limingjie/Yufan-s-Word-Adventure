@@ -41,6 +41,16 @@ import { creatureSound, vehicleSound } from "./audio.js";
 
 const PHRASES = ["Great!", "Yay!", "Nice!", "Wow!", "Bloom! 🌸", "Keep going!", "Lovely!", "Hello! 👋", "So pretty!"];
 const STRUCTURE_CODES = ["pond", "fountain", "cottage"];
+const ATTRACTION_CODES = new Set([
+    "slide",
+    "swings",
+    "seesaw",
+    "sandbox",
+    "climbingframe",
+    "merrygoRound",
+    "pendulumride",
+    "rollercoaster",
+]);
 const PAD = 2; // always keep 2 empty rings around the content
 const SP = 1.0; // blocks sit flush, Minecraft-style
 const TOP = 0.5; // block top surface y
@@ -222,6 +232,15 @@ export function createGarden(canvas, opts = {}) {
         terminal: flat(0xe9edf2),
         terminalRoof: flat(0x2f6f9f),
         terminalGlass: flat(0x8bd3ed),
+        playRed: flat(0xf04444),
+        playBlue: flat(0x3478e5),
+        playYellow: flat(0xffcf3f),
+        playGreen: flat(0x38b873),
+        playOrange: flat(0xff8d3b),
+        playPurple: flat(0xb467d9),
+        playSand: flat(0xf5d27b),
+        playWood: flat(0xc88745),
+        coasterRail: flat(0xf7f7f2),
     };
     function vbox(group, w, h, d, x, y, z, mat, glow) {
         const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -814,6 +833,101 @@ export function createGarden(canvas, opts = {}) {
             vellipsoid(g, 0.06, 0.03, 0.045, x, 0.03, z, PAL.stone);
         return g;
     }
+    function buildAttraction(code) {
+        const g = new THREE.Group();
+        const post = (x, z, h = 0.58, mat = PAL.playBlue) => vcyl(g, 0.035, h, x, h / 2, z, mat, "y", 10);
+        const bar = (x, y, z, w, d, mat = PAL.playRed) => vbox(g, w, 0.06, d, x, y, z, mat);
+        if (code === "slide") {
+            post(-0.28, -0.16, 0.62, PAL.playRed);
+            post(0.03, -0.16, 0.62, PAL.playBlue);
+            bar(-0.12, 0.62, -0.16, 0.38, 0.07, PAL.playYellow);
+            vbox(g, 0.38, 0.08, 0.16, 0.18, 0.38, 0.06, PAL.playOrange);
+            vbox(g, 0.38, 0.06, 0.22, 0.34, 0.22, 0.16, PAL.playOrange);
+            vbox(g, 0.38, 0.05, 0.25, 0.48, 0.08, 0.24, PAL.playOrange);
+        } else if (code === "swings") {
+            post(-0.34, 0, 0.7, PAL.playRed);
+            post(0.34, 0, 0.7, PAL.playRed);
+            bar(0, 0.7, 0, 0.78, 0.08, PAL.playYellow);
+            for (const x of [-0.18, 0.18]) {
+                const chain = vcyl(g, 0.012, 0.42, x, 0.48, 0, PAL.playBlue, "y", 8);
+                chain.userData.swingChain = x;
+                vbox(g, 0.18, 0.05, 0.16, x, 0.25, 0, PAL.playGreen);
+            }
+        } else if (code === "seesaw") {
+            vcone(g, 0.16, 0.3, 0, 0.15, 0, PAL.playBlue, "y", 4);
+            const beam = vbox(g, 0.82, 0.07, 0.12, 0, 0.42, 0, PAL.playRed);
+            beam.userData.seesawBeam = true;
+            for (const x of [-0.36, 0.36]) {
+                vbox(g, 0.13, 0.12, 0.2, x, 0.49, 0, PAL.playYellow);
+                vbox(g, 0.04, 0.25, 0.04, x, 0.61, 0, PAL.playBlue);
+            }
+        } else if (code === "sandbox") {
+            vbox(g, 0.84, 0.08, 0.68, 0, 0.04, 0, PAL.playWood);
+            vbox(g, 0.68, 0.035, 0.52, 0, 0.1, 0, PAL.playSand);
+            for (const [x, z] of [
+                [-0.34, -0.26],
+                [0.34, -0.26],
+                [-0.34, 0.26],
+                [0.34, 0.26],
+            ])
+                vellipsoid(g, 0.08, 0.08, 0.08, x, 0.13, z, PAL.playRed);
+        } else if (code === "climbingframe") {
+            for (const [x, z] of [
+                [-0.3, -0.2],
+                [0.3, -0.2],
+                [-0.3, 0.2],
+                [0.3, 0.2],
+            ])
+                post(x, z, 0.62, PAL.playGreen);
+            bar(0, 0.62, -0.2, 0.68, 0.06, PAL.playYellow);
+            bar(0, 0.62, 0.2, 0.68, 0.06, PAL.playBlue);
+            for (const x of [-0.2, 0, 0.2]) bar(x, 0.43, 0, 0.05, 0.46, PAL.playRed);
+        } else if (code === "merrygoRound") {
+            vcyl(g, 0.28, 0.08, 0, 0.04, 0, PAL.playBlue, "y", 16);
+            vcyl(g, 0.045, 0.62, 0, 0.35, 0, PAL.playRed, "y", 12);
+            vcone(g, 0.46, 0.16, 0, 0.7, 0, PAL.playYellow, "y", 12);
+            for (const [x, z, mat] of [
+                [0.27, 0, PAL.playRed],
+                [-0.27, 0, PAL.playGreen],
+                [0, 0.27, PAL.playOrange],
+                [0, -0.27, PAL.playPurple],
+            ]) {
+                vcyl(g, 0.018, 0.38, x, 0.48, z, mat, "y", 8);
+                vellipsoid(g, 0.07, 0.06, 0.07, x, 0.27, z, mat);
+            }
+            g.userData.carousel = true;
+        } else if (code === "pendulumride") {
+            g.scale.setScalar(0.72);
+            post(-0.34, 0, 1.05, PAL.playBlue);
+            post(0.34, 0, 1.05, PAL.playBlue);
+            bar(0, 1.05, 0, 0.76, 0.08, PAL.playYellow);
+            const arm = new THREE.Group();
+            arm.position.set(0, 1.02, 0);
+            vcyl(arm, 0.035, 0.72, 0, -0.34, 0, PAL.playRed, "y", 10);
+            vbox(arm, 0.34, 0.12, 0.24, 0, -0.76, 0, PAL.playGreen);
+            arm.userData.pendulumArm = true;
+            g.add(arm);
+        } else {
+            g.scale.setScalar(0.78);
+            const track = (x, z, w, d, mat) => vbox(g, w, 0.045, d, x, 0.35, z, mat);
+            for (const [x, z] of [
+                [-0.42, -0.35],
+                [0.42, -0.35],
+                [-0.42, 0.35],
+                [0.42, 0.35],
+            ])
+                post(x, z, 0.34, PAL.playBlue);
+            track(0, -0.35, 0.92, 0.06, PAL.coasterRail);
+            track(0, 0.35, 0.92, 0.06, PAL.coasterRail);
+            track(-0.3, 0, 0.06, 0.7, PAL.coasterRail);
+            track(0.3, 0.12, 0.06, 0.46, PAL.coasterRail);
+            vbox(g, 0.24, 0.12, 0.18, -0.18, 0.48, -0.35, PAL.playRed);
+            vbox(g, 0.24, 0.12, 0.18, 0.08, 0.48, -0.35, PAL.playYellow);
+            g.userData.coaster = true;
+        }
+        return g;
+    }
+    const isAttraction = (code) => ATTRACTION_CODES.has(code);
     function buildStructure(code) {
         if (code === "cottage") return buildHouse();
         if (code === "pond") return buildPond();
@@ -1422,7 +1536,7 @@ export function createGarden(canvas, opts = {}) {
                             roundaboutCenter: dc === 0 && dr === 0,
                         });
             } else if (info?.surface) set(it.col, it.row, { surface: info.surface, code: it.code });
-            else if (isStructure(it.code))
+            else if (isStructure(it.code) || isAttraction(it.code))
                 set(it.col, it.row, { surface: structureSurface(it.code), occupant: "structure", code: it.code });
             else if (isStation(it.code) || isTower(it.code) || isTerminal(it.code))
                 set(it.col, it.row, { occupant: "structure", code: it.code });
@@ -1617,6 +1731,7 @@ export function createGarden(canvas, opts = {}) {
     const blockCells = []; // { mesh, col, row } for raycast → cell
     let plantSprites = []; // plant: { group, baseY, phase, wordId, due, pop?, dropEntry? } | drop: { sprite, baseY, phase, drop:true }
     let vehicleSprites = []; // { group, id, code, phase } — 3D voxel models
+    let attractionModels = []; // { group, code, phase } — animated playset landmarks
     let plantTops = []; // creature landing spots
     let cottageSpot = null;
     let trafficLights = []; // { headV, headH } — 3-lamp heads, refreshed each build
@@ -2168,6 +2283,7 @@ export function createGarden(canvas, opts = {}) {
         blockCells.length = 0;
         plantSprites = [];
         vehicleSprites = [];
+        attractionModels = [];
         plantTops = [];
         runwayLights = [];
         cottageSpot = null;
@@ -2279,26 +2395,36 @@ export function createGarden(canvas, opts = {}) {
         }
         for (const id of [...vehicleState.keys()]) if (!liveIds.has(id)) vehicleState.delete(id);
 
-        // Structures + stations as voxel models. Tappable to move/remove.
+        // Structures, attractions, and stations as voxel models. Tappable to move/remove.
         for (const it of placedItems) {
             if (
                 it.col == null ||
-                !(isStructure(it.code) || isStation(it.code) || isTower(it.code) || isTerminal(it.code))
+                !(
+                    isStructure(it.code) ||
+                    isAttraction(it.code) ||
+                    isStation(it.code) ||
+                    isTower(it.code) ||
+                    isTerminal(it.code)
+                )
             )
                 continue;
             const x = worldX(it.col),
                 z = worldZ(it.row);
             const runway = isTerminal(it.code) ? nearestRunwayCell(it.col, it.row, currentCells) : null;
-            const g = isStation(it.code)
-                ? buildStation()
-                : isTerminal(it.code)
-                  ? buildAirportTerminal(!!runway)
-                  : buildStructure(it.code);
+            const g = isAttraction(it.code)
+                ? buildAttraction(it.code)
+                : isStation(it.code)
+                  ? buildStation()
+                  : isTerminal(it.code)
+                    ? buildAirportTerminal(!!runway)
+                    : buildStructure(it.code);
             g.position.set(x, TOP, z);
             if (isStation(it.code)) g.rotation.y = stationFacing(it.col, it.row, currentCells);
             if (runway) g.rotation.y = Math.atan2(-(runway.c - it.col), -(runway.r - it.row));
-            g.userData = { itemId: it.id };
+            g.userData = { ...g.userData, itemId: it.id };
             props.add(g);
+            if (isAttraction(it.code))
+                attractionModels.push({ group: g, code: it.code, phase: it.col * 0.7 + it.row * 0.4 });
             if (it.code === "cottage") cottageSpot = new THREE.Vector3(x, TOP + 0.6, z);
         }
 
@@ -2499,6 +2625,11 @@ export function createGarden(canvas, opts = {}) {
                 return { ok: false, reason: "Build a runway before placing the terminal." };
             return { ok: true };
         }
+        if (kind === "attraction") {
+            if (cell && (occupantBlocks(cell, kind) || isHardSurface(cell.surface)))
+                return { ok: false, reason: "That playground block is taken." };
+            return { ok: true };
+        }
         if (kind === "car") {
             if (!carries(cell?.surface, "road"))
                 return { ok: false, reason: "A car needs a road. Place a road there first." };
@@ -2534,6 +2665,7 @@ export function createGarden(canvas, opts = {}) {
         if (code === "pedestrian") return "pedestrian";
         if (code === "boat") return "boat";
         if (code === "crosswalk") return "crosswalk";
+        if (isAttraction(code)) return "attraction";
         if (["roadbridge", "railbridge"].includes(code)) return "bridge";
         if (info?.surface) return "track";
         if (code === "bus") return "car";
@@ -3409,6 +3541,30 @@ export function createGarden(canvas, opts = {}) {
                 const k = 1 + p.pop * 0.4;
                 g.scale.set(k, k, k);
             } else if (g.scale.x !== 1) g.scale.set(1, 1, 1);
+        }
+
+        for (const ride of attractionModels) {
+            const { group, code, phase } = ride;
+            if (code === "swings") {
+                group.traverse((o) => {
+                    if (o.userData?.swingChain) {
+                        const x = o.userData.swingChain;
+                        o.rotation.z = Math.sin(t * 1.7 + x * 4 + phase) * 0.12;
+                    }
+                });
+            } else if (code === "seesaw") {
+                const beam = group.children.find((o) => o.userData?.seesawBeam);
+                if (beam) beam.rotation.z = Math.sin(t * 1.2 + phase) * 0.16;
+            } else if (code === "merrygoRound") {
+                group.rotation.y = t * 0.35 + phase;
+            } else if (code === "pendulumride") {
+                group.traverse((o) => {
+                    if (o.userData?.pendulumArm) o.rotation.z = Math.sin(t * 0.7 + phase) * 0.32;
+                });
+            } else if (code === "rollercoaster") {
+                const car = group.children.find((o) => o.material === PAL.playRed || o.material === PAL.playYellow);
+                if (car) car.position.x = -0.18 + ((t * 0.12 + phase) % 0.54);
+            }
         }
 
         // Sky critters — fly, face travel, flap wings (userData.wing meshes).

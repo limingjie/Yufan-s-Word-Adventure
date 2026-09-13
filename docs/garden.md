@@ -38,8 +38,9 @@ networks treat as drivable (cars/buses: road+crossing; trains: rail+crossing; je
 
 ## Placeable playset — Arrange mode
 
-The **Road / Rail / Level-Crossing / 4-Way Roundabout / Fence / Runway Block / Ocean Block / Beach Block / Parking Lot / Road Bridge / Rail Bridge / Crosswalk / Transit Station / Control Tower / Airport Terminal / Car / Bus / Double-Decker Bus / Train / Train Car / Private Jet / Boat / Pedestrian** shop items are dragged
+The **Road / Rail / Level-Crossing / 4-Way Roundabout / Fence / Runway Block / Ocean Block / Beach Block / Parking Lot / Road Bridge / Rail Bridge / Crosswalk / Transit Station / Control Tower / Airport Terminal / Slide / Swing Set / Seesaw / Sandbox / Climbing Frame / Merry-Go-Round / Pendulum Ride / Roller Coaster / Car / Bus / Double-Decker Bus / Train / Train Car / Private Jet / Boat / Pedestrian** shop items are dragged
 onto chosen blocks:
+- Playground pieces occupy one grass block and use bright, rounded voxel models. The pendulum ride and roller coaster are intentionally compact background landmarks, keeping the garden's walking paths open rather than dominating the smaller equipment.
 - **🛒 Shop → buy** a placeable → it lands in the **tray** (now a **top sheet**,
   sized to its content so it can't be clipped by iOS/iPadOS browser chrome) instead
   of the scene. Roads/rails/crossings/runways are cheap, vehicles/stations/towers pricier; buy
