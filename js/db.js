@@ -227,7 +227,7 @@ export async function getWordsForReviewToday(scope = "all") {
 
     const today = localYMD(new Date());
 
-    const { data, error } = await supabase
+    let query = supabase
         .from("review_schedule")
         .select(
             `
@@ -237,9 +237,14 @@ export async function getWordsForReviewToday(scope = "all") {
       words!inner(*)
     `,
         )
-        .eq("user_id", user.id)
-        .lte("next_review_date", today)
-        .order("review_level", { ascending: true });
+        .eq("user_id", user.id);
+
+    // The daily new-word mission must remain retryable after a wrong answer:
+    // completeReview moves that word to tomorrow, but today's mission still
+    // needs it available for another attempt today.
+    if (scope !== "new") query = query.lte("next_review_date", today);
+
+    const { data, error } = await query.order("review_level", { ascending: true });
 
     if (error) throw error;
 
