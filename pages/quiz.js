@@ -167,7 +167,11 @@ export async function startMeaning(container, allWords, opts = {}) {
     // allWords is pre-ordered today-first then by memory curve — keep that order.
     // For mission/selector decks, drop words that already hit today's cap.
     let deck = opts.deck;
-    if (!deck) {
+    if (!deck && opts.todayOnly) {
+        // The daily mission must cover every word added today. The attempt cap
+        // applies to the free-form selector, not to this fixed mission deck.
+        deck = allWords.slice(0, deckSizeFor(allWords));
+    } else if (!deck) {
         const pool = await uncappedDeck(allWords, "meaning");
         if (pool.length === 0) {
             renderCapReached(container, "meaning");
@@ -357,13 +361,13 @@ function buildOptions(word, allWords) {
 export async function startSpelling(container, allWords, opts = {}) {
     if (opts.todayOnly) allWords = wordsCreatedToday(allWords);
     // For mission/selector decks, drop words that already hit today's cap.
-    const source = opts.deck ? allWords : await uncappedDeck(allWords, "spelling");
-    const eligible = (opts.deck || source).filter((w) => w.chinese_definition || w.english_definition);
+    const source = opts.deck || (opts.todayOnly ? allWords : await uncappedDeck(allWords, "spelling"));
+    const eligible = opts.todayOnly ? source : source.filter((w) => w.chinese_definition || w.english_definition);
     if (!opts.deck && eligible.length === 0) {
         renderCapReached(container, "spelling");
         return;
     }
-    const deck = opts.deck ? eligible : eligible.slice(0, deckSizeFor(eligible));
+    const deck = opts.deck || opts.todayOnly ? eligible : eligible.slice(0, deckSizeFor(eligible));
     let idx = 0,
         score = 0,
         combo = 0,
