@@ -53,6 +53,11 @@ function localYMD(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function wordsCreatedToday(words) {
+    const today = localYMD(new Date());
+    return words.filter((word) => word.created_at && localYMD(new Date(word.created_at)) === today);
+}
+
 export async function render(container) {
     // Deck is ordered today's-words-first, then by memory curve (getPrioritizedWords).
     const allWords = await getPrioritizedWords();
@@ -74,13 +79,12 @@ export async function render(container) {
     if (presetMode === "meaning" || presetMode === "spelling") {
         // Missions 3 and 4 are explicitly today's-word practice. Do not rely
         // on the general priority ordering, which also contains older words.
-        const today = localYMD(new Date());
-        const todayWords = allWords.filter((w) => w.created_at && localYMD(new Date(w.created_at)) === today);
+        const todayWords = wordsCreatedToday(allWords);
         if (presetMode === "meaning") {
-            await startMeaning(container, todayWords);
+            await startMeaning(container, todayWords, { todayOnly: true });
             return;
         }
-        await startSpelling(container, todayWords);
+        await startSpelling(container, todayWords, { todayOnly: true });
         return;
     }
 
@@ -159,6 +163,7 @@ export function makeWallet(startBalance) {
 //   advanceSrs   also move each word along the SRS ladder (older-word drill only)
 //   onComplete   called with { score, total, maxCombo } instead of the result screen
 export async function startMeaning(container, allWords, opts = {}) {
+    if (opts.todayOnly) allWords = wordsCreatedToday(allWords);
     // allWords is pre-ordered today-first then by memory curve — keep that order.
     // For mission/selector decks, drop words that already hit today's cap.
     let deck = opts.deck;
@@ -350,6 +355,7 @@ function buildOptions(word, allWords) {
 
 // opts: same shape as startMeaning (deck / wallet / advanceSrs / onComplete).
 export async function startSpelling(container, allWords, opts = {}) {
+    if (opts.todayOnly) allWords = wordsCreatedToday(allWords);
     // For mission/selector decks, drop words that already hit today's cap.
     const source = opts.deck ? allWords : await uncappedDeck(allWords, "spelling");
     const eligible = (opts.deck || source).filter((w) => w.chinese_definition || w.english_definition);
