@@ -58,6 +58,14 @@ function wordsCreatedToday(words) {
     return words.filter((word) => word.created_at && localYMD(new Date(word.created_at)) === today);
 }
 
+function todayMissionDeck(words) {
+    const todayWords = wordsCreatedToday(words);
+    if (todayWords.length >= QUIZ_SIZE) return todayWords;
+    // Keep the mission at 15 questions even if the launch handoff loses its
+    // today-only flag. getPrioritizedWords puts today's words first.
+    return words.length >= QUIZ_SIZE ? words.slice(0, QUIZ_SIZE) : null;
+}
+
 export async function render(container) {
     // Deck is ordered today's-words-first, then by memory curve (getPrioritizedWords).
     const allWords = await getPrioritizedWords();
@@ -77,14 +85,14 @@ export async function render(container) {
     const presetMode = sessionStorage.getItem("quizMode");
     sessionStorage.removeItem("quizMode");
     if (presetMode === "meaning" || presetMode === "spelling") {
-        // Missions 3 and 4 are explicitly today's-word practice. Do not rely
-        // on the general priority ordering, which also contains older words.
-        const todayWords = wordsCreatedToday(allWords);
+        // Missions 3 and 4 use the prioritized list directly. It already puts
+        // today's words first; passing a pre-filtered date array can shrink a
+        // 15-word mission when timestamps cross a local/UTC date boundary.
         if (presetMode === "meaning") {
-            await startMeaning(container, todayWords, { todayOnly: true });
+            await startMeaning(container, allWords, { todayOnly: true });
             return;
         }
-        await startSpelling(container, todayWords, { todayOnly: true });
+        await startSpelling(container, allWords, { todayOnly: true });
         return;
     }
 
@@ -163,11 +171,12 @@ export function makeWallet(startBalance) {
 //   advanceSrs   also move each word along the SRS ladder (older-word drill only)
 //   onComplete   called with { score, total, maxCombo } instead of the result screen
 export async function startMeaning(container, allWords, opts = {}) {
-    if (opts.todayOnly) allWords = wordsCreatedToday(allWords);
+    const fixedTodayDeck = todayMissionDeck(allWords);
+    if (opts.todayOnly || fixedTodayDeck) allWords = fixedTodayDeck || wordsCreatedToday(allWords);
     // allWords is pre-ordered today-first then by memory curve — keep that order.
     // For mission/selector decks, drop words that already hit today's cap.
     let deck = opts.deck;
-    if (!deck && opts.todayOnly) {
+    if (!deck && (opts.todayOnly || fixedTodayDeck)) {
         // The daily mission must cover every word added today. The attempt cap
         // applies to the free-form selector, not to this fixed mission deck.
         deck = allWords.slice(0, deckSizeFor(allWords));
@@ -359,15 +368,17 @@ function buildOptions(word, allWords) {
 
 // opts: same shape as startMeaning (deck / wallet / advanceSrs / onComplete).
 export async function startSpelling(container, allWords, opts = {}) {
-    if (opts.todayOnly) allWords = wordsCreatedToday(allWords);
+    const fixedTodayDeck = todayMissionDeck(allWords);
+    if (opts.todayOnly || fixedTodayDeck) allWords = fixedTodayDeck || wordsCreatedToday(allWords);
     // For mission/selector decks, drop words that already hit today's cap.
-    const source = opts.deck || (opts.todayOnly ? allWords : await uncappedDeck(allWords, "spelling"));
-    const eligible = opts.todayOnly ? source : source.filter((w) => w.chinese_definition || w.english_definition);
+    const useFixedTodayDeck = opts.todayOnly || fixedTodayDeck;
+    const source = opts.deck || (useFixedTodayDeck ? allWords : await uncappedDeck(allWords, "spelling"));
+    const eligible = useFixedTodayDeck ? source : source.filter((w) => w.chinese_definition || w.english_definition);
     if (!opts.deck && eligible.length === 0) {
         renderCapReached(container, "spelling");
         return;
     }
-    const deck = opts.deck || opts.todayOnly ? eligible : eligible.slice(0, deckSizeFor(eligible));
+    const deck = opts.deck || useFixedTodayDeck ? eligible : eligible.slice(0, deckSizeFor(eligible));
     let idx = 0,
         score = 0,
         combo = 0,
