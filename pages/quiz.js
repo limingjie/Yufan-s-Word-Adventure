@@ -279,7 +279,10 @@ export async function startMeaning(container, allWords, opts = {}) {
                     idx++;
                     if (idx < deck.length) renderQ();
                     else if (opts.onComplete) opts.onComplete({ score, total: deck.length, maxCombo });
-                    else showResult(container, score, deck.length, "meaning", maxCombo, wallet.spent);
+                    else
+                        showResult(container, score, deck.length, "meaning", maxCombo, wallet.spent, () =>
+                            startMeaning(container, allWords, { ...opts, deck }),
+                        );
                 }, 900);
             });
             grid.appendChild(btn);
@@ -527,7 +530,10 @@ export async function startSpelling(container, allWords, opts = {}) {
                 idx++;
                 if (idx < deck.length) renderQ();
                 else if (opts.onComplete) opts.onComplete({ score, total: deck.length, maxCombo });
-                else showResult(container, score, deck.length, "spelling", maxCombo, wallet.spent);
+                else
+                    showResult(container, score, deck.length, "spelling", maxCombo, wallet.spent, () =>
+                        startSpelling(container, allWords, { ...opts, deck }),
+                    );
             }, 1100);
         }
 
@@ -579,9 +585,10 @@ function letterBoxesHtml(word) {
 // Result screen
 // ============================================================================
 
-async function showResult(container, score, total, mode, maxCombo = 0, hintsSpent = 0) {
+async function showResult(container, score, total, mode, maxCombo = 0, hintsSpent = 0, onRedo = null) {
     const pct = Math.round((score / total) * 100);
     const perfect = score === total && total > 0;
+    const passed = score >= Math.ceil(total * 0.85);
     const trophy = pct >= 80 ? "🌟" : pct >= 50 ? "👍" : "💪";
 
     const result = await runAfterActivity({
@@ -604,17 +611,18 @@ async function showResult(container, score, total, mode, maxCombo = 0, hintsSpen
     container.innerHTML = `
         <div class="review-card" style="max-width:480px;margin:2rem auto;text-align:center">
             <div style="font-size:3rem;margin-bottom:1rem">${trophy}</div>
-            <h2>Quiz Complete!</h2>
+            <h2>${passed ? "Quiz Passed!" : "Keep Practising"}</h2>
             <p style="font-size:1.15rem;color:#666;margin:0.75rem 0">${score} / ${total} correct (${pct}%)</p>
+            ${!passed ? `<p style="color:#666;margin:0.5rem 0">You need ${Math.ceil(total * 0.85)} correct answers to complete today's mission.</p>` : ""}
             ${netCoins > 0 ? `<p class="session-coins">🪙 +${netCoins} coins earned!</p>` : ""}
             ${hintsSpent > 0 ? `<p style="font-size:0.85rem;color:#999;margin:0">💡 ${hintsSpent} coin${hintsSpent === 1 ? "" : "s"} spent on hints</p>` : ""}
             <div style="display:flex;gap:0.75rem;justify-content:center;margin-top:1.5rem;flex-wrap:wrap">
-                <button id="playAgainBtn" class="btn btn-primary">Play Again</button>
+                ${!passed && onRedo ? `<button id="redoQuizBtn" class="btn btn-primary">Redo Quiz</button>` : ""}
                 <a href="#/learner/garden" class="btn btn-secondary">🌳 Garden</a>
                 <a href="#/learner/home" class="btn btn-secondary">Home</a>
             </div>
         </div>`;
-    document.getElementById("playAgainBtn").addEventListener("click", () => render(container));
+    document.getElementById("redoQuizBtn")?.addEventListener("click", onRedo);
 
     celebrateEvents(result.events);
 }
