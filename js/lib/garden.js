@@ -1,4 +1,4 @@
-import { masteryEmoji } from './srs.js';
+import { masteryEmoji } from "./srs.js";
 
 // Returns an HTML string for the interactive garden grid.
 // words: array of { id, word, review_level, english_definition, chinese_definition }
@@ -20,27 +20,31 @@ export function renderInteractiveGarden(words, dueIds) {
         </div>`;
     }
 
-    // Show at most 80 plants to keep layout manageable
-    const visible = words.slice(0, 80);
-    const overflow = words.length - visible.length;
-
-    const plants = visible.map(w => {
-        const level   = w.review_level ?? 0;
-        const emoji   = masteryEmoji(level);
-        const isDue   = dueIds.has(w.id);
-        const wilting = isDue ? ' wilting' : '';
-        const badge   = isDue ? '<span class="water-badge">💧</span>' : '';
-        const label   = esc(w.word);
-        return '<div class="garden-plant' + wilting + '" data-word-id="' + esc(w.id) + '" tabindex="0">'
-             + badge
-             + '<span class="plant-emoji">' + emoji + '</span>'
-             + '<span class="plant-word">' + label + '</span>'
-             + '</div>';
-    }).join('');
-
-    const overflowBadge = overflow > 0
-        ? '<div style="color:rgba(255,255,255,0.7);font-size:0.78rem;width:100%;text-align:center;margin-top:4px">+' + overflow + ' more in your garden</div>'
-        : '';
+    const plants = words
+        .map((w) => {
+            const level = w.review_level ?? 0;
+            const emoji = masteryEmoji(level);
+            const isDue = dueIds.has(w.id);
+            const wilting = isDue ? " wilting" : "";
+            const badge = isDue ? '<span class="water-badge">💧</span>' : "";
+            const label = esc(w.word);
+            return (
+                '<div class="garden-plant' +
+                wilting +
+                '" data-word-id="' +
+                esc(w.id) +
+                '" tabindex="0">' +
+                badge +
+                '<span class="plant-emoji">' +
+                emoji +
+                "</span>" +
+                '<span class="plant-word">' +
+                label +
+                "</span>" +
+                "</div>"
+            );
+        })
+        .join("");
 
     return `<div class="garden-scene">
         <div class="garden-sky">
@@ -50,7 +54,6 @@ export function renderInteractiveGarden(words, dueIds) {
         </div>
         <div class="garden-ground">
             <div class="garden-grid">${plants}</div>
-            ${overflowBadge}
         </div>
     </div>`;
 }
@@ -63,9 +66,9 @@ export function gardenStats(words) {
 }
 
 function esc(str) {
-    return String(str ?? '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;');
+    return String(str ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
 }

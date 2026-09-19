@@ -612,6 +612,23 @@ export async function getUserSunlight() {
 // Coins are the spendable currency. Like Sunlight, *earned* coins are derived
 // from countable history (never stored as a running total); only purchases are
 // stored (garden_items). balance = earned − Σ(item costs). No drift.
+const GARDEN_ITEMS_PAGE_SIZE = 500;
+
+async function getAllGardenItemRows(userId, columns) {
+    const rows = [];
+    for (let from = 0; ; from += GARDEN_ITEMS_PAGE_SIZE) {
+        const { data, error } = await supabase
+            .from("garden_items")
+            .select(columns)
+            .eq("user_id", userId)
+            .order("id", { ascending: true })
+            .range(from, from + GARDEN_ITEMS_PAGE_SIZE - 1);
+        if (error) return { data: null, error };
+        rows.push(...(data || []));
+        if (!data || data.length < GARDEN_ITEMS_PAGE_SIZE) break;
+    }
+    return { data: rows, error: null };
+}
 
 export async function getBadgeCount() {
     const user = await getCurrentUser();
@@ -631,7 +648,7 @@ export async function getUserCoins() {
         supabase.from("words").select("id", { count: "exact", head: true }).eq("user_id", user.id),
         getTestCountsForUser(user.id),
         supabase.from("achievements").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-        supabase.from("garden_items").select("item_code, col, grid_row").eq("user_id", user.id),
+        getAllGardenItemRows(user.id, "item_code, col, grid_row"),
     ]);
 
     const wordsAdded = wordsRes.count || 0;
@@ -662,17 +679,14 @@ export async function getUserCoins() {
 export async function getGardenItems() {
     const user = await getCurrentUser();
     if (!user) return [];
-    const result = await supabase
-        .from("garden_items")
-        .select("id, item_code, col, grid_row, rotation, paint, airline, coating, created_at")
-        .eq("user_id", user.id);
+    const result = await getAllGardenItemRows(
+        user.id,
+        "id, item_code, col, grid_row, rotation, paint, airline, coating, created_at",
+    );
     if (!result.error) return result.data || [];
     // Keep older deployments usable until the consolidated schema is applied.
     if (result.error.code !== "42703") throw result.error;
-    const legacy = await supabase
-        .from("garden_items")
-        .select("id, item_code, col, grid_row, rotation, paint, created_at")
-        .eq("user_id", user.id);
+    const legacy = await getAllGardenItemRows(user.id, "id, item_code, col, grid_row, rotation, paint, created_at");
     if (legacy.error) throw legacy.error;
     return (legacy.data || []).map((item) => ({ ...item, airline: null, coating: null }));
 }
