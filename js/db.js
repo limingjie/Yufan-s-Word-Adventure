@@ -14,6 +14,17 @@ function localYMD(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+async function fetchAllRows(queryBuilder, pageSize = 1000) {
+    const rows = [];
+    for (let from = 0; ; from += pageSize) {
+        const { data, error } = await queryBuilder.range(from, from + pageSize - 1);
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < pageSize) break;
+    }
+    return rows;
+}
+
 async function getTestCountsForUser(userId) {
     const [takenRes, correctRes] = await Promise.all([
         supabase.from("test_results").select("id", { count: "exact", head: true }).eq("user_id", userId),
@@ -93,34 +104,36 @@ export async function getWords(options = {}) {
 
     if (options.limit) {
         query = query.limit(options.limit);
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
     }
 
-    const { data, error } = await query;
-    if (error) throw error;
-    return data;
+    return fetchAllRows(query);
 }
 
 /**
- * Get all words with their current SRS review_level merged in
+ * Get all words with their current SRS review_level merged in.
+ * Page through results so learners with >1000 words do not lose mastered rows
+ * from the tail of the dataset.
  */
 export async function getWordsWithSRS() {
     const user = await getCurrentUser();
     if (!user) throw new Error("Not authenticated");
 
-    const [wordsResult, scheduleResult] = await Promise.all([
-        supabase
-            .from("words")
-            .select("*")
-            .eq("user_id", user.id)
-            .is("deleted_at", null)
-            .order("created_at", { ascending: false }),
-        supabase.from("review_schedule").select("word_id,review_level").eq("user_id", user.id),
-    ]);
+    const wordsQuery = supabase
+        .from("words")
+        .select("*")
+        .eq("user_id", user.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false });
 
-    if (wordsResult.error) throw wordsResult.error;
+    const scheduleQuery = supabase.from("review_schedule").select("word_id,review_level").eq("user_id", user.id);
 
-    const levelMap = new Map((scheduleResult.data || []).map((s) => [s.word_id, s.review_level]));
-    return (wordsResult.data || []).map((w) => ({ ...w, review_level: levelMap.get(w.id) ?? 0 }));
+    const [wordsData, scheduleData] = await Promise.all([fetchAllRows(wordsQuery), fetchAllRows(scheduleQuery)]);
+
+    const levelMap = new Map((scheduleData || []).map((s) => [s.word_id, s.review_level]));
+    return (wordsData || []).map((w) => ({ ...w, review_level: levelMap.get(w.id) ?? 0 }));
 }
 
 /**
@@ -1120,15 +1133,22 @@ export async function getPrioritizedWords() {
 
     const today = localYMD(new Date());
 
-    const [wordsResult, scheduleResult] = await Promise.all([
-        supabase.from("words").select("*").eq("user_id", user.id).is("deleted_at", null),
-        supabase.from("review_schedule").select("word_id, review_level, next_review_date").eq("user_id", user.id),
+    const [wordsData, scheduleData] = await Promise.all([
+        fetchAllRows(
+            supabase
+                .from("words")
+                .select("*")
+                .eq("user_id", user.id)
+                .is("deleted_at", null)
+                .order("created_at", { ascending: false }),
+        ),
+        fetchAllRows(
+            supabase.from("review_schedule").select("word_id, review_level, next_review_date").eq("user_id", user.id),
+        ),
     ]);
 
-    if (wordsResult.error) throw wordsResult.error;
-
-    const schedMap = new Map((scheduleResult.data || []).map((s) => [s.word_id, s]));
-    const words = (wordsResult.data || []).map((w) => {
+    const schedMap = new Map((scheduleData || []).map((s) => [s.word_id, s]));
+    const words = (wordsData || []).map((w) => {
         const s = schedMap.get(w.id);
         return { ...w, review_level: s?.review_level ?? 0, next_review_date: s?.next_review_date ?? today };
     });
