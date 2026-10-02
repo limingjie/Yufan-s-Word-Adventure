@@ -26,10 +26,10 @@ groups on every edit (gardens are small; full rebuild is cheap).
 
 ## Two layers per block (surface + occupant)
 
-Each block has a **surface** (`grass` default · `road` · `rail` · `crossing` ·
+Each block has a **surface** (`grass` default · `road` · `rail` · `monorail` · `monorailbridge` · `crossing` ·
 `fence` · `runway` · `ocean` · `beach` · `parking` · `roadbridge` · `railbridge` · `crosswalk` · `water`(pond) · `stone`(fountain)) and at most one **occupant** (`plant` ·
-vehicle(`car`/`bus`/`train`/`traincar`/`privatejet`) · `structure` · `animal`). A **car/bus needs a road** under it, a **train
-needs a rail**, and a **private jet needs runway**; a plant only grows on grass — so a plant must be **moved before**
+vehicle(`car`/`bike`/`bus`/`train`/`monorailtrain`/`traincar`/`privatejet`/`ferry`) · `structure` · `animal`). A **car/bike/bus needs a road** under it, a **train
+needs a rail**, a **monorail train needs monorail track**, and a **private jet needs runway**; a plant only grows on grass — so a plant must be **moved before**
 its block can become track/fence. `computeCells(skipRef)` derives the occupancy
 map for validation/render. **One surface per block still holds** — road, rail and
 fence never share a cell; the **`crossing` tile** is its own surface that *both*
@@ -38,7 +38,7 @@ networks treat as drivable (cars/buses: road+crossing; trains: rail+crossing; je
 
 ## Placeable playset — Arrange mode
 
-The **Road / Rail / Level-Crossing / 4-Way Roundabout / Fence / Runway Block / Ocean Block / Beach Block / Parking Lot / Road Bridge / Rail Bridge / Crosswalk / Transit Station / Control Tower / Airport Terminal / Slide / Swing Set / Seesaw / Sandbox / Climbing Frame / Merry-Go-Round / Pendulum Ride / Roller Coaster / Car / Bus / Double-Decker Bus / Train / Train Car / Private Jet / Boat / Pedestrian** shop items are dragged
+The **Road / Rail / Monorail Track / Monorail Bridge / Level-Crossing / 4-Way Roundabout / Fence / Runway Block / Ocean Block / Beach Block / Parking Lot / Road Bridge / Rail Bridge / Crosswalk / Transit Station / Monorail Station / Control Tower / Airport Terminal / Gas Station / Restaurant / Supermarket / School with Playground / Ferry Terminal / Slide / Swing Set / Seesaw / Sandbox / Climbing Frame / Merry-Go-Round / Pendulum Ride / Roller Coaster / Car / Bike / Bus / Double-Decker Bus / Train / Monorail Train / Train Car / Private Jet / Boat / Ferry / Pedestrian** shop items are dragged
 onto chosen blocks:
 - Playground pieces occupy one grass block and use bright, rounded voxel models. The pendulum ride and roller coaster are intentionally compact background landmarks, keeping the garden's walking paths open rather than dominating the smaller equipment.
 - **🛒 Shop → buy** a placeable → it lands in the **tray** (now a **top sheet**,
@@ -50,6 +50,7 @@ onto chosen blocks:
   placed item, a **plant**, or a **structure** to move it; tap a placed item to
   **↻ Rotate** / **🗑 Remove** (remove refunds coins, since the balance is derived).
   Empty-block drags still orbit the camera. Invalid drops show a hint (`onInvalidDrop`).
+- **Large buildings** reserve their full centered footprint: Gas Station and Restaurant are 2×3; Supermarket, School with Playground, and Ferry Terminal are 5×5. The school includes a playground model. The ferry terminal requires three contiguous ocean blocks along one edge and turns its three visible berths toward them. Every footprint cell is reserved, selectable, and included in field bounds.
 - **Grabbing is block-cell based** (`occupantAt`), with a sprite raycast tried
   first for roaming vehicles. Raycasting the small, mostly-transparent emoji
   sprite directly was unreliable (a near-miss orbited the camera instead of
@@ -63,14 +64,14 @@ onto chosen blocks:
   of at least 10 runway blocks** (`runwayInfo`). Valid segments draw runway
   threshold/centre markings in either axis and blink edge lights at night.
 - **Ocean playset:** Ocean Blocks form the boat network, Beach Blocks mark the shoreline, and Boats
-  sail across connected ocean cells. Road Bridges and Rail Bridges join only their matching network
+  and Ferries sail across connected ocean cells. Road Bridges and Rail Bridges join only their matching network
   and must touch ocean cells. Cars may be placed on Parking Lots; each occupied parking space adds
   one derived coin to the wallet. Car paint is stable per purchased car (red, blue, or green).
 - **Pedestrians and crosswalks:** Pedestrians are persisted ground walkers. When Crosswalk tiles
   exist, pedestrians choose them as destinations; crosswalks must be placed beside a road.
-- **Vehicles are voxel 3D models** (`buildCar`/`buildBus`/`buildTrain`/`buildTrainCar`/`buildPrivateJet`, flat-colour boxes —
+- **Vehicles are voxel 3D models** (`buildCar`/`buildBike`/`buildBus`/`buildTrain`/`buildMonorailTrain`/`buildFerry`/`buildTrainCar`/`buildPrivateJet`, flat-colour boxes —
   no external assets) that **drive the connected network**: cars and the blue bus follow
-  **road+crossing** cells, trains/train cars **rail+crossing** cells (`carries()` predicate;
+  **road+crossing** cells, trains/train cars **rail+crossing** cells, monorail trains **monorail+monorail-bridge** cells (`carries()` predicate;
   `trackNeighbours` = graph edges). The double-decker bus follows the same road
   network and station rules as a standard bus. The private jet chooses a valid departure
   runway and an arrival runway/direction, rolls down the runway, climbs into a
@@ -105,6 +106,7 @@ onto chosen blocks:
   road**) auto-rotate to face the neighbouring transit cell. They mark neighbouring
   rail cells (`stationRailCells`) for trains and road cells (`stationRoadCells`) for
   buses; trains dwell ~2.5 s and buses ~2.0 s (`st.dwell`) then continue.
+- **Monorail stations** face adjacent monorail track and mark its cells for a ~2.5 s train dwell. Monorail track is elevated and auto-connects; monorail bridges share the route network over ocean blocks.
 - **Structures (pond/fountain/cottage)** are **unlimited** (buy as many as you like;
   they stack) with **persisted positions**: each remembers `col/grid_row`,
   auto-assigned (`assignStructureHomes`) and persisted on build. Buying one places

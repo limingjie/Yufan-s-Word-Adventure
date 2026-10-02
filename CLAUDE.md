@@ -1,3 +1,4 @@
+Current placeable additions are Gas Station and Restaurant (2×3), Supermarket, School with Playground, and Ferry Terminal (5×5, with three ocean berths), plus Bike, Ferry, Monorail Track, Monorail Bridge, Monorail Train, and Monorail Station; see [docs/garden.md](docs/garden.md) for placement and routing rules.
 # Vocab App — Project Instructions
 
 ## What this is
