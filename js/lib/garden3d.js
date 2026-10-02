@@ -512,7 +512,19 @@ export function createGarden(canvas, opts = {}) {
     }
     function buildFerry() {
         const g = new THREE.Group();
-        vshape(g, [[-0.5, -0.24], [0.5, -0.24], [0.38, 0.24], [-0.38, 0.24]], 0, 0.16, 0, PAL.ferryBody);
+        vshape(
+            g,
+            [
+                [-0.5, -0.24],
+                [0.5, -0.24],
+                [0.38, 0.24],
+                [-0.38, 0.24],
+            ],
+            0,
+            0.16,
+            0,
+            PAL.ferryBody,
+        );
         vbox(g, 0.56, 0.22, 0.34, -0.03, 0.31, 0, PAL.ferryBody);
         vbox(g, 0.56, 0.035, 0.36, -0.03, 0.44, 0, PAL.ferryTrim);
         vbox(g, 0.34, 0.16, 0.04, 0.18, 0.33, 0.18, PAL.glass);
@@ -914,8 +926,7 @@ export function createGarden(canvas, opts = {}) {
             vbox(g, 3.72, 0.14, 2.25, 0, 1.4, -0.8, PAL.buildingRed);
             vbox(g, 0.62, 0.72, 0.1, 0, 0.38, 0.28, PAL.door);
             vbox(g, 1.1, 0.16, 0.06, 0, 1.63, -0.8, PAL.buildingBlue);
-            for (const x of [-1.35, -0.72, 0.72, 1.35])
-                vbox(g, 0.36, 0.42, 0.06, x, 0.92, 0.29, PAL.glass);
+            for (const x of [-1.35, -0.72, 0.72, 1.35]) vbox(g, 0.36, 0.42, 0.06, x, 0.92, 0.29, PAL.glass);
             vbox(g, 1.5, 0.08, 1.0, 0, 0.05, 1.42, PAL.playWood);
             vbox(g, 1.25, 0.05, 0.78, 0, 0.12, 1.42, PAL.playSand);
             for (const x of [-0.52, 0.52]) {
@@ -931,8 +942,7 @@ export function createGarden(canvas, opts = {}) {
             vbox(g, 0.72, 0.3, 0.14, 0, 0.31, -0.12, PAL.buildingRed);
             for (const x of [-1.25, 0, 1.25]) {
                 vbox(g, 0.38, 0.12, 2.35, x, 0.1, 1.45, PAL.dock);
-                for (const z of [0.45, 1.35, 2.35])
-                    vcyl(g, 0.07, 0.52, x, -0.18, z, PAL.dock, "y", 8);
+                for (const z of [0.45, 1.35, 2.35]) vcyl(g, 0.07, 0.52, x, -0.18, z, PAL.dock, "y", 8);
                 vbox(g, 0.34, 0.1, 0.18, x, 0.2, 2.48, PAL.buildingYellow);
                 vbox(g, 0.38, 0.07, 0.08, x, 0.32, 0.86, PAL.buildingWhite);
             }
@@ -1654,7 +1664,10 @@ export function createGarden(canvas, opts = {}) {
             { side: "west", cells: Array.from({ length: 3 }, (_, i) => [minCol - 1, minRow + i + 1]) },
             { side: "east", cells: Array.from({ length: 3 }, (_, i) => [maxCol + 1, minRow + i + 1]) },
         ];
-        return sides.find((entry) => entry.cells.every(([c, r]) => cells.get(cellKey(c, r))?.surface === "ocean"))?.side || null;
+        return (
+            sides.find((entry) => entry.cells.every(([c, r]) => cells.get(cellKey(c, r))?.surface === "ocean"))?.side ||
+            null
+        );
     }
 
     const plantPos = opts.plantPos || new Map();
@@ -1930,14 +1943,14 @@ export function createGarden(canvas, opts = {}) {
     const canGo = (states, d) => (d.dr !== 0 ? states.ns : states.ew) === "green";
     const dirKey = (d) => `${d.dc},${d.dr}`;
     const vehicleSurface = (code) => SHOP[code]?.vehicle || null; // 'road' | 'rail' | 'runway' | 'water'
-        const vehicleRideY = (code) =>
-                code === "monorailtrain"
-                        ? TOP + 0.42
-                        : code === "train" || code === "traincar"
-                            ? TOP + 0.16
-                            : code === "privatejet"
-                                ? TOP + 0.14
-                                : TOP + 0.115;
+    const vehicleRideY = (code) =>
+        code === "monorailtrain"
+            ? TOP + 0.42
+            : code === "train" || code === "traincar"
+              ? TOP + 0.16
+              : code === "privatejet"
+                ? TOP + 0.14
+                : TOP + 0.115;
     // A car drives road OR crossing; a train drives rail OR crossing (the Level
     // Crossing tile belongs to both networks — Decision #10 stays one-surface).
     // Runways are separate airport surfaces and only jets use them.
@@ -2620,21 +2633,28 @@ export function createGarden(canvas, opts = {}) {
             const x = worldX(it.col),
                 z = worldZ(it.row);
             const runway = isTerminal(it.code) ? nearestRunwayCell(it.col, it.row, currentCells) : null;
-                        const g = isBuilding(it.code)
-                                ? buildBuilding(it.code)
-                                : isAttraction(it.code)
-                                    ? buildAttraction(it.code)
-                                    : isStation(it.code)
-                                        ? buildStation(isMonorailStation(it.code))
-                                        : isTerminal(it.code)
-                                            ? buildAirportTerminal(!!runway)
-                                            : buildStructure(it.code);
-                        const [footWidth, footDepth] = SHOP[it.code]?.footprint || [1, 1];
-                        g.position.set(x - (footWidth % 2 === 0 ? SP / 2 : 0), TOP, z - (footDepth % 2 === 0 ? SP / 2 : 0));
+            const g = isBuilding(it.code)
+                ? buildBuilding(it.code)
+                : isAttraction(it.code)
+                  ? buildAttraction(it.code)
+                  : isStation(it.code)
+                    ? buildStation(isMonorailStation(it.code))
+                    : isTerminal(it.code)
+                      ? buildAirportTerminal(!!runway)
+                      : buildStructure(it.code);
+            const [footWidth, footDepth] = SHOP[it.code]?.footprint || [1, 1];
+            g.position.set(x - (footWidth % 2 === 0 ? SP / 2 : 0), TOP, z - (footDepth % 2 === 0 ? SP / 2 : 0));
             if (isStation(it.code)) g.rotation.y = stationFacing(it.col, it.row, currentCells, it.code);
             if (it.code === "ferryterminal") {
                 const berthSide = hasFerryBerths(currentCells, it.col, it.row);
-                g.rotation.y = berthSide === "north" ? Math.PI : berthSide === "east" ? Math.PI / 2 : berthSide === "west" ? -Math.PI / 2 : 0;
+                g.rotation.y =
+                    berthSide === "north"
+                        ? Math.PI
+                        : berthSide === "east"
+                          ? Math.PI / 2
+                          : berthSide === "west"
+                            ? -Math.PI / 2
+                            : 0;
             }
             if (runway) g.rotation.y = Math.atan2(-(runway.c - it.col), -(runway.r - it.row));
             g.userData = { ...g.userData, itemId: it.id };
@@ -2875,7 +2895,13 @@ export function createGarden(canvas, opts = {}) {
         if (kind === "train") {
             const trainTrack = SHOP[code]?.vehicle || "rail";
             if (!carries(cell?.surface, trainTrack))
-                return { ok: false, reason: trainTrack === "monorail" ? "A monorail train needs monorail track." : "A train needs a rail. Place a rail there first." };
+                return {
+                    ok: false,
+                    reason:
+                        trainTrack === "monorail"
+                            ? "A monorail train needs monorail track."
+                            : "A train needs a rail. Place a rail there first.",
+                };
             if (occupantBlocks(cell, kind)) return { ok: false, reason: "That track already has something on it." };
             return { ok: true };
         }
@@ -3248,8 +3274,14 @@ export function createGarden(canvas, opts = {}) {
     function occupantAt(col, row) {
         for (const [wid, p] of plantsModel) if (p.col === col && p.row === row) return { kind: "plant", wordId: wid };
         for (const it of placedItems) {
-            const isInsideBuilding = isBuilding(it.code) && footprintCells(it.code, it.col, it.row).some((spot) => spot.col === col && spot.row === row);
-            if ((it.col === col && it.row === row || isInsideBuilding) && !SHOP[it.code]?.vehicle && !isAnimal(it.code))
+            const isInsideBuilding =
+                isBuilding(it.code) &&
+                footprintCells(it.code, it.col, it.row).some((spot) => spot.col === col && spot.row === row);
+            if (
+                ((it.col === col && it.row === row) || isInsideBuilding) &&
+                !SHOP[it.code]?.vehicle &&
+                !isAnimal(it.code)
+            )
                 return { kind: "item", it };
         }
         for (const w of walkers) {
@@ -3587,7 +3619,14 @@ export function createGarden(canvas, opts = {}) {
                 );
             } else if (grab?.kind === "item") {
                 startDrag(
-                    { mode: "move", kind: kindOf(grab.it.code), code: grab.it.code, id: grab.it.id, cell: null, moved: false },
+                    {
+                        mode: "move",
+                        kind: kindOf(grab.it.code),
+                        code: grab.it.code,
+                        id: grab.it.id,
+                        cell: null,
+                        moved: false,
+                    },
                     SHOP[grab.it.code]?.icon || "❓",
                 );
             }

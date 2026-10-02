@@ -41,16 +41,16 @@ whether something not listed here is also a key decision, **ask the user**.
 
 ## Tech Stack
 
-| Layer | Choice |
-|---|---|
-| Frontend | Vanilla JS, ES modules, no framework, no bundler |
-| Styling | Plain CSS with CSS variables |
-| Auth + DB | Supabase (JS client via CDN) |
-| Backend | None — both APIs are called directly from the browser (CORS-safe) |
+| Layer               | Choice                                                                                              |
+| ------------------- | --------------------------------------------------------------------------------------------------- |
+| Frontend            | Vanilla JS, ES modules, no framework, no bundler                                                    |
+| Styling             | Plain CSS with CSS variables                                                                        |
+| Auth + DB           | Supabase (JS client via CDN)                                                                        |
+| Backend             | None — both APIs are called directly from the browser (CORS-safe)                                   |
 | English definitions | Free Dictionary API v1 — `https://freedictionaryapi.com/api/v1/entries/en/{word}?translations=true` |
-| Chinese translation | MyMemory API — `https://api.mymemory.translated.net/get?q={text}&langpair=en|zh-CN` |
-| 3D Garden | Three.js (ES module from CDN) — `https://cdn.jsdelivr.net/npm/three@0.160.0/+esm` |
-| Deployment | Netlify (static) |
+| Chinese translation | MyMemory API — `https://api.mymemory.translated.net/get?q={text}&langpair=en                        | zh-CN` |
+| 3D Garden           | Three.js (ES module from CDN) — `https://cdn.jsdelivr.net/npm/three@0.160.0/+esm`                   |
+| Deployment          | Netlify (static)                                                                                    |
 
 **No npm. No build step. No React. No Tailwind.** Three.js is loaded as an ES
 module from CDN (same mechanism as Supabase) — the one runtime dependency; it is
@@ -70,16 +70,16 @@ Load Supabase from CDN:
 Per-area documentation lives in `docs/`. These are **not** auto-loaded — open the
 relevant one before working on that area, and update it when a fact changes.
 
-| Doc | Read it before… | Contains |
-|---|---|---|
-| [docs/architecture.md](docs/architecture.md) | touching routing, app bootstrap, or adding a page/file | Full file tree, hash routes + auth guard, the `render(container)` page pattern, `js/config.js` shape, historical build order |
-| [docs/database.md](docs/database.md) | any DB query, schema, or SQL migration | Every table (`profiles`, `words`, `review_schedule`, `test_results`, `achievements`, `daily_stats`, leaderboard/stats-cache), IPA storage format, soft-delete, `'review'` test_type, RLS model |
-| [docs/word-lookup.md](docs/word-lookup.md) | the add-word drawer / dictionary lookup | The two-step Free Dictionary v1 + MyMemory flow, response parsing, audio probing, error handling |
-| [docs/learning.md](docs/learning.md) | SRS, missions, review, or quizzes | Interval ladder, the five daily missions + 85% threshold + accuracy, mission history, meaning/spelling/listening quizzes, paid hints, deck sizing |
-| [docs/rewards.md](docs/rewards.md) | anything awarding Sunlight/Coins/badges | `runAfterActivity` connector, Sunlight earn + Gardener rank ladder, Coin economy + `SHOP`, the full badge catalog + combos |
-| [docs/garden.md](docs/garden.md) | the 3D Word Garden | Three.js voxel scene, due-plant inline review, top action bar, Garden Shop, critters, audio, controls/disposal |
-| [docs/ui.md](docs/ui.md) | word-card UI or any styling/layout | Word-list sort/filter + card layout + body order, global UI rules, the no-purple palette, mobile-first responsiveness rules |
-| [docs/parent.md](docs/parent.md) | a parent page or compare | Shared `parent-stats.js` ordering/inactive/streak helpers and navbar ownership |
+| Doc                                          | Read it before…                                        | Contains                                                                                                                                                                                       |
+| -------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [docs/architecture.md](docs/architecture.md) | touching routing, app bootstrap, or adding a page/file | Full file tree, hash routes + auth guard, the `render(container)` page pattern, `js/config.js` shape, historical build order                                                                   |
+| [docs/database.md](docs/database.md)         | any DB query, schema, or SQL migration                 | Every table (`profiles`, `words`, `review_schedule`, `test_results`, `achievements`, `daily_stats`, leaderboard/stats-cache), IPA storage format, soft-delete, `'review'` test_type, RLS model |
+| [docs/word-lookup.md](docs/word-lookup.md)   | the add-word drawer / dictionary lookup                | The two-step Free Dictionary v1 + MyMemory flow, response parsing, audio probing, error handling                                                                                               |
+| [docs/learning.md](docs/learning.md)         | SRS, missions, review, or quizzes                      | Interval ladder, the five daily missions + 85% threshold + accuracy, mission history, meaning/spelling/listening quizzes, paid hints, deck sizing                                              |
+| [docs/rewards.md](docs/rewards.md)           | anything awarding Sunlight/Coins/badges                | `runAfterActivity` connector, Sunlight earn + Gardener rank ladder, Coin economy + `SHOP`, the full badge catalog + combos                                                                     |
+| [docs/garden.md](docs/garden.md)             | the 3D Word Garden                                     | Three.js voxel scene, due-plant inline review, top action bar, Garden Shop, critters, audio, controls/disposal                                                                                 |
+| [docs/ui.md](docs/ui.md)                     | word-card UI or any styling/layout                     | Word-list sort/filter + card layout + body order, global UI rules, the no-purple palette, mobile-first responsiveness rules                                                                    |
+| [docs/parent.md](docs/parent.md)             | a parent page or compare                               | Shared `parent-stats.js` ordering/inactive/streak helpers and navbar ownership                                                                                                                 |
 
 `docs/archive/` holds the older, user-authored long-form docs (kept for reference;
 they may have drifted from the above and from the code — these `docs/*.md` and the
