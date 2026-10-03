@@ -187,6 +187,7 @@ export async function render(container) {
             },
             onItemMoved: (id, col, row, rotation, paint, airline, coating) => {
                 const stored = items.find((i) => i.id === id);
+                if (stored) stored.rotation = Number(rotation ?? stored.rotation ?? 0);
                 placeGardenItem(
                     id,
                     col,
@@ -474,6 +475,7 @@ export async function render(container) {
             return;
         }
         const item = items.find((i) => i.id === id);
+        const canRotate = !!item && !!SHOP[item.item_code]?.footprint;
         const paint =
             item?.item_code === "car"
                 ? `
@@ -485,7 +487,7 @@ export async function render(container) {
                 ? `<label>Airline <select id="planeAirline"><option>Air Canada</option><option>Westjet</option><option>Flair</option><option>China Eastern</option><option>Air China</option></select></label>
                    <label>Coating <select id="planeCoating"><option>Gloss</option><option>Matte</option><option>Metallic</option></select></label>`
                 : "";
-        panel.innerHTML = `${paint}${airplane}<button id="delItem" class="btn btn-danger btn-sm">🗑 Remove</button>`;
+        panel.innerHTML = `${paint}${airplane}${canRotate ? '<button id="rotateItem" class="btn btn-secondary btn-sm">↻ Rotate</button>' : ""}<button id="delItem" class="btn btn-danger btn-sm">🗑 Remove</button>`;
         panel.style.display = "flex";
         const airlineSelect = panel.querySelector("#planeAirline");
         const coatingSelect = panel.querySelector("#planeCoating");
@@ -507,6 +509,9 @@ export async function render(container) {
                 if (stored) stored.paint = button.dataset.paint;
             }),
         );
+        panel.querySelector("#rotateItem")?.addEventListener("click", () => {
+            controller?.rotateItem(id);
+        });
         panel.querySelector("#delItem").addEventListener("click", () => controller?.removeSelected());
     }
 

@@ -1643,17 +1643,35 @@ export function createGarden(canvas, opts = {}) {
     const isTerminal = (code) => !!SHOP[code]?.terminal;
     const isRoundabout = (code) => code === "roundabout";
     const structureSurface = (code) => (code === "pond" ? "water" : code === "fountain" ? "stone" : "grass");
-    function footprintCells(code, col, row) {
+    function footprintSize(code, rotation = 0) {
         const [width, depth] = SHOP[code]?.footprint || [1, 1];
-        const startCol = col - Math.floor(width / 2);
-        const startRow = row - Math.floor(depth / 2);
+        const turns = (((rotation || 0) % 4) + 4) % 4;
+        return turns % 2 === 0 ? [width, depth] : [depth, width];
+    }
+    function footprintCells(code, col, row, rotation = 0) {
+        const [width, depth] = SHOP[code]?.footprint || [1, 1];
+        const turns = (((rotation || 0) % 4) + 4) % 4;
+        const [rotWidth, rotDepth] = footprintSize(code, rotation);
+        const startCol = col - Math.floor(rotWidth / 2);
+        const startRow = row - Math.floor(rotDepth / 2);
         const out = [];
-        for (let dc = 0; dc < width; dc++)
-            for (let dr = 0; dr < depth; dr++) out.push({ col: startCol + dc, row: startRow + dr });
+        for (let dc = 0; dc < width; dc++) {
+            for (let dr = 0; dr < depth; dr++) {
+                let c = dc,
+                    r = dr;
+                let curW = width,
+                    curD = depth;
+                for (let step = 0; step < turns; step++) {
+                    [c, r] = [curD - 1 - r, c];
+                    [curW, curD] = [curD, curW];
+                }
+                out.push({ col: startCol + c, row: startRow + r });
+            }
+        }
         return out;
     }
-    function hasFerryBerths(cells, col, row) {
-        const footprint = footprintCells("ferryterminal", col, row);
+    function hasFerryBerths(cells, col, row, rotation = 0) {
+        const footprint = footprintCells("ferryterminal", col, row, rotation);
         const minCol = Math.min(...footprint.map((spot) => spot.col));
         const maxCol = Math.max(...footprint.map((spot) => spot.col));
         const minRow = Math.min(...footprint.map((spot) => spot.row));
@@ -1702,7 +1720,7 @@ export function createGarden(canvas, opts = {}) {
                         });
             } else if (info?.surface) set(it.col, it.row, { surface: info.surface, code: it.code });
             else if (isBuilding(it.code)) {
-                for (const spot of footprintCells(it.code, it.col, it.row))
+                for (const spot of footprintCells(it.code, it.col, it.row, it.rotation || 0))
                     set(spot.col, spot.row, { occupant: "structure", code: it.code, ref: it.id });
             } else if (isStructure(it.code) || isAttraction(it.code))
                 set(it.col, it.row, { surface: structureSurface(it.code), occupant: "structure", code: it.code });
@@ -2633,6 +2651,7 @@ export function createGarden(canvas, opts = {}) {
             const x = worldX(it.col),
                 z = worldZ(it.row);
             const runway = isTerminal(it.code) ? nearestRunwayCell(it.col, it.row, currentCells) : null;
+            const rot = Number(it.rotation || 0) * (Math.PI / 2);
             const g = isBuilding(it.code)
                 ? buildBuilding(it.code)
                 : isAttraction(it.code)
@@ -2642,21 +2661,23 @@ export function createGarden(canvas, opts = {}) {
                     : isTerminal(it.code)
                       ? buildAirportTerminal(!!runway)
                       : buildStructure(it.code);
-            const [footWidth, footDepth] = SHOP[it.code]?.footprint || [1, 1];
+            const [footWidth, footDepth] = footprintSize(it.code, it.rotation || 0);
             g.position.set(x - (footWidth % 2 === 0 ? SP / 2 : 0), TOP, z - (footDepth % 2 === 0 ? SP / 2 : 0));
-            if (isStation(it.code)) g.rotation.y = stationFacing(it.col, it.row, currentCells, it.code);
+            if (isBuilding(it.code)) g.rotation.y = rot;
+            if (isStation(it.code)) g.rotation.y = rot + stationFacing(it.col, it.row, currentCells, it.code);
             if (it.code === "ferryterminal") {
-                const berthSide = hasFerryBerths(currentCells, it.col, it.row);
+                const berthSide = hasFerryBerths(currentCells, it.col, it.row, it.rotation || 0);
                 g.rotation.y =
-                    berthSide === "north"
+                    rot +
+                    (berthSide === "north"
                         ? Math.PI
                         : berthSide === "east"
                           ? Math.PI / 2
                           : berthSide === "west"
                             ? -Math.PI / 2
-                            : 0;
+                            : 0);
             }
-            if (runway) g.rotation.y = Math.atan2(-(runway.c - it.col), -(runway.r - it.row));
+            if (runway) g.rotation.y = rot + Math.atan2(-(runway.c - it.col), -(runway.r - it.row));
             g.userData = { ...g.userData, itemId: it.id };
             props.add(g);
             if (isAttraction(it.code))
@@ -2776,7 +2797,7 @@ export function createGarden(canvas, opts = {}) {
         if (!cell?.occupant) return false;
         return !(cell.occupant === "animal" && kind !== "animal");
     };
-    function validPlacement(kind, c, r, skipRef, code = null) {
+    function validPlacement(kind, c, r, skipRef, code = null, rotation = 0) {
         const cells = computeCells(skipRef);
         const cell = cells.get(cellKey(c, r));
         if (kind === "roundabout") {
@@ -2790,12 +2811,12 @@ export function createGarden(canvas, opts = {}) {
             return { ok: true };
         }
         if (kind === "building") {
-            for (const spot of footprintCells(code, c, r)) {
+            for (const spot of footprintCells(code, c, r, rotation)) {
                 const target = cells.get(cellKey(spot.col, spot.row));
                 if (target && ((target.occupant && target.occupant !== "animal") || isHardSurface(target.surface)))
                     return { ok: false, reason: "The whole building footprint needs clear grass blocks." };
             }
-            if (code === "ferryterminal" && !hasFerryBerths(cells, c, r))
+            if (code === "ferryterminal" && !hasFerryBerths(cells, c, r, rotation))
                 return { ok: false, reason: "The ferry terminal needs three ocean blocks together along one side." };
             return { ok: true };
         }
@@ -3301,6 +3322,27 @@ export function createGarden(canvas, opts = {}) {
         scene.add(ghost);
         highlight.visible = false;
     }
+    function setItemRotation(id, rotation) {
+        const it = placedItems.find((p) => p.id === id);
+        if (!it || !SHOP[it.code]?.footprint) return false;
+        const prev = Number(it.rotation || 0);
+        const next = (((Number(rotation) || 0) % 4) + 4) % 4;
+        it.rotation = next;
+        const valid = validPlacement(kindOf(it.code), it.col, it.row, it.id, it.code, next);
+        if (!valid.ok) {
+            it.rotation = prev;
+            return false;
+        }
+        cb.itemMoved(it.id, it.col, it.row, next, it.paint || null, it.airline || null, it.coating || null);
+        buildLayout();
+        return true;
+    }
+    function rotateItem(id) {
+        const it = placedItems.find((p) => p.id === id);
+        if (!it || !SHOP[it.code]?.footprint) return false;
+        const next = (((Number(it.rotation || 0) + 1) % 4) + 4) % 4;
+        return setItemRotation(id, next);
+    }
     function dragTo(clientX, clientY) {
         if (!drag) return;
         const c = cellAt(clientX, clientY);
@@ -3318,10 +3360,11 @@ export function createGarden(canvas, opts = {}) {
         }
         const skip = drag.mode === "move" ? drag.wordId || drag.id : null;
         const code = drag.code || placedItems.find((it) => it.id === drag.id)?.code;
-        const v = validPlacement(drag.kind, c.col, c.row, skip, code);
+        const rotation = Number(drag.rotation ?? placedItems.find((it) => it.id === drag.id)?.rotation ?? 0);
+        const v = validPlacement(drag.kind, c.col, c.row, skip, code, rotation);
         highlight.visible = true;
         highlight.material = v.ok ? okMat : badMat;
-        const [width, depth] = SHOP[code]?.footprint || [1, 1];
+        const [width, depth] = footprintSize(code, rotation);
         highlight.position.set(x - (width % 2 === 0 ? SP / 2 : 0), TOP + 0.08, z - (depth % 2 === 0 ? SP / 2 : 0));
         highlight.scale.set(width, 1, depth);
     }
@@ -3339,7 +3382,8 @@ export function createGarden(canvas, opts = {}) {
         if (!commit || !d.cell) return;
         const skip = d.mode === "move" ? d.wordId || d.id : null;
         const code = d.code || placedItems.find((it) => it.id === d.id)?.code;
-        const v = validPlacement(d.kind, d.cell.col, d.cell.row, skip, code);
+        const rotation = Number(d.rotation ?? placedItems.find((it) => it.id === d.id)?.rotation ?? 0);
+        const v = validPlacement(d.kind, d.cell.col, d.cell.row, skip, code, rotation);
         if (!v.ok) {
             cb.invalidDrop(v.reason);
             return;
@@ -3350,13 +3394,14 @@ export function createGarden(canvas, opts = {}) {
             p.row = d.cell.row;
             cb.plantMoved(d.wordId, d.cell.col, d.cell.row);
         } else if (d.mode === "new") {
-            placedItems.push({ id: d.id, code: d.code, col: d.cell.col, row: d.cell.row, rotation: 0 });
-            cb.itemMoved(d.id, d.cell.col, d.cell.row, 0);
+            placedItems.push({ id: d.id, code: d.code, col: d.cell.col, row: d.cell.row, rotation: rotation || 0 });
+            cb.itemMoved(d.id, d.cell.col, d.cell.row, rotation || 0);
         } else {
             const it = placedItems.find((p) => p.id === d.id);
             if (it) {
                 it.col = d.cell.col;
                 it.row = d.cell.row;
+                it.rotation = rotation || 0;
                 vehicleState.delete(it.id); // restart driving from the new spot
                 cb.itemMoved(it.id, it.col, it.row, it.rotation || 0);
             }
@@ -3626,6 +3671,7 @@ export function createGarden(canvas, opts = {}) {
                         id: grab.it.id,
                         cell: null,
                         moved: false,
+                        rotation: Number(grab.it.rotation || 0),
                     },
                     SHOP[grab.it.code]?.icon || "❓",
                 );
@@ -4346,6 +4392,8 @@ export function createGarden(canvas, opts = {}) {
         setArrangeMode,
         beginPlaceFromTray,
         removeSelected,
+        rotateItem,
+        setItemRotation,
         addStructure,
         addAnimal,
         setCarColor,
