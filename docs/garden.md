@@ -24,14 +24,14 @@ auto-grows the field on the next rebuild. World position: `worldX(col)`/`worldZ(
 centre the box at the origin. `buildLayout()` rebuilds the dynamic ground+props
 groups on every edit (gardens are small; full rebuild is cheap).
 
-## Two layers per block (surface + occupant)
+## Ground surface, elevated track, and occupant
 
-Each block has a **surface** (`grass` default · `road` · `rail` · `monorail` · `monorailbridge` · `crossing` ·
+Each block has one **ground surface** (`grass` default · `road` · `rail` · `crossing` ·
 `fence` · `runway` · `ocean` · `beach` · `parking` · `roadbridge` · `railbridge` · `crosswalk` · `water`(pond) · `stone`(fountain)) and at most one **occupant** (`plant` ·
 vehicle(`car`/`bike`/`bus`/`train`/`monorailtrain`/`traincar`/`privatejet`/`ferry`) · `structure` · `animal`). A **car/bike/bus needs a road** under it, a **train
 needs a rail**, a **monorail train needs monorail track**, and a **private jet needs runway**; a plant only grows on grass — so a plant must be **moved before**
 its block can become track/fence. `computeCells(skipRef)` derives the occupancy
-map for validation/render. **One surface per block still holds** — road, rail and
+map for validation/render. Elevated **Monorail Track / Monorail Bridge** can overlay road and rail ground surfaces without replacing their vehicle routes; monorail routing is stored separately from the ground surface. Other ground surfaces remain exclusive — road, rail and
 fence never share a cell; the **`crossing` tile** is its own surface that *both*
 networks treat as drivable (cars/buses: road+crossing; trains: rail+crossing; jets: runway only — see
 `carries()`).
@@ -57,7 +57,7 @@ onto chosen blocks:
   sprite directly was unreliable (a near-miss orbited the camera instead of
   grabbing); the whole 1×1 block under the finger is a big, dependable target, so
   plants and the sprite-less **pond** are easy to move.
-- **Roads/rails/fences/runways auto-connect**: adjacent track/fence/runway slabs sit flush and grow
+- **Roads/rails/monorail/fences/runways auto-connect**: adjacent track/fence/runway slabs sit flush and grow
   centre markings, rails or fence rails/posts toward connected neighbours
   (straight → curved rail corner → cross). A fence costs **1 coin**, is a normal surface tile,
   and blocks ground-animal movement.

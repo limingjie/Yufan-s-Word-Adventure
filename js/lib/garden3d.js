@@ -11,8 +11,9 @@
 // entities + a 2-cell padding ring on each side (so there's always room to drag
 // things around); dropping near an edge auto-grows the field next rebuild.
 //
-// Two layers per block:
+// Each block has one ground surface plus an optional elevated monorail layer:
 //   • surface  — grass (default) | road | rail | crossing | fence | runway | ocean | beach | parking | bridge | crosswalk
+//   • elevated — monorail track/bridge; can overlay road or rail
 //   • occupant — one of: plant | vehicle(car/bus/train/traincar/privatejet) | structure | animal | (none)
 // A car/bus needs a road surface, a train needs rail, and a jet needs runway. One occupant per
 // block, so a plant must be moved before its block can become a road/rail.
@@ -70,6 +71,7 @@ const ATTRACTION_CODES = new Set([
 const PAD = 2; // always keep 2 empty rings around the content
 const SP = 1.0; // blocks sit flush, Minecraft-style
 const TOP = 0.5; // block top surface y
+const MONORAIL_SURFACES = new Set(["monorail", "monorailbridge"]);
 const cellKey = (c, r) => `${c}:${r}`;
 
 export function createGarden(canvas, opts = {}) {
@@ -1887,8 +1889,26 @@ export function createGarden(canvas, opts = {}) {
                             code: it.code,
                             roundaboutCenter: dc === 0 && dr === 0,
                         });
-            } else if (info?.surface) set(it.col, it.row, { surface: info.surface, code: it.code });
-            else if (isBuilding(it.code)) {
+            } else if (info?.surface && MONORAIL_SURFACES.has(info.surface)) {
+                const existing = cells.get(cellKey(it.col, it.row));
+                const groundSurface = existing?.surface && !MONORAIL_SURFACES.has(existing.surface);
+                set(it.col, it.row, {
+                    surface: groundSurface ? existing.surface : info.surface,
+                    code: groundSurface ? existing.code : it.code,
+                    monorailSurface: info.surface,
+                    monorailCode: it.code,
+                    monorailItemId: it.id,
+                });
+            } else if (info?.surface) {
+                const existing = cells.get(cellKey(it.col, it.row));
+                const monorailSurface =
+                    existing?.monorailSurface || (MONORAIL_SURFACES.has(existing?.surface) ? existing.surface : null);
+                set(it.col, it.row, {
+                    surface: info.surface,
+                    code: it.code,
+                    ...(monorailSurface ? { monorailSurface } : {}),
+                });
+            } else if (isBuilding(it.code)) {
                 for (const spot of footprintCells(it.code, it.col, it.row, it.rotation || 0))
                     set(spot.col, spot.row, { occupant: "structure", code: it.code, ref: it.id });
             } else if (isStructure(it.code) || isAttraction(it.code))
@@ -2171,6 +2191,10 @@ export function createGarden(canvas, opts = {}) {
         (vehSurf === "rail" && ["crossing", "railbridge"].includes(surface)) ||
         (vehSurf === "monorail" && surface === "monorailbridge") ||
         (vehSurf === "water" && surface === "ocean");
+    const carriesCell = (cell, vehSurf) =>
+        vehSurf === "monorail"
+            ? carries(cell?.monorailSurface || cell?.surface, vehSurf)
+            : carries(cell?.surface, vehSurf);
     function trackNeighbours(c, r, vehSurf) {
         const here = currentCells.get(cellKey(c, r));
         if (here?.roundaboutCenter) return [];
@@ -2182,7 +2206,7 @@ export function createGarden(canvas, opts = {}) {
             [-1, 0],
         ]) {
             const next = currentCells.get(cellKey(c + dc, r + dr));
-            if (carries(next?.surface, vehSurf) && !next?.roundaboutCenter) out.push({ c: c + dc, r: r + dr });
+            if (carriesCell(next, vehSurf) && !next?.roundaboutCenter) out.push({ c: c + dc, r: r + dr });
         }
         return out;
     }
@@ -2366,7 +2390,7 @@ export function createGarden(canvas, opts = {}) {
     // Anchor/repair a vehicle's motion state onto valid track (re-route on edits).
     function reconcileVehicle(it) {
         const surf = vehicleSurface(it.code);
-        const onTrack = (c, r) => carries(currentCells.get(cellKey(c, r))?.surface, surf);
+        const onTrack = (c, r) => carriesCell(currentCells.get(cellKey(c, r)), surf);
         const st = vehicleState.get(it.id);
         if (it.code === "privatejet") {
             const current = st && runwayInfo(st.c, st.r, currentCells);
@@ -2416,7 +2440,7 @@ export function createGarden(canvas, opts = {}) {
     }
 
     function adjacentTrack(c, r, surface, cells) {
-        const m = (s, cell) => carries(s, surface) && !cell?.roundaboutCenter;
+        const m = (s, cell) => carriesCell(cell || { surface: s }, surface) && !cell?.roundaboutCenter;
         return {
             n: m(cells.get(cellKey(c, r - 1))?.surface, cells.get(cellKey(c, r - 1))),
             s: m(cells.get(cellKey(c, r + 1))?.surface, cells.get(cellKey(c, r + 1))),
@@ -2441,7 +2465,7 @@ export function createGarden(canvas, opts = {}) {
                 [-1, 0],
             ]
                 .map(([dc, dr]) => ({ dc, dr, cell: cells.get(cellKey(c + dc, r + dr)) }))
-                .filter((n) => ["monorail", "monorailbridge"].includes(n.cell?.surface)),
+                .filter((n) => carriesCell(n.cell, "monorail")),
             road: [
                 [0, -1],
                 [0, 1],
@@ -2564,7 +2588,9 @@ export function createGarden(canvas, opts = {}) {
         if (ns || iso) addPair("z");
         if (ew) addPair("x");
     }
-    function addMonorailTile(x, z, adj, bridge = false) {
+    function addMonorailTile(x, z, adj, bridge = false, itemId = null) {
+        const trackGroup = new THREE.Group();
+        trackGroup.userData.itemId = itemId;
         const ns = adj.n || adj.s,
             ew = adj.e || adj.w,
             iso = !ns && !ew;
@@ -2576,20 +2602,21 @@ export function createGarden(canvas, opts = {}) {
                 solidMats(beamMat),
             );
             beam.position.set(x, TOP + 0.78, z);
-            ground.add(beam);
+            trackGroup.add(beam);
             const guide = new THREE.Mesh(
                 new THREE.BoxGeometry(along === "x" ? SP : 0.06, 0.08, along === "z" ? SP : 0.06),
                 solidMats(PAL.monoTrim),
             );
             guide.position.set(x, TOP + 0.88, z);
-            ground.add(guide);
+            trackGroup.add(guide);
         };
         if (ns || iso) addBeam("z");
         if (ew) addBeam("x");
         for (const offset of [-0.38, 0.38]) {
-            if (ns || iso) vcyl(ground, 0.055, 0.72, x + offset, TOP + 0.36, z, supportMat, "y", 8);
-            if (ew) vcyl(ground, 0.055, 0.72, x, TOP + 0.36, z + offset, supportMat, "y", 8);
+            if (ns || iso) vcyl(trackGroup, 0.055, 0.72, x + offset, TOP + 0.36, z, supportMat, "y", 8);
+            if (ew) vcyl(trackGroup, 0.055, 0.72, x, TOP + 0.36, z + offset, supportMat, "y", 8);
         }
+        ground.add(trackGroup);
     }
     function addCurvedRailTile(x, z, dirs, skipTies = false) {
         const railY = TOP + 0.13;
@@ -2765,8 +2792,16 @@ export function createGarden(canvas, opts = {}) {
                     addRoadTile(x, z, adjacentTrack(c, r, "road", cells), { curbs: false });
                 if (cell?.surface === "rail") addRailTile(x, z, adjacentTrack(c, r, "rail", cells));
                 if (cell?.surface === "railbridge") addRailTile(x, z, adjacentTrack(c, r, "rail", cells), true);
-                if (cell?.surface === "monorail" || cell?.surface === "monorailbridge")
-                    addMonorailTile(x, z, adjacentTrack(c, r, "monorail", cells), cell.surface === "monorailbridge");
+                const monorailSurface =
+                    cell?.monorailSurface || (MONORAIL_SURFACES.has(cell?.surface) ? cell.surface : null);
+                if (monorailSurface)
+                    addMonorailTile(
+                        x,
+                        z,
+                        adjacentTrack(c, r, "monorail", cells),
+                        monorailSurface === "monorailbridge",
+                        cell.monorailItemId,
+                    );
                 if (cell?.surface === "runway")
                     addRunwayTile(x, z, adjacentTrack(c, r, "runway", cells), runwayInfo(c, r, cells));
                 if (cell?.surface === "fence") addFenceTile(x, z, adjacentFence(c, r, cells));
@@ -2942,7 +2977,7 @@ export function createGarden(canvas, opts = {}) {
                     const nk = cellKey(c + dc, r + dr);
                     const s = currentCells.get(nk)?.surface;
                     if (s === "rail" || s === "crossing") stationRailCells.add(nk);
-                    if (isMonorailStation(cell.code) && (s === "monorail" || s === "monorailbridge"))
+                    if (isMonorailStation(cell.code) && carriesCell(currentCells.get(nk), "monorail"))
                         stationMonorailCells.add(nk);
                     if (s === "road" || s === "crossing") stationRoadCells.add(nk);
                 }
@@ -3032,7 +3067,20 @@ export function createGarden(canvas, opts = {}) {
             return { ok: true };
         }
         if (kind === "plant" || kind === "track" || kind === "animal") {
-            if (cell && (occupantBlocks(cell, kind) || isHardSurface(cell.surface))) {
+            const trackSurface = SHOP[code]?.surface;
+            const wantsMonorail = kind === "track" && MONORAIL_SURFACES.has(trackSurface);
+            const wantsRoadOrRail = kind === "track" && ["road", "rail"].includes(trackSurface);
+            const hasMonorail = !!cell?.monorailSurface || MONORAIL_SURFACES.has(cell?.surface);
+            const overlapsCompatibleTrack =
+                (wantsMonorail && ["road", "rail", "crossing", "roadbridge", "railbridge"].includes(cell?.surface)) ||
+                (wantsRoadOrRail && hasMonorail);
+            const duplicateMonorail = wantsMonorail && hasMonorail;
+            if (
+                cell &&
+                (occupantBlocks(cell, kind) ||
+                    (isHardSurface(cell.surface) && !overlapsCompatibleTrack) ||
+                    duplicateMonorail)
+            ) {
                 return {
                     ok: false,
                     reason:
@@ -3056,7 +3104,7 @@ export function createGarden(canvas, opts = {}) {
             ].some(([dc, dr]) => {
                 const next = cells.get(cellKey(c + dc, r + dr));
                 return isMonorailStation(code)
-                    ? ["monorail", "monorailbridge"].includes(next?.surface)
+                    ? carriesCell(next, "monorail")
                     : ["rail", "crossing"].includes(next?.surface) || roadNeighbour(next);
             });
             if (!nextToTransit)
@@ -3069,7 +3117,15 @@ export function createGarden(canvas, opts = {}) {
             return { ok: true };
         }
         if (kind === "bridge") {
-            if (cell && (occupantBlocks(cell, kind) || isHardSurface(cell.surface)))
+            const monorailOverlay =
+                code === "monorailbridge" &&
+                ["road", "rail", "crossing", "roadbridge", "railbridge"].includes(cell?.surface);
+            const duplicateMonorail =
+                code === "monorailbridge" && (!!cell?.monorailSurface || MONORAIL_SURFACES.has(cell?.surface));
+            if (
+                cell &&
+                (occupantBlocks(cell, kind) || (isHardSurface(cell.surface) && !monorailOverlay) || duplicateMonorail)
+            )
                 return { ok: false, reason: "That block is taken." };
             const nextToOcean = [
                 [0, -1],
@@ -3119,14 +3175,14 @@ export function createGarden(canvas, opts = {}) {
             return { ok: true };
         }
         if (kind === "car") {
-            if (!carries(cell?.surface, "road"))
+            if (!carriesCell(cell, "road"))
                 return { ok: false, reason: "A car needs a road. Place a road there first." };
             if (occupantBlocks(cell, kind)) return { ok: false, reason: "That road already has something on it." };
             return { ok: true };
         }
         if (kind === "train") {
             const trainTrack = SHOP[code]?.vehicle || "rail";
-            if (!carries(cell?.surface, trainTrack))
+            if (!carriesCell(cell, trainTrack))
                 return {
                     ok: false,
                     reason:
@@ -3138,7 +3194,7 @@ export function createGarden(canvas, opts = {}) {
             return { ok: true };
         }
         if (kind === "jet") {
-            if (!carries(cell?.surface, "runway")) return { ok: false, reason: "A private jet needs runway blocks." };
+            if (!carriesCell(cell, "runway")) return { ok: false, reason: "A private jet needs runway blocks." };
             if (!runwayInfo(c, r, cells).active)
                 return { ok: false, reason: "Build a straight runway of at least 10 connected blocks first." };
             if (occupantBlocks(cell, kind)) return { ok: false, reason: "That runway already has something on it." };
@@ -3492,6 +3548,7 @@ export function createGarden(canvas, opts = {}) {
         ndc.y = -((clientY - r.top) / r.height) * 2 + 1;
         ray.setFromCamera(ndc, camera);
         const targets = [
+            ...ground.children.filter((o) => o.userData?.itemId),
             ...props.children.filter((o) => o.userData?.wordId || o.userData?.itemId),
             ...walkers.filter((w) => w.isAnimal).map((w) => w.obj),
         ];

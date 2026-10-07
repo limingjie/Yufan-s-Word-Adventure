@@ -37,6 +37,8 @@ whether something not listed here is also a key decision, **ask the user**.
 14. **One consolidated SQL schema; no committed migration files.** `sql/SUPABASE_SETUP.sql` is the single source of truth (all tables, indexes, RLS). To change the schema, write a throwaway `sql/tmp_*.sql` (gitignored), run it in the Supabase SQL Editor, then merge the same DDL into `SUPABASE_SETUP.sql` (idempotent forms) and delete the tmp file. `sql/LEARNERS_INSERT.sql` (seed) and `sql/IMPORT_YUFAN_WORDS.sql` (one-time data) stay separate. See [docs/database.md](docs/database.md).
 15. **Commit message format.** A commit message is a one-line summary, followed by detailed items each starting with `-`. Do **not** append a `Co-Authored-By` trailer (or any other trailer).
 
+**Garden surface clarification:** Decision 10's exclusive-surface rule applies to the ground layer. Elevated Monorail Track and Monorail Bridge may overlay road or rail cells without replacing their ground routes; see [docs/garden.md](docs/garden.md).
+
 ---
 
 ## Tech Stack
@@ -77,7 +79,7 @@ relevant one before working on that area, and update it when a fact changes.
 | [docs/word-lookup.md](docs/word-lookup.md)   | the add-word drawer / dictionary lookup                | The two-step Free Dictionary v1 + MyMemory flow, response parsing, audio probing, error handling                                                                                               |
 | [docs/learning.md](docs/learning.md)         | SRS, missions, review, or quizzes                      | Interval ladder, the five daily missions + 85% threshold + accuracy, mission history, meaning/spelling/listening quizzes, paid hints, deck sizing                                              |
 | [docs/rewards.md](docs/rewards.md)           | anything awarding Sunlight/Coins/badges                | `runAfterActivity` connector, Sunlight earn + Gardener rank ladder, Coin economy + `SHOP`, the full badge catalog + combos                                                                     |
-| [docs/garden.md](docs/garden.md)             | the 3D Word Garden                                     | Three.js voxel scene, due-plant inline review, top action bar, Garden Shop, critters, audio, controls/disposal                                                                                 |
+| [docs/garden.md](docs/garden.md)             | the 3D Word Garden                                     | Three.js voxel scene, elevated monorail overlays, due-plant inline review, top action bar, Garden Shop, critters, audio, controls/disposal                                                     |
 | [docs/ui.md](docs/ui.md)                     | word-card UI or any styling/layout                     | Word-list sort/filter + card layout + body order, global UI rules, the no-purple palette, mobile-first responsiveness rules                                                                    |
 | [docs/parent.md](docs/parent.md)             | a parent page or compare                               | Shared `parent-stats.js` ordering/inactive/streak helpers and navbar ownership                                                                                                                 |
 
