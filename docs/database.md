@@ -97,11 +97,12 @@ rotation   int  DEFAULT 0           -- retained for compatibility; UI auto-faces
 paint      text                      -- car paint or airplane coating metadata
 airline    text                      -- airplane airline/livery selection
 coating    text                      -- airplane finish: Gloss, Matte, or Metallic
+custom_label text                    -- editable text shown on a street-label sign
 created_at timestamptz DEFAULT now()
 ```
 Items **stack** (one row per purchase). Coin balance is derived as
 `earned − Σ(item costs)` (`getUserCoins`), so deleting a row refunds it; never add
-a stored balance. Placeable playset items (road/rail/crossing/fence/runway/station/controltower/car/bus/train/traincar/privatejet),
+a stored balance. Placeable playset items (road/highway/rail/crossing/fence/runway/station/controltower/car/bus/train/traincar/privatejet/buildings),
 structures and ground-animal homes carry their position here.
 
 ### `garden_plants` (stored plant positions)

@@ -309,6 +309,7 @@ CREATE TABLE IF NOT EXISTS garden_items (
   paint      text,
   airline    text,
   coating    text,
+  custom_label text,
   created_at timestamptz DEFAULT now()
 );
 ALTER TABLE garden_items ADD COLUMN IF NOT EXISTS col      int;
@@ -317,6 +318,7 @@ ALTER TABLE garden_items ADD COLUMN IF NOT EXISTS rotation int DEFAULT 0;
 ALTER TABLE garden_items ADD COLUMN IF NOT EXISTS paint text;
 ALTER TABLE garden_items ADD COLUMN IF NOT EXISTS airline text;
 ALTER TABLE garden_items ADD COLUMN IF NOT EXISTS coating text;
+ALTER TABLE garden_items ADD COLUMN IF NOT EXISTS custom_label text;
 
 CREATE INDEX IF NOT EXISTS idx_garden_items_user ON garden_items(user_id);
 

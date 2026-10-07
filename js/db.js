@@ -694,14 +694,20 @@ export async function getGardenItems() {
     if (!user) return [];
     const result = await getAllGardenItemRows(
         user.id,
-        "id, item_code, col, grid_row, rotation, paint, airline, coating, created_at",
+        "id, item_code, col, grid_row, rotation, paint, airline, coating, custom_label, created_at",
     );
     if (!result.error) return result.data || [];
     // Keep older deployments usable until the consolidated schema is applied.
     if (result.error.code !== "42703") throw result.error;
+    const previous = await getAllGardenItemRows(
+        user.id,
+        "id, item_code, col, grid_row, rotation, paint, airline, coating, created_at",
+    );
+    if (!previous.error) return (previous.data || []).map((item) => ({ ...item, custom_label: null }));
+    if (previous.error.code !== "42703") throw previous.error;
     const legacy = await getAllGardenItemRows(user.id, "id, item_code, col, grid_row, rotation, paint, created_at");
     if (legacy.error) throw legacy.error;
-    return (legacy.data || []).map((item) => ({ ...item, airline: null, coating: null }));
+    return (legacy.data || []).map((item) => ({ ...item, airline: null, coating: null, custom_label: null }));
 }
 
 // Plant positions — { word_id, col, grid_row }. A word missing here has no home
@@ -742,16 +748,24 @@ export async function setPlantPositions(rows) {
 }
 
 /** Move/rotate a placed item (or send it back to the tray with null col/row). */
-export async function placeGardenItem(id, col, gridRow, rotation = 0, paint = null, airline = null, coating = null) {
+export async function placeGardenItem(id, col, gridRow, rotation = 0, metadata = {}) {
     const user = await getCurrentUser();
     if (!user) throw new Error("Not authenticated");
+    const { paint = null, airline = null, coating = null, custom_label: customLabel = null } = metadata;
     const result = await supabase
         .from("garden_items")
-        .update({ col, grid_row: gridRow, rotation, paint, airline, coating })
+        .update({ col, grid_row: gridRow, rotation, paint, airline, coating, custom_label: customLabel })
         .eq("id", id)
         .eq("user_id", user.id);
     if (!result.error) return;
     if (result.error.code !== "42703") throw result.error;
+    const previous = await supabase
+        .from("garden_items")
+        .update({ col, grid_row: gridRow, rotation, paint, airline, coating })
+        .eq("id", id)
+        .eq("user_id", user.id);
+    if (!previous.error) return;
+    if (previous.error.code !== "42703") throw previous.error;
     const legacy = await supabase
         .from("garden_items")
         .update({ col, grid_row: gridRow, rotation, paint })

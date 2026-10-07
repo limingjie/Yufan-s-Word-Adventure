@@ -27,7 +27,7 @@
 //   opts.night / opts.warm  bool theme flags
 //   opts.onPlantClick(wordId)               tap a plant (normal mode → review)
 //   opts.onAssignHomes([{wordId,col,row}])  words that had no stored position
-//   opts.onItemMoved(id,col,row,rotation,paint)   a placed item was dropped/rotated
+//   opts.onItemMoved(id,col,row,rotation,metadata) a placed item was dropped/rotated/styled
 //   opts.onItemRemoved(id)                  a placed item was removed
 //   opts.onPlantMoved(wordId,col,row)       a plant was dragged to a new block
 //   opts.onSelectItem(id|null)              a placed item was selected/deselected
@@ -41,7 +41,22 @@ import { creatureSound, vehicleSound } from "./audio.js";
 
 const PHRASES = ["Great!", "Yay!", "Nice!", "Wow!", "Bloom! 🌸", "Keep going!", "Lovely!", "Hello! 👋", "So pretty!"];
 const STRUCTURE_CODES = ["pond", "fountain", "cottage"];
-const BUILDING_CODES = new Set(["gasstation", "restaurant", "supermarket", "school", "ferryterminal"]);
+const BUILDING_CODES = new Set([
+    "gasstation",
+    "restaurant",
+    "supermarket",
+    "school",
+    "ferryterminal",
+    "basketballcourt",
+    "cityhall",
+    "church",
+    "museum",
+    "store",
+    "library",
+    "parkade",
+    "streetlabel",
+    "castle",
+]);
 const ATTRACTION_CODES = new Set([
     "slide",
     "swings",
@@ -106,6 +121,7 @@ export function createGarden(canvas, opts = {}) {
     const parkingMat = new THREE.MeshStandardMaterial({ color: 0x62676d, roughness: 1, flatShading: true });
     const stoneMat = new THREE.MeshStandardMaterial({ color: 0xb8bec8, roughness: 1, flatShading: true });
     const roadMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4f, roughness: 1, flatShading: true });
+    const highwayMat = new THREE.MeshStandardMaterial({ color: 0x34383d, roughness: 1, flatShading: true });
     const runwayMat = new THREE.MeshStandardMaterial({ color: 0x363a3f, roughness: 1, flatShading: true });
     const lineMat = new THREE.MeshStandardMaterial({ color: 0xf2c84b, roughness: 1, flatShading: true });
     const tieMat = new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 1, flatShading: true });
@@ -256,6 +272,9 @@ export function createGarden(canvas, opts = {}) {
         playSand: flat(0xf5d27b),
         playWood: flat(0xc88745),
         coasterRail: flat(0xf7f7f2),
+        court: flat(0x287d63),
+        courtLine: flat(0xf5f0dc),
+        castleStone: flat(0xb6b4a8),
     };
     function vbox(group, w, h, d, x, y, z, mat, glow) {
         const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -536,19 +555,60 @@ export function createGarden(canvas, opts = {}) {
     }
     function buildBike() {
         const g = new THREE.Group();
-        for (const x of [-0.34, 0.34]) {
-            vcyl(g, 0.17, 0.045, x, 0.18, 0, PAL.tyre, "x", 12);
-            vcyl(g, 0.13, 0.05, x, 0.18, 0, PAL.bikeMetal, "x", 10);
+        const rearX = -0.34;
+        const frontX = 0.34;
+        const wheelY = 0.18;
+        for (const wheelX of [rearX, frontX]) {
+            const tire = new THREE.Mesh(new THREE.TorusGeometry(0.145, 0.025, 8, 20), PAL.tyre);
+            tire.position.set(wheelX, wheelY, 0);
+            g.add(tire);
+            const rim = new THREE.Mesh(new THREE.TorusGeometry(0.112, 0.008, 6, 20), PAL.bikeMetal);
+            rim.position.set(wheelX, wheelY, 0);
+            g.add(rim);
+            vcyl(g, 0.025, 0.28, wheelX, wheelY, 0, PAL.bikeMetal, "z", 8);
+            const spokePoints = [];
+            for (let index = 0; index < 8; index++) {
+                const angle = (index * Math.PI) / 4;
+                for (const side of [-0.035, 0.035]) {
+                    spokePoints.push(
+                        new THREE.Vector3(wheelX, wheelY, side),
+                        new THREE.Vector3(wheelX + Math.cos(angle) * 0.11, wheelY + Math.sin(angle) * 0.11, side),
+                    );
+                }
+            }
+            g.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(spokePoints), PAL.bikeMetal));
         }
-        vcyl(g, 0.025, 0.42, -0.04, 0.3, 0, PAL.bikeFrame, "z", 8);
-        vbox(g, 0.4, 0.035, 0.035, -0.02, 0.35, 0, PAL.bikeFrame);
-        vbox(g, 0.24, 0.035, 0.035, -0.2, 0.42, 0, PAL.bikeMetal);
-        vcyl(g, 0.025, 0.24, 0.34, 0.31, 0, PAL.bikeMetal, "y", 8);
-        vbox(g, 0.05, 0.035, 0.32, 0.34, 0.43, 0, PAL.bikeMetal);
-        vbox(g, 0.16, 0.04, 0.1, -0.18, 0.48, 0, PAL.dark);
-        vbox(g, 0.06, 0.04, 0.08, 0.02, 0.62, 0, PAL.buildingBlue);
-        vellipsoid(g, 0.075, 0.09, 0.07, 0.02, 0.73, 0, PAL.gFace);
-        vcyl(g, 0.018, 0.28, 0.02, 0.68, 0, PAL.buildingDark, "x", 8);
+        const frameTube = (start, end, radius, material) => {
+            const direction = new THREE.Vector3().subVectors(end, start);
+            const tube = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, direction.length(), 8), material);
+            tube.position.copy(start).add(end).multiplyScalar(0.5);
+            tube.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+            g.add(tube);
+        };
+        const rearAxle = new THREE.Vector3(rearX, wheelY, 0);
+        const frontAxle = new THREE.Vector3(frontX, wheelY, 0);
+        const crank = new THREE.Vector3(-0.04, 0.25, 0);
+        const seatJoint = new THREE.Vector3(-0.2, 0.49, 0);
+        const headJoint = new THREE.Vector3(0.22, 0.48, 0);
+        frameTube(rearAxle, crank, 0.022, PAL.bikeFrame);
+        frameTube(crank, seatJoint, 0.022, PAL.bikeFrame);
+        frameTube(seatJoint, headJoint, 0.022, PAL.bikeFrame);
+        frameTube(headJoint, crank, 0.022, PAL.bikeFrame);
+        frameTube(rearAxle, seatJoint, 0.018, PAL.bikeMetal);
+        frameTube(headJoint, frontAxle, 0.02, PAL.bikeMetal);
+        vbox(g, 0.2, 0.045, 0.11, -0.21, 0.55, 0, PAL.dark); // saddle
+        frameTube(seatJoint, new THREE.Vector3(-0.2, 0.55, 0), 0.018, PAL.bikeMetal);
+        frameTube(headJoint, new THREE.Vector3(0.27, 0.63, 0), 0.018, PAL.bikeMetal);
+        vbox(g, 0.05, 0.035, 0.3, 0.27, 0.63, 0, PAL.bikeMetal); // handlebar
+        vcyl(g, 0.03, 0.2, crank.x, crank.y, 0, PAL.bikeMetal, "z", 8);
+        frameTube(crank, new THREE.Vector3(0.04, 0.18, 0.1), 0.016, PAL.bikeMetal);
+        frameTube(crank, new THREE.Vector3(-0.12, 0.31, -0.1), 0.016, PAL.bikeMetal);
+        vbox(g, 0.12, 0.24, 0.12, -0.04, 0.7, 0, PAL.buildingBlue); // seated rider
+        vellipsoid(g, 0.075, 0.085, 0.07, -0.04, 0.87, 0, PAL.gFace);
+        frameTube(new THREE.Vector3(0.01, 0.76, 0), new THREE.Vector3(0.24, 0.63, 0.07), 0.025, PAL.buildingBlue);
+        frameTube(new THREE.Vector3(0.01, 0.76, 0), new THREE.Vector3(0.24, 0.63, -0.07), 0.025, PAL.buildingBlue);
+        frameTube(new THREE.Vector3(-0.08, 0.61, 0.04), new THREE.Vector3(0.03, 0.3, 0.08), 0.035, PAL.dark);
+        frameTube(new THREE.Vector3(-0.08, 0.61, -0.04), new THREE.Vector3(-0.12, 0.34, -0.08), 0.035, PAL.dark);
         return g;
     }
     function buildMonorailTrain() {
@@ -889,9 +949,118 @@ export function createGarden(canvas, opts = {}) {
         }
         return g;
     }
-    function buildBuilding(code) {
+    function buildBuilding(code, customLabel = "") {
         const g = new THREE.Group();
-        if (code === "gasstation") {
+        if (code === "basketballcourt") {
+            vbox(g, 2.85, 0.08, 5.85, 0, 0.04, 0, PAL.court);
+            vbox(g, 2.72, 0.035, 0.035, 0, 0.1, 0, PAL.courtLine);
+            for (const z of [-2.82, 2.82]) vbox(g, 2.72, 0.035, 0.035, 0, 0.1, z, PAL.courtLine);
+            for (const x of [-1.38, 1.38]) vbox(g, 0.035, 0.035, 5.65, x, 0.1, 0, PAL.courtLine);
+            vbox(g, 2.7, 0.035, 0.035, 0, 0.1, -1.92, PAL.courtLine);
+            vbox(g, 2.7, 0.035, 0.035, 0, 0.1, 1.92, PAL.courtLine);
+            const centerCircle = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.035, 6, 24), PAL.courtLine);
+            centerCircle.rotation.x = Math.PI / 2;
+            centerCircle.position.y = 0.1;
+            g.add(centerCircle);
+            for (const z of [-2.58, 2.58]) {
+                vbox(g, 0.08, 0.85, 0.08, 0, 0.48, z, PAL.buildingDark);
+                vbox(g, 0.68, 0.46, 0.08, 0, 0.88, z, PAL.buildingWhite);
+                const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.035, 5, 16), PAL.buildingRed);
+                hoop.rotation.x = Math.PI / 2;
+                hoop.position.set(0, 0.67, z + (z < 0 ? 0.14 : -0.14));
+                g.add(hoop);
+            }
+        } else if (code === "cityhall") {
+            vbox(g, 1.82, 0.82, 1.82, 0, 0.42, 0, PAL.buildingWhite);
+            vbox(g, 1.94, 0.12, 1.94, 0, 0.88, 0, PAL.buildingBlue);
+            vbox(g, 0.72, 0.35, 0.06, 0, 0.52, 0.94, PAL.glass);
+            vbox(g, 0.28, 0.55, 0.08, 0, 0.28, 0.98, PAL.door);
+            for (const x of [-0.68, -0.34, 0.34, 0.68]) vcyl(g, 0.055, 0.68, x, 0.43, 0.84, PAL.stone, "y", 10);
+            vbox(g, 1.25, 0.08, 1.25, 0, 1.05, 0, PAL.buildingRed);
+            vbox(g, 0.16, 0.38, 0.16, 0, 1.26, 0, PAL.buildingBlue);
+        } else if (code === "church") {
+            vbox(g, 1.72, 1.15, 1.72, 0, 0.58, 0, PAL.buildingWhite);
+            vbox(g, 1.82, 0.14, 1.82, 0, 1.18, 0, PAL.buildingRed);
+            vbox(g, 0.48, 0.68, 0.08, 0, 0.34, 0.9, PAL.door);
+            for (const x of [-0.58, 0.58]) vbox(g, 0.24, 0.48, 0.07, x, 0.78, 0.89, PAL.glass);
+            vbox(g, 0.42, 0.66, 0.42, 0, 1.48, -0.32, PAL.buildingWhite);
+            vcone(g, 0.38, 0.62, 0, 2.12, -0.32, PAL.buildingRed, "y", 4);
+            vbox(g, 0.08, 0.38, 0.08, 0, 2.62, -0.32, PAL.buildingYellow);
+            vbox(g, 0.27, 0.07, 0.08, 0, 2.65, -0.32, PAL.buildingYellow);
+        } else if (code === "museum") {
+            vbox(g, 5.55, 0.82, 4.55, 0, 0.42, 0, PAL.buildingWhite);
+            vbox(g, 5.7, 0.14, 4.7, 0, 0.9, 0, PAL.buildingBlue);
+            vbox(g, 5.05, 0.28, 0.07, 0, 0.66, 2.3, PAL.buildingYellow);
+            vbox(g, 0.86, 0.56, 0.08, 0, 0.32, 2.36, PAL.door);
+            for (const x of [-2.15, -1.3, -0.45, 0.45, 1.3, 2.15]) {
+                vcyl(g, 0.075, 0.84, x, 0.42, 2.08, PAL.stone, "y", 12);
+                vbox(g, 0.4, 0.28, 0.06, x, 0.7, 2.36, PAL.glass);
+            }
+            vbox(g, 5.0, 0.12, 0.9, 0, 1.12, -1.35, PAL.buildingRed);
+            for (const x of [-2.2, 0, 2.2]) vbox(g, 0.12, 0.14, 4.2, x, 0.98, 0, PAL.buildingYellow);
+        } else if (code === "store") {
+            vbox(g, 0.88, 0.92, 1.8, 0, 0.46, 0, PAL.buildingWhite);
+            vbox(g, 0.96, 0.14, 1.9, 0, 0.98, 0, PAL.buildingRed);
+            vbox(g, 0.72, 0.24, 0.08, 0, 0.62, 0.93, PAL.glass);
+            vbox(g, 0.22, 0.46, 0.08, 0, 0.25, 0.96, PAL.door);
+            vbox(g, 0.94, 0.2, 0.22, 0, 1.15, 0.92, PAL.buildingGreen);
+        } else if (code === "library") {
+            vbox(g, 4.45, 1.22, 4.45, 0, 0.61, 0, PAL.buildingRed);
+            vbox(g, 4.58, 0.14, 4.58, 0, 1.28, 0, PAL.buildingYellow);
+            vbox(g, 3.55, 0.38, 0.08, 0, 0.78, 2.28, PAL.glass);
+            vbox(g, 0.72, 0.62, 0.1, 0, 0.38, 2.3, PAL.door);
+            for (const x of [-1.65, -0.85, 0.85, 1.65]) {
+                vcyl(g, 0.075, 1.05, x, 0.58, 2.08, PAL.buildingWhite, "y", 12);
+                vbox(g, 0.12, 0.12, 0.14, x, 1.18, 2.08, PAL.buildingBlue);
+            }
+            vbox(g, 2.25, 0.2, 0.08, 0, 1.55, 2.31, PAL.buildingBlue);
+            for (const x of [-1.6, -0.8, 0, 0.8, 1.6]) vbox(g, 0.52, 0.42, 0.08, x, 0.55, -2.28, PAL.buildingYellow);
+        } else if (code === "parkade") {
+            for (const y of [0.38, 0.98, 1.58]) {
+                vbox(g, 4.65, 0.12, 4.65, 0, y, 0, PAL.buildingDark);
+                vbox(g, 4.75, 0.12, 0.12, 0, y + 0.2, 2.32, PAL.buildingYellow);
+                for (const x of [-2.12, -1.28, -0.42, 0.42, 1.28, 2.12]) {
+                    vbox(g, 0.12, 0.48, 0.12, x, y - 0.3, 2.2, PAL.buildingWhite);
+                    vbox(g, 0.48, 0.055, 0.72, x, y + 0.09, 0.7, PAL.buildingBlue);
+                }
+            }
+            vbox(g, 4.65, 0.18, 4.65, 0, 1.92, 0, PAL.buildingBlue);
+            vbox(g, 0.08, 0.1, 1.25, 0, 2.07, 0, PAL.buildingYellow);
+        } else if (code === "streetlabel") {
+            vcyl(g, 0.055, 0.9, 0, 0.45, 0, PAL.pole, "y", 10);
+            vbox(g, 0.94, 0.38, 0.1, 0, 0.9, 0.04, PAL.buildingGreen);
+            const sign = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.88, 0.22),
+                new THREE.MeshBasicMaterial({ map: streetLabelTexture(customLabel), side: THREE.DoubleSide }),
+            );
+            sign.position.set(0, 0.9, 0.105);
+            sign.userData.labelMaterial = true;
+            g.add(sign);
+            const reverseSign = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.88, 0.22),
+                new THREE.MeshBasicMaterial({ map: streetLabelTexture(customLabel), side: THREE.DoubleSide }),
+            );
+            reverseSign.position.set(0, 0.9, -0.025);
+            reverseSign.rotation.y = Math.PI;
+            reverseSign.userData.labelMaterial = true;
+            g.add(reverseSign);
+        } else if (code === "castle") {
+            vbox(g, 4.5, 1.42, 4.5, 0, 0.71, 0, PAL.castleStone);
+            vbox(g, 1.2, 0.92, 0.12, 0, 0.46, 2.31, PAL.door);
+            vbox(g, 0.44, 0.38, 0.08, 0, 1.08, 2.32, PAL.buildingBlue);
+            for (const [x, z] of [
+                [-2, -2],
+                [2, -2],
+                [-2, 2],
+                [2, 2],
+            ]) {
+                vbox(g, 1.12, 2.12, 1.12, x, 1.06, z, PAL.castleStone);
+                vbox(g, 1.24, 0.18, 1.24, x, 2.2, z, PAL.buildingRed);
+                for (const dx of [-0.38, 0, 0.38]) vbox(g, 0.18, 0.28, 0.18, x + dx, 2.42, z, PAL.castleStone);
+                vcone(g, 0.72, 1.05, x, 3.02, z, PAL.buildingRed, "y", 4);
+            }
+            vbox(g, 1.2, 0.18, 4.5, 0, 1.55, 0, PAL.buildingYellow);
+        } else if (code === "gasstation") {
             vbox(g, 1.75, 0.48, 1.05, -0.2, 0.24, -0.3, PAL.buildingWhite);
             vbox(g, 1.8, 0.12, 1.12, -0.2, 0.54, -0.3, PAL.buildingRed);
             vbox(g, 0.58, 0.23, 0.04, 0.42, 0.3, 0.24, PAL.glass);
@@ -934,7 +1103,7 @@ export function createGarden(canvas, opts = {}) {
                 vbox(g, 0.42, 0.06, 0.1, x, 0.78, 1.38, PAL.playRed);
             }
             vbox(g, 0.72, 0.07, 0.14, 0.72, 0.31, 1.42, PAL.playGreen);
-        } else {
+        } else if (code === "ferryterminal") {
             vbox(g, 4.4, 0.12, 3.9, 0, 0.08, -0.15, PAL.dock);
             vbox(g, 3.2, 0.62, 1.55, 0, 0.42, -1.0, PAL.buildingWhite);
             vbox(g, 3.35, 0.12, 1.7, 0, 0.78, -1.0, PAL.buildingBlue);
@@ -1830,7 +1999,7 @@ export function createGarden(canvas, opts = {}) {
             it.col = spot.col;
             it.row = spot.row;
             it.rotation = it.rotation || 0;
-            cb.itemMoved(it.id, it.col, it.row, it.rotation || 0, it.paint || null);
+            cb.itemMoved(it.id, it.col, it.row, it.rotation || 0, { paint: it.paint || null });
         }
     }
 
@@ -1892,6 +2061,30 @@ export function createGarden(canvas, opts = {}) {
 
     // ── Sprite/texture helpers ──────────────────────────────────────────────────
     const texCache = new Map();
+    const labelTextureCache = new Map();
+    function streetLabelTexture(value) {
+        const label =
+            String(value || "YOUR STREET")
+                .trim()
+                .slice(0, 24)
+                .toUpperCase() || "YOUR STREET";
+        if (labelTextureCache.has(label)) return labelTextureCache.get(label);
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 128;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#287a45";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 54px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, 256, 64, 480);
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        labelTextureCache.set(label, texture);
+        return texture;
+    }
     function emojiTexture(emoji, dim = false) {
         const key = emoji + (dim ? ":dim" : "");
         if (texCache.has(key)) return texCache.get(key);
@@ -2274,8 +2467,8 @@ export function createGarden(canvas, opts = {}) {
         };
     }
 
-    function addRoadTile(x, z, adj, { curbs = true } = {}) {
-        const slab = new THREE.Mesh(slabGeo, solidMats(roadMat));
+    function addRoadTile(x, z, adj, { curbs = true, highway = false } = {}) {
+        const slab = new THREE.Mesh(slabGeo, solidMats(highway ? highwayMat : roadMat));
         slab.position.set(x, TOP + 0.06, z);
         ground.add(slab);
         // Yellow centre markings reach toward connected neighbours (auto-connect).
@@ -2292,6 +2485,23 @@ export function createGarden(canvas, opts = {}) {
             const m = new THREE.Mesh(new THREE.BoxGeometry(SP, 0.04, 0.08), solidMats(lineMat));
             m.position.set(x, markY, z);
             ground.add(m);
+        }
+        if (highway) {
+            const edgeMat = solidMats(PAL.buildingWhite);
+            if (ns || iso) {
+                for (const ox of [-0.39, 0.39]) {
+                    const edge = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.04, SP), edgeMat);
+                    edge.position.set(x + ox, markY, z);
+                    ground.add(edge);
+                }
+            }
+            if (ew) {
+                for (const oz of [-0.39, 0.39]) {
+                    const edge = new THREE.Mesh(new THREE.BoxGeometry(SP, 0.04, 0.035), edgeMat);
+                    edge.position.set(x, markY, z + oz);
+                    ground.add(edge);
+                }
+            }
         }
         if (!curbs) return;
         const curbEdges = [
@@ -2548,7 +2758,8 @@ export function createGarden(canvas, opts = {}) {
                 ground.add(b);
                 blockCells.push({ mesh: b, col: c, row: r });
 
-                if (cell?.surface === "road") addRoadTile(x, z, adjacentTrack(c, r, "road", cells));
+                if (cell?.surface === "road")
+                    addRoadTile(x, z, adjacentTrack(c, r, "road", cells), { highway: cell.code === "highway" });
                 if (cell?.surface === "roundabout") addRoundaboutTile(x, z, cell, adjacentTrack(c, r, "road", cells));
                 if (cell?.surface === "roadbridge")
                     addRoadTile(x, z, adjacentTrack(c, r, "road", cells), { curbs: false });
@@ -2653,7 +2864,7 @@ export function createGarden(canvas, opts = {}) {
             const runway = isTerminal(it.code) ? nearestRunwayCell(it.col, it.row, currentCells) : null;
             const rot = Number(it.rotation || 0) * (Math.PI / 2);
             const g = isBuilding(it.code)
-                ? buildBuilding(it.code)
+                ? buildBuilding(it.code, it.custom_label)
                 : isAttraction(it.code)
                   ? buildAttraction(it.code)
                   : isStation(it.code)
@@ -3333,7 +3544,12 @@ export function createGarden(canvas, opts = {}) {
             it.rotation = prev;
             return false;
         }
-        cb.itemMoved(it.id, it.col, it.row, next, it.paint || null, it.airline || null, it.coating || null);
+        cb.itemMoved(it.id, it.col, it.row, next, {
+            paint: it.paint || null,
+            airline: it.airline || null,
+            coating: it.coating || null,
+            custom_label: it.custom_label || null,
+        });
         buildLayout();
         return true;
     }
@@ -3461,7 +3677,7 @@ export function createGarden(canvas, opts = {}) {
         const it = placedItems.find((p) => p.id === id);
         if (!it || it.code !== "car" || !["red", "blue", "green"].includes(paint)) return;
         it.paint = paint;
-        cb.itemMoved(it.id, it.col, it.row, it.rotation || 0, paint);
+        cb.itemMoved(it.id, it.col, it.row, it.rotation || 0, { paint });
         buildLayout();
     }
     function setPlaneStyle(id, airline, coating) {
@@ -3471,8 +3687,23 @@ export function createGarden(canvas, opts = {}) {
         if (!it || it.code !== "privatejet" || !airlines.includes(airline) || !coatings.includes(coating)) return;
         it.airline = airline;
         it.coating = coating;
-        cb.itemMoved(it.id, it.col, it.row, it.rotation || 0, it.paint || null, airline, coating);
+        cb.itemMoved(it.id, it.col, it.row, it.rotation || 0, { paint: it.paint || null, airline, coating });
         buildLayout();
+    }
+    function setStreetLabel(id, value) {
+        const it = placedItems.find((p) => p.id === id);
+        if (!it || it.code !== "streetlabel") return false;
+        it.custom_label = String(value || "")
+            .trim()
+            .slice(0, 24);
+        cb.itemMoved(it.id, it.col, it.row, it.rotation || 0, {
+            paint: it.paint || null,
+            airline: it.airline || null,
+            coating: it.coating || null,
+            custom_label: it.custom_label,
+        });
+        buildLayout();
+        return true;
     }
 
     // ── Camera controls (pointer: 1 = rotate, 2 = pinch, tap = select) ──────────
@@ -4355,6 +4586,7 @@ export function createGarden(canvas, opts = {}) {
         group.traverse((o) => {
             if (o.geometry && o.geometry !== blockGeo && o.geometry !== slabGeo) o.geometry.dispose();
             if (o.material?.isSpriteMaterial) o.material.dispose(); // leave .map (texCache)
+            if (o.userData?.labelMaterial) o.material.dispose();
         });
         group.removeFromParent?.();
         group.clear?.();
@@ -4380,6 +4612,7 @@ export function createGarden(canvas, opts = {}) {
             o.geometry?.dispose?.();
         });
         texCache.forEach((tx) => tx.dispose());
+        labelTextureCache.forEach((tx) => tx.dispose());
         renderer.dispose();
     }
 
@@ -4398,6 +4631,7 @@ export function createGarden(canvas, opts = {}) {
         addAnimal,
         setCarColor,
         setPlaneStyle,
+        setStreetLabel,
         zoomView,
         panView,
         recenterView,

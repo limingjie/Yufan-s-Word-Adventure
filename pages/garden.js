@@ -69,6 +69,7 @@ export async function render(container) {
             paint: i.paint || null,
             airline: i.airline || null,
             coating: i.coating || null,
+            custom_label: i.custom_label || null,
         }));
     let unplaced = items
         .filter((i) => isPlaceable(i.item_code) && i.col == null)
@@ -185,18 +186,21 @@ export async function render(container) {
             onPlantMoved: (wordId, col, row) => {
                 setPlantPosition(wordId, col, row).catch(() => {});
             },
-            onItemMoved: (id, col, row, rotation, paint, airline, coating) => {
+            onItemMoved: (id, col, row, rotation, metadata = {}) => {
                 const stored = items.find((i) => i.id === id);
-                if (stored) stored.rotation = Number(rotation ?? stored.rotation ?? 0);
-                placeGardenItem(
-                    id,
-                    col,
-                    row,
-                    rotation,
-                    paint ?? stored?.paint ?? null,
-                    airline ?? stored?.airline ?? null,
-                    coating ?? stored?.coating ?? null,
-                ).catch(() => {});
+                if (stored) {
+                    stored.rotation = Number(rotation ?? stored.rotation ?? 0);
+                    if (metadata.custom_label != null) stored.custom_label = metadata.custom_label;
+                    if (metadata.paint != null) stored.paint = metadata.paint;
+                    if (metadata.airline != null) stored.airline = metadata.airline;
+                    if (metadata.coating != null) stored.coating = metadata.coating;
+                }
+                placeGardenItem(id, col, row, rotation, {
+                    paint: metadata.paint ?? stored?.paint ?? null,
+                    airline: metadata.airline ?? stored?.airline ?? null,
+                    coating: metadata.coating ?? stored?.coating ?? null,
+                    custom_label: metadata.custom_label ?? stored?.custom_label ?? null,
+                }).catch(() => {});
                 if (unplaced.some((u) => u.id === id)) {
                     unplaced = unplaced.filter((u) => u.id !== id);
                     renderTray();
@@ -487,7 +491,11 @@ export async function render(container) {
                 ? `<label>Airline <select id="planeAirline"><option>Air Canada</option><option>Westjet</option><option>Flair</option><option>China Eastern</option><option>Air China</option></select></label>
                    <label>Coating <select id="planeCoating"><option>Gloss</option><option>Matte</option><option>Metallic</option></select></label>`
                 : "";
-        panel.innerHTML = `${paint}${airplane}${canRotate ? '<button id="rotateItem" class="btn btn-secondary btn-sm">↻ Rotate</button>' : ""}<button id="delItem" class="btn btn-danger btn-sm">🗑 Remove</button>`;
+        const streetLabel =
+            item?.item_code === "streetlabel"
+                ? `<label>Street name <input id="streetLabel" type="text" maxlength="24" value="${esc(item.custom_label || "YOUR STREET")}"></label>`
+                : "";
+        panel.innerHTML = `${paint}${airplane}${streetLabel}${canRotate ? '<button id="rotateItem" class="btn btn-secondary btn-sm">↻ Rotate</button>' : ""}<button id="delItem" class="btn btn-danger btn-sm">🗑 Remove</button>`;
         panel.style.display = "flex";
         const airlineSelect = panel.querySelector("#planeAirline");
         const coatingSelect = panel.querySelector("#planeCoating");
@@ -502,6 +510,9 @@ export async function render(container) {
         };
         airlineSelect?.addEventListener("change", savePlaneStyle);
         coatingSelect?.addEventListener("change", savePlaneStyle);
+        panel.querySelector("#streetLabel")?.addEventListener("change", (event) => {
+            controller?.setStreetLabel(id, event.currentTarget.value);
+        });
         panel.querySelectorAll(".car-paint").forEach((button) =>
             button.addEventListener("click", () => {
                 controller?.setCarColor(id, button.dataset.paint);

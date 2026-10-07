@@ -38,7 +38,7 @@ networks treat as drivable (cars/buses: road+crossing; trains: rail+crossing; je
 
 ## Placeable playset — Arrange mode
 
-The **Road / Rail / Monorail Track / Monorail Bridge / Level-Crossing / 4-Way Roundabout / Fence / Runway Block / Ocean Block / Beach Block / Parking Lot / Road Bridge / Rail Bridge / Crosswalk / Transit Station / Monorail Station / Control Tower / Airport Terminal / Gas Station / Restaurant / Supermarket / School with Playground / Ferry Terminal / Slide / Swing Set / Seesaw / Sandbox / Climbing Frame / Merry-Go-Round / Pendulum Ride / Roller Coaster / Car / Bike / Bus / Double-Decker Bus / Train / Monorail Train / Train Car / Private Jet / Boat / Ferry / Pedestrian** shop items are dragged
+The **Road / Highway / Rail / Monorail Track / Monorail Bridge / Level-Crossing / 4-Way Roundabout / Fence / Runway Block / Ocean Block / Beach Block / Parking Lot / Road Bridge / Rail Bridge / Crosswalk / Transit Station / Monorail Station / Control Tower / Airport Terminal / Gas Station / Restaurant / Supermarket / School with Playground / Ferry Terminal / Basketball Court / City Hall / Church / Museum / Store / Library / Parkade / Street Label / Castle / Slide / Swing Set / Seesaw / Sandbox / Climbing Frame / Merry-Go-Round / Pendulum Ride / Roller Coaster / Car / Bike / Bus / Double-Decker Bus / Train / Monorail Train / Train Car / Private Jet / Boat / Ferry / Pedestrian** shop items are dragged
 onto chosen blocks:
 - Playground pieces occupy one grass block and use bright, rounded voxel models. The pendulum ride and roller coaster are intentionally compact background landmarks, keeping the garden's walking paths open rather than dominating the smaller equipment.
 - **🛒 Shop → buy** a placeable → it lands in the **tray** (now a **top sheet**,
@@ -50,7 +50,8 @@ onto chosen blocks:
   placed item, a **plant**, or a **structure** to move it; tap a placed item to
   **↻ Rotate** / **🗑 Remove** (remove refunds coins, since the balance is derived).
   Empty-block drags still orbit the camera. Invalid drops show a hint (`onInvalidDrop`).
-- **Large buildings** reserve their full centered footprint: Gas Station and Restaurant are 2×3; Supermarket, School with Playground, and Ferry Terminal are 5×5. The school includes a playground model. The ferry terminal requires three contiguous ocean blocks along one edge and turns its three visible berths toward them. Every footprint cell is reserved, selectable, and included in field bounds.
+- **Large buildings** reserve their full centered footprint: Gas Station and Restaurant are 2×3; Basketball Court is 3×6; City Hall and Church are 2×2; Store is 1×2; Museum is 6×5; Supermarket, School with Playground, Ferry Terminal, Library, Parkade, and Castle are 5×5. The school includes a playground model. The ferry terminal requires three contiguous ocean blocks along one edge and turns its three visible berths toward them. Every footprint cell is reserved, selectable, and included in field bounds. Street Labels occupy one cell, use a green sign, and can be customized from the selected-item panel; the text is stored on that garden item.
+- **Highway** tiles look distinct from local roads but join the same road network, so cars and buses use either kind of tile.
 - **Grabbing is block-cell based** (`occupantAt`), with a sprite raycast tried
   first for roaming vehicles. Raycasting the small, mostly-transparent emoji
   sprite directly was unreliable (a near-miss orbited the camera instead of
